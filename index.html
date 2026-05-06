@@ -309,7 +309,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
             <div class="leg-item"><div class="leg-dot" style="background:var(--yellow-mid)"></div>Atenção</div>
             <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Crítico</div>
           </div>
-          <button id="btnSolicitarCriticos" class="btn btn-danger" style="display:none;height:28px;padding:0 10px;font-size:10px;font-weight:700" onclick="solicitarTudoCritico()">⚡ Abrir Aprovação</button>
+          
         </div>
         <div id="itemList3" style="max-height:280px;overflow-y:auto"></div>
 
@@ -396,16 +396,16 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
         <!-- S2 MOV FISICA + PDF -->
         <div id="s2" style="display:none">
-          <div class="card-title">Movimentação física — Operador</div>
+          <div class="card-title">📦 Movimentação Física — Conferência por Item</div>
           <div class="aarea">
-            <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn2" style="color:var(--accent)"></span> — <span style="color:var(--green)">Aprovada ✓</span></div>
-            <div class="banner bnok" style="font-size:11px">Quantidades aprovadas pelo supervisor. Baixe o PDF e realize a movimentação.</div>
-            <div id="s2ItemList"></div>
-            <div class="rrow"><span style="font-size:16px">🏭</span><div style="flex:1"><div style="font-size:13px;font-weight:700">Operador de almoxarifado</div><div style="font-size:11px;color:var(--text3)">Almox 30 → Almox 3</div></div><span class="rst rst-wait">Aguardando</span></div>
+            <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:8px">Req. <span id="rn2" style="color:var(--accent)"></span> — <span style="color:var(--green)">Aprovada ✓</span></div>
+            <div class="banner bnok" style="font-size:11px;margin-bottom:12px">Marque cada item conforme for movimentando do Almox 30 para o Almox 3.</div>
+            <div id="s2CheckList"></div>
+            <div style="font-size:11px;color:var(--text3);margin:8px 0" id="s2Status"></div>
             <div class="fld"><label>Operador</label><input type="text" id="opName" placeholder="Nome do operador"></div>
             <div class="brow">
               <button class="btn btn-purple" onclick="gerarPDF()">⬇ Baixar PDF</button>
-              <button class="btn btn-success" onclick="confirmarMovFisica()">Movimentação realizada →</button>
+              <button class="btn btn-success" onclick="confirmarMovFisica()">✅ Confirmar movimentação →</button>
             </div>
           </div>
         </div>
@@ -1017,10 +1017,51 @@ function syncPalFromSacos(i){
 }
 
 // ─── MOV FÍSICA ──────────────────────────────────────────────────
+function renderMovChecklist(){
+  const c=document.getElementById('s2CheckList');
+  if(!c)return;
+  c.innerHTML='';
+  (st.itens||[]).forEach((it,i)=>{
+    const marcado=it.movConfirmada||false;
+    const d=document.createElement('div');
+    d.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;background:'+(marcado?'var(--green-dim)':'var(--bg)');
+    d.style.cssText+='border:1px solid '+(marcado?'var(--green)':'var(--border)')+';border-radius:var(--radius-sm);cursor:pointer;transition:all .2s';
+    const sacsPorPal=(CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod]&&CAPACIDADE_MAP[it.cod].capPal>0)?CAPACIDADE_MAP[it.cod].capPal:88;
+    d.innerHTML='<div style="width:22px;height:22px;border-radius:50%;background:'+(marcado?'var(--green)':'var(--border2)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">'+(marcado?'✓':'')+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text)">'+it.cod+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+it.name+'</div>'
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0">'
+      +'<div style="font-size:13px;font-weight:700;color:'+(marcado?'var(--green)':'var(--accent)')+'">'+it.paletes+' pal</div>'
+      +'<div style="font-size:10px;color:var(--text3)">'+it.sacos+' sc</div>'
+      +'</div>';
+    d.onclick=()=>{
+      it.movConfirmada=!it.movConfirmada;
+      syncPendente();
+      renderMovChecklist();
+      atualizarStatusMov();
+    };
+    c.appendChild(d);
+  });
+  atualizarStatusMov();
+}
+function atualizarStatusMov(){
+  const el=document.getElementById('s2Status');
+  if(!el)return;
+  const total=(st.itens||[]).length;
+  const marcados=(st.itens||[]).filter(it=>it.movConfirmada).length;
+  el.textContent=marcados+' de '+total+' item(s) movimentado(s)';
+  el.style.color=marcados===total?'var(--green)':'var(--text3)';
+}
 function confirmarMovFisica(){
   if(USUARIO_LOGADO&&!PERFIS[USUARIO_LOGADO.perfil].podeMovFisica){toast('Acesso restrito ao Supervisor');return;}
-  const n=document.getElementById('opName').value.trim();
+  const n=(document.getElementById('opName')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
   if(!n){toast('Informe o operador');return;}
+  const naoMarcados=(st.itens||[]).filter(it=>!it.movConfirmada);
+  if(naoMarcados.length>0){
+    if(!confirm('Ainda há '+naoMarcados.length+' item(s) não confirmados. Deseja confirmar assim mesmo?'))return;
+  }
   st.operador=n;st.step=3;
   syncPendente();
   atualizarHistorico('Em andamento');
@@ -1195,7 +1236,9 @@ function restaurarStep(s){
   else if(s===2){
     if(pf&&pf.podeMovFisica){
       const el=document.getElementById('rn2');if(el)el.textContent=st.req;
-      renderItensIn('s2ItemList',st.itens);
+      const opEl=document.getElementById('opName');
+      if(opEl&&!opEl.value&&USUARIO_LOGADO)opEl.value=USUARIO_LOGADO.nome;
+      renderMovChecklist();
     } else {mostrarLinhaDoTempo(st);return;}
   }
   else if(s===3){
