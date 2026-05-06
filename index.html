@@ -1356,57 +1356,33 @@ const BASE_URL = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEETS_ID;
 // Salvar ou atualizar requisição no Sheets
 async function salvarRequisicaoSheets(reqObj){
   try{
-    const rows = await fetchRange('REQUISICOES!A2:A');
-    const idx = rows.findIndex(r=>r[0]===reqObj.req);
-    const json = JSON.stringify(reqObj);
-    const row = idx>=0 ? idx+2 : null;
-    if(row){
-      await fetch(BASE_URL+'/values/REQUISICOES!A'+row+':B'+row+'?valueInputOption=RAW&key='+SHEETS_API_KEY,{
-        method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({values:[[reqObj.req,json]]})
-      });
-    } else {
-      await fetch(BASE_URL+'/values/REQUISICOES!A:B:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key='+SHEETS_API_KEY,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({values:[[reqObj.req,json]]})
-      });
-    }
+    await fetch(APPS_SCRIPT_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({acao:'salvarReq',id:reqObj.req,dados:JSON.stringify(reqObj)})
+    });
   }catch(e){console.error('Erro salvar req:',e);}
 }
 
 // Marcar requisição como concluída no Sheets
 async function removerRequisicaoSheets(reqId){
   try{
-    const rows = await fetchRange('REQUISICOES!A2:A');
-    const idx = rows.findIndex(r=>r[0]===reqId);
-    if(idx>=0){
-      const row=idx+2;
-      await fetch(BASE_URL+'/values/REQUISICOES!A'+row+':B'+row+'?valueInputOption=RAW&key='+SHEETS_API_KEY,{
-        method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({values:[['CONCLUIDO','']]})
-      });
-    }
+    await fetch(APPS_SCRIPT_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({acao:'removerReq',id:reqId})
+    });
   }catch(e){console.error('Erro remover req:',e);}
 }
 
 // Salvar entrada no histórico do Sheets
 async function salvarHistoricoSheets(entrada){
   try{
-    const rows = await fetchRange('HISTORICO!A2:A');
-    const idx = rows.findIndex(r=>r[0]===entrada.req);
-    const json = JSON.stringify(entrada);
-    if(idx>=0){
-      const row=idx+2;
-      await fetch(BASE_URL+'/values/HISTORICO!A'+row+':B'+row+'?valueInputOption=RAW&key='+SHEETS_API_KEY,{
-        method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({values:[[entrada.req,json]]})
-      });
-    } else {
-      await fetch(BASE_URL+'/values/HISTORICO!A:B:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key='+SHEETS_API_KEY,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({values:[[entrada.req,json]]})
-      });
-    }
+    await fetch(APPS_SCRIPT_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({acao:'salvarHist',id:entrada.req,dados:JSON.stringify(entrada)})
+    });
   }catch(e){console.error('Erro salvar hist:',e);}
 }
 
