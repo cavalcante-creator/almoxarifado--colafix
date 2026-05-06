@@ -611,14 +611,16 @@ function renderItems(){
 }
 function toggleItem(idx){if(selectedItems.has(idx))selectedItems.delete(idx);else selectedItems.add(idx);renderItems();}
 function calcItem(item){
-  // Sugestão: encher até a CAPACIDADE TOTAL (capSac), não só até o mínimo
-  const capacidade=item.min30||item.capSac||0; // capSac vem como min30 da aba CAPACIDADE
-  const need=Math.max(0,capacidade-item.saldo3); // quanto falta para encher
-  const palNec=Math.ceil(need/88);
-  const palDisp=Math.floor(item.saldo30/88);
+  // Usa capPal real do item, senão 88
+  const sacsPorPal=(CAPACIDADE_MAP&&CAPACIDADE_MAP[item.cod]&&CAPACIDADE_MAP[item.cod].capPal>0)
+    ?CAPACIDADE_MAP[item.cod].capPal:88;
+  const capacidade=item.min30||item.capSac||0;
+  const need=Math.max(0,capacidade-item.saldo3);
+  const palNec=Math.ceil(need/sacsPorPal);
+  const palDisp=Math.floor(item.saldo30/sacsPorPal);
   const palEf=Math.min(palNec,palDisp);
-  const sacosEf=palEf*88;
-  return{palEf,sacosEf};
+  const sacosEf=palEf*sacsPorPal;
+  return{palEf,sacosEf,sacsPorPal};
 }
 
 // ─── PENDENTES ───────────────────────────────────────────────────
@@ -782,11 +784,8 @@ function carregarPendente(i){
 // ─── REQUISIÇÃO ──────────────────────────────────────────────────
 function iniciarRequisicao(){
   if(selectedItems.size===0){toast('Selecione ao menos 1 item');return;}
-  // Se havia req aberta no step 1 (não aprovada), remover antes de criar nova
-  if(st.req&&st.step===1&&currentPendIdx!==null){
-    PENDENTES.splice(currentPendIdx,1);
-    removerRequisicaoSheets(st.req);
-  }
+  // Resetar estado atual sem remover pendentes existentes
+  st={};currentPendIdx=null;
   st={};st.solicitante='Sistema';st.dataHora=now();
   st.req='REQ-'+Date.now().toString().slice(-5);st.itens=[];
   selectedItems.forEach(idx=>{
@@ -894,20 +893,7 @@ function apagarRequisicao(){
   toast('Requisição apagada.');
 }
 function solicitarTudoCritico(){
-  // Se já há requisição pendente no step 1, apenas abrir ela
-  const pendStep1=PENDENTES.find(p=>p.step===1);
-  if(pendStep1){
-    const idx=PENDENTES.indexOf(pendStep1);
-    currentPendIdx=idx;
-    st=JSON.parse(JSON.stringify(pendStep1));
-    popularSelectCodigos();renderApEditList();renderPendentes();
-    const colLeft=document.querySelector('.col-left');
-    if(colLeft)colLeft.style.display='none';
-    setStep(1);
-    toast('Requisição pendente carregada.');
-    return;
-  }
-  // Senão criar nova com os críticos
+  // Criar sempre nova requisição com os críticos
   selectedItems=new Set();
   ITEMS.forEach((item,idx)=>{
     const r=calcItem(item);
@@ -1006,17 +992,28 @@ function toggleApItem(i){
   if(row)row.style.display=ativo?'grid':'none';
   if(card){card.style.opacity=ativo?'1':'0.5';card.style.background=ativo?'#fff':'var(--bg3)';}
 }
+function getSacsPorPal(i){
+  // Pega capPal real do item se disponível, senão usa 88
+  const it=st.itens&&st.itens[i];
+  if(it&&it.cod){
+    const cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
+    if(cap&&cap.capPal>0) return cap.capPal;
+  }
+  return 88;
+}
 function syncSacosFromPal(i){
-  // Paletes → calcula sacos sugeridos (88 por palete) mas deixa livre
+  // Paletes → sacos usando capacidade real do palete
   const p=parseInt(document.getElementById('apQtyP_'+i).value)||0;
   const sInput=document.getElementById('apQtyS_'+i);
-  if(sInput.value===''||parseInt(sInput.value)===0) sInput.value=p*88;
+  const sacsPorPal=getSacsPorPal(i);
+  sInput.value=p*sacsPorPal;
 }
 function syncPalFromSacos(i){
-  // Sacos → atualiza hint de paletes, mas não força
+  // Sacos → paletes usando capacidade real do palete
   const s=parseInt(document.getElementById('apQtyS_'+i).value)||0;
   const pInput=document.getElementById('apQtyP_'+i);
-  if(pInput.value===''||parseInt(pInput.value)===0) pInput.value=Math.ceil(s/88);
+  const sacsPorPal=getSacsPorPal(i);
+  pInput.value=Math.ceil(s/sacsPorPal);
 }
 
 // ─── MOV FÍSICA ──────────────────────────────────────────────────
