@@ -711,6 +711,170 @@ async function limparTodasRequisicoes(){
   renderItems();setStep(0);
   toast('✅ Todas as requisições foram limpas.');
 }
+function mostrarPg(id){
+  document.querySelectorAll('.pg').forEach(p=>p.style.display='none');
+  const el=document.getElementById(id);
+  if(el)el.style.display='block';
+  document.querySelectorAll('.tab').forEach(t=>{
+    const fn=t.getAttribute('onclick')||'';
+    t.classList.toggle('active', fn.includes("'"+id+"'"));
+  });
+  if(id==='pg-dash') renderDashboard();
+}
+
+function renderDashboard(){
+  const el=document.getElementById('dashContent');
+  if(!el)return;
+
+  const hist=HISTORY||[];
+  const pend=PENDENTES||[];
+  const hoje=new Date();
+  const inicioSemana=new Date(hoje); inicioSemana.setDate(hoje.getDate()-7);
+  const inicioMes=new Date(hoje.getFullYear(),hoje.getMonth(),1);
+
+  // ── Métricas gerais ─────────────────────────────────────
+  const total=hist.length;
+  const concluidas=hist.filter(h=>h.status==='Concluído').length;
+  const andamento=pend.length;
+  const totalSacos=hist.reduce((a,h)=>a+(h.sacos||0),0);
+  const totalPaletes=hist.reduce((a,h)=>a+(h.paletes||0),0);
+
+  // ── Requisições por período ──────────────────────────────
+  function parseData(d){
+    if(!d)return null;
+    const p=d.split(/[\s\/]/);
+    if(p.length>=3){const [dia,mes,ano]=p[0].split('/');return new Date(ano,mes-1,dia);}
+    return null;
+  }
+  const doDia=hist.filter(h=>{const d=parseData(h.data);return d&&d.toDateString()===hoje.toDateString();}).length;
+  const daSemana=hist.filter(h=>{const d=parseData(h.data);return d&&d>=inicioSemana;}).length;
+  const doMes=hist.filter(h=>{const d=parseData(h.data);return d&&d>=inicioMes;}).length;
+
+  // ── Tempo médio por etapa (em horas) ─────────────────────
+  // Baseado no timeline
+  const tempos={aprovacao:[],movFisica:[],valFisica:[],sistema:[]};
+  hist.forEach(h=>{
+    const tl=h.timeline||[];
+    if(tl.length>=2&&tl[0].done&&tl[1].done) tempos.aprovacao.push(1);
+    if(tl.length>=3&&tl[2].done) tempos.movFisica.push(1);
+    if(tl.length>=4&&tl[3].done) tempos.valFisica.push(1);
+  });
+
+  // ── Top itens mais transferidos ──────────────────────────
+  const itensCont={};
+  hist.forEach(h=>(h.itens||[]).forEach(it=>{
+    if(!itensCont[it.cod])itensCont[it.cod]={cod:it.cod,name:it.name,sacos:0,paletes:0,vezes:0};
+    itensCont[it.cod].sacos+=it.sacosValidados||it.sacos||0;
+    itensCont[it.cod].paletes+=it.paletes||0;
+    itensCont[it.cod].vezes++;
+  }));
+  const topItens=Object.values(itensCont).sort((a,b)=>b.sacos-a.sacos).slice(0,8);
+  const maxSacos=topItens.length>0?topItens[0].sacos:1;
+
+  // ── Requisições por status ────────────────────────────────
+  const statusCont={};
+  [...hist,...pend].forEach(h=>{
+    const s=h.status||'Em andamento';
+    statusCont[s]=(statusCont[s]||0)+1;
+  });
+
+  // ── Atividade dos últimos 7 dias ─────────────────────────
+  const dias7=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(hoje);d.setDate(hoje.getDate()-i);
+    const label=d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit'});
+    const count=hist.filter(h=>{const hd=parseData(h.data);return hd&&hd.toDateString()===d.toDateString();}).length;
+    dias7.push({label,count});
+  }
+  const maxDia=Math.max(...dias7.map(d=>d.count),1);
+
+  // ── HTML ──────────────────────────────────────────────────
+  el.innerHTML=`
+  <div style="margin-bottom:20px">
+    <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px">📊 Dashboard</div>
+    <div style="font-size:11px;color:var(--text3)">Visão geral do Almoxarifado Colafix</div>
+  </div>
+
+  <!-- KPIs -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px">
+    ${kpiCard('📋','Total Requisições',total,'var(--accent)')}
+    ${kpiCard('✅','Concluídas',concluidas,'var(--green)')}
+    ${kpiCard('⏳','Em Andamento',andamento,'var(--yellow-mid)')}
+    ${kpiCard('📦','Total Sacos',totalSacos.toLocaleString('pt-BR'),'var(--accent)')}
+    ${kpiCard('🏭','Total Paletes',totalPaletes.toLocaleString('pt-BR'),'#9C27B0')}
+    ${kpiCard('📅','No Mês',doMes,'var(--blue,#1565C0)')}
+  </div>
+
+  <!-- Período -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px">
+    ${periodoCard('Hoje',doDia)}
+    ${periodoCard('Últimos 7 dias',daSemana)}
+    ${periodoCard('Este mês',doMes)}
+  </div>
+
+  <!-- Atividade 7 dias -->
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:14px">📈 Requisições — Últimos 7 dias</div>
+    <div style="display:flex;align-items:flex-end;gap:8px;height:100px">
+      ${dias7.map(d=>`
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="font-size:10px;font-weight:700;color:var(--accent)">${d.count||''}</div>
+          <div style="width:100%;background:var(--accent);border-radius:3px 3px 0 0;height:${Math.round((d.count/maxDia)*80)+4}px;min-height:4px;opacity:${d.count?1:.15}"></div>
+          <div style="font-size:9px;color:var(--text3);text-align:center;white-space:nowrap">${d.label}</div>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Top Itens -->
+  ${topItens.length>0?`
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:14px">📦 Top Itens Transferidos</div>
+    ${topItens.map(it=>`
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-size:11px;font-weight:600;color:var(--text)">${it.cod} — ${it.name.substring(0,35)}${it.name.length>35?'...':''}</span>
+          <span style="font-size:11px;font-weight:700;color:var(--accent)">${it.sacos.toLocaleString('pt-BR')} sc</span>
+        </div>
+        <div style="background:var(--border);border-radius:20px;height:6px;overflow:hidden">
+          <div style="background:var(--accent);height:100%;border-radius:20px;width:${Math.round((it.sacos/maxSacos)*100)}%"></div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px">${it.vezes} requisição(ões) · ${it.paletes} pal</div>
+      </div>`).join('')}
+  </div>`:''}
+
+  <!-- Responsáveis -->
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px">👥 Participação por Etapa</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${etapaCard('✅ Aprovações','Supervisor',hist.filter(h=>h.aprovador&&h.aprovador!=='—').length)}
+      ${etapaCard('🏭 Mov. Física','Supervisor',hist.filter(h=>h.operador&&h.operador!=='—').length)}
+      ${etapaCard('🔍 Conferências','Conferente',hist.filter(h=>h.conferente&&h.conferente!=='—').length)}
+      ${etapaCard('💻 Transferências','Sup. Sistema',hist.filter(h=>h.sysUser&&h.sysUser!=='—').length)}
+    </div>
+  </div>`;
+}
+
+function kpiCard(ico,label,val,cor){
+  return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center">'
+    +'<div style="font-size:20px;margin-bottom:4px">'+ico+'</div>'
+    +'<div style="font-size:22px;font-weight:800;color:'+cor+'">'+val+'</div>'
+    +'<div style="font-size:10px;color:var(--text3);margin-top:3px">'+label+'</div>'
+    +'</div>';
+}
+function periodoCard(label,val){
+  return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center">'
+    +'<div style="font-size:18px;font-weight:800;color:var(--accent)">'+val+'</div>'
+    +'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+label+'</div>'
+    +'</div>';
+}
+function etapaCard(label,resp,val){
+  return '<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--text2)">'+label+'</div>'
+    +'<div style="font-size:10px;color:var(--text3);margin:2px 0">'+resp+'</div>'
+    +'<div style="font-size:16px;font-weight:800;color:var(--accent)">'+val+'</div>'
+    +'</div>';
+}
+
 function voltarAoPainel(){
   st={};currentPendIdx=null;selectedItems=new Set();
   const cl=document.querySelector('.col-left');
@@ -1534,10 +1698,10 @@ setInterval(function(){carregarSheetsData();},60000);
 // ═══ LOGIN & CONTROLE DE ACESSO ══════════════════════════════════
 // Chave = perfil em minúsculo sem acento (normalizado da planilha)
 const PERFIS = {
-  'supervisor':         {label:'Supervisor',         abas:['pg-estoque','pg-hist'], podeRequisitar:true,  podeAprovar:true,  podeMovFisica:true,  podeConferir:false, podeTransferir:false, podeAudit:false},
+  'supervisor':         {label:'Supervisor',         abas:['pg-estoque','pg-hist','pg-dash'], podeRequisitar:true,  podeAprovar:true,  podeMovFisica:true,  podeConferir:false, podeTransferir:false, podeAudit:false},
   'conferente':         {label:'Conferente',         abas:['pg-estoque','pg-hist'],           podeRequisitar:false, podeAprovar:false, podeMovFisica:false, podeConferir:true,  podeTransferir:false, podeAudit:false},
   'supervisor sistema': {label:'Supervisor Sistema', abas:['pg-estoque','pg-hist'], podeRequisitar:false, podeAprovar:false, podeMovFisica:false, podeConferir:false, podeTransferir:true,  podeAudit:false},
-  'auditor':            {label:'Auditor',            abas:['pg-estoque','pg-hist'], podeRequisitar:false, podeAprovar:false, podeMovFisica:false, podeConferir:false, podeTransferir:false, podeAudit:true},
+  'auditor':            {label:'Auditor',            abas:['pg-estoque','pg-hist','pg-dash'], podeRequisitar:false, podeAprovar:false, podeMovFisica:false, podeConferir:false, podeTransferir:false, podeAudit:true},
 };
 
 async function fazerLogin(){
