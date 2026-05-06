@@ -700,6 +700,17 @@ function fecharConfirmacao(){
     }
   },300);
 }
+async function limparTodasRequisicoes(){
+  if(!confirm('Limpar TODAS as requisições pendentes? Esta ação não pode ser desfeita.'))return;
+  // Marcar todas como CONCLUIDO no Sheets
+  for(const p of PENDENTES){
+    await removerRequisicaoSheets(p.req);
+  }
+  PENDENTES=[];renderPendentes();
+  st={};currentPendIdx=null;selectedItems=new Set();
+  renderItems();setStep(0);
+  toast('✅ Todas as requisições foram limpas.');
+}
 function voltarAoPainel(){
   st={};currentPendIdx=null;selectedItems=new Set();
   const cl=document.querySelector('.col-left');
