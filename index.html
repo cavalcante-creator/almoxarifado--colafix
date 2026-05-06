@@ -1359,7 +1359,8 @@ async function salvarRequisicaoSheets(reqObj){
   try{
     await fetch(APPS_SCRIPT_URL,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({acao:'salvarReq',id:reqObj.req,dados:JSON.stringify(reqObj)})
     });
   }catch(e){console.error('Erro salvar req:',e);}
@@ -1370,7 +1371,8 @@ async function removerRequisicaoSheets(reqId){
   try{
     await fetch(APPS_SCRIPT_URL,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({acao:'removerReq',id:reqId})
     });
   }catch(e){console.error('Erro remover req:',e);}
@@ -1381,7 +1383,8 @@ async function salvarHistoricoSheets(entrada){
   try{
     await fetch(APPS_SCRIPT_URL,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({acao:'salvarHist',id:entrada.req,dados:JSON.stringify(entrada)})
     });
   }catch(e){console.error('Erro salvar hist:',e);}
