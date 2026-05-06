@@ -786,7 +786,7 @@ function iniciarRequisicao(){
   if(selectedItems.size===0){toast('Selecione ao menos 1 item');return;}
   // Resetar estado atual sem remover pendentes existentes
   st={};currentPendIdx=null;
-  st={};st.solicitante='Sistema';st.dataHora=now();
+  st={};st.solicitante=(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'Supervisor';st.dataHora=now();
   st.req='REQ-'+Date.now().toString().slice(-5);st.itens=[];
   selectedItems.forEach(idx=>{
     const item=ITEMS[idx],r=calcItem(item);
