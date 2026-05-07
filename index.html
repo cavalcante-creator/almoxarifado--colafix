@@ -611,9 +611,9 @@ function renderItems(){
 }
 function toggleItem(idx){if(selectedItems.has(idx))selectedItems.delete(idx);else selectedItems.add(idx);renderItems();}
 function calcItem(item){
-  // Usa capPal real do item, senão 88
-  const sacsPorPal=(CAPACIDADE_MAP&&CAPACIDADE_MAP[item.cod]&&CAPACIDADE_MAP[item.cod].capPal>0)
-    ?CAPACIDADE_MAP[item.cod].capPal:88;
+  // sacsPorPal = capSac ÷ capPal (sacos reais por palete), senão 88
+  const cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[item.cod];
+  const sacsPorPal=(cap&&cap.capPal>0&&cap.capSac>0)?Math.round(cap.capSac/cap.capPal):88;
   const capacidade=item.min30||item.capSac||0;
   const need=Math.max(0,capacidade-item.saldo3);
   const palNec=Math.ceil(need/sacsPorPal);
@@ -1168,11 +1168,11 @@ function toggleApItem(i){
   if(card){card.style.opacity=ativo?'1':'0.5';card.style.background=ativo?'#fff':'var(--bg3)';}
 }
 function getSacsPorPal(i){
-  // Pega capPal real do item se disponível, senão usa 88
+  // sacsPorPal = capSac ÷ capPal (sacos reais por palete), senão 88
   const it=st.itens&&st.itens[i];
   if(it&&it.cod){
     const cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
-    if(cap&&cap.capPal>0) return cap.capPal;
+    if(cap&&cap.capPal>0&&cap.capSac>0) return Math.round(cap.capSac/cap.capPal);
   }
   return 88;
 }
@@ -1201,7 +1201,8 @@ function renderMovChecklist(){
     const d=document.createElement('div');
     d.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;background:'+(marcado?'var(--green-dim)':'var(--bg)');
     d.style.cssText+='border:1px solid '+(marcado?'var(--green)':'var(--border)')+';border-radius:var(--radius-sm);cursor:pointer;transition:all .2s';
-    const sacsPorPal=(CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod]&&CAPACIDADE_MAP[it.cod].capPal>0)?CAPACIDADE_MAP[it.cod].capPal:88;
+    const _cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
+    const sacsPorPal=(_cap&&_cap.capPal>0&&_cap.capSac>0)?Math.round(_cap.capSac/_cap.capPal):88;
     d.innerHTML='<div style="width:22px;height:22px;border-radius:50%;background:'+(marcado?'var(--green)':'var(--border2)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">'+(marcado?'✓':'')+'</div>'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:11px;font-weight:700;color:var(--text)">'+it.cod+'</div>'
@@ -1674,8 +1675,9 @@ async function carregarSheetsData(){
     ITEMS=rowsSaldo.filter(function(r){return r[0]&&r[1];}).map(function(r){
       var cod=String(r[0]).trim(),cap=CAPACIDADE_MAP[cod]||{};
       var s3=parseInt(r[2])||0,s30=parseInt(r[3])||0,eMin=cap.estoqueMin||0;
-      var palSug=(eMin-s3)>0?Math.ceil((eMin-s3)/88):0;
-      return{cod:cod,name:String(r[1]).trim(),saldo3:s3,saldo30:s30,min3:eMin,min30:cap.capSac||0,capPal:cap.capPal||0,estoqueMin:eMin,palSugeridos:palSug,sacSugeridos:palSug*88,pal:88};
+      var sacsPorPalReal=(cap.capPal>0&&cap.capSac>0)?Math.round(cap.capSac/cap.capPal):88;
+      var palSug=(eMin-s3)>0?Math.ceil((eMin-s3)/sacsPorPalReal):0;
+      return{cod:cod,name:String(r[1]).trim(),saldo3:s3,saldo30:s30,min3:eMin,min30:cap.capSac||0,capPal:cap.capPal||0,estoqueMin:eMin,palSugeridos:palSug,sacSugeridos:palSug*sacsPorPalReal,pal:sacsPorPalReal};
     });
     setLoadingEstoque(false);
     var el=document.getElementById('sheetsTimestamp');
