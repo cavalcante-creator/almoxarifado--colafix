@@ -1184,9 +1184,17 @@ function acrescentarItem(){
   const sac=parseInt((document.getElementById('addSac')||{}).value)||0;
   if(!cod){toast('Selecione um código');return;}
   if(pal<=0&&sac<=0){toast('Informe paletes ou sacos');return;}
+  // Calcular sacos totais e paletes corretos
+  const _capA=CAPACIDADE_MAP&&CAPACIDADE_MAP[cod];
+  const sacsPorPalA=(_capA&&_capA.capPal>0&&_capA.capSac>0)?Math.round(_capA.capSac/_capA.capPal):88;
+  const sacTotal=sac>0?sac:pal*sacsPorPalA;
+  const palTotal=calcPaletes(sacTotal,sacsPorPalA);
   const exist=(st.itens||[]).find(i=>i.cod===cod);
-  if(exist){exist.paletes+=pal;exist.sacos+=sac;exist.sacosValidados=exist.sacos;}
-  else{(st.itens=st.itens||[]).push({cod,name,paletes:pal,sacos:sac,sacosValidados:sac});}
+  if(exist){
+    exist.sacos+=sacTotal;
+    exist.paletes=calcPaletes(exist.sacos,sacsPorPalA);
+    exist.sacosValidados=exist.sacos;
+  } else{(st.itens=st.itens||[]).push({cod,name,paletes:palTotal,sacos:sacTotal,sacosValidados:sacTotal});}
   syncPendente();renderApEditList();
   if(sel)sel.value='';if(nameEl)nameEl.value='';
   const palEl=document.getElementById('addPal');if(palEl)palEl.value='';
@@ -1202,14 +1210,16 @@ function rejeitar(){
 
 // ─── RENDER EDIÇÃO SUPERVISOR ────────────────────────────────────
 function renderApEditList(){
-  // Preencher nome do supervisor automaticamente
   const apNameEl=document.getElementById('apName');
   if(apNameEl&&!apNameEl.value&&USUARIO_LOGADO)apNameEl.value=USUARIO_LOGADO.nome;
   const c=document.getElementById('apItemList');c.innerHTML='';
   (st.itens||[]).forEach((it,i)=>{
     const d=document.createElement('div');
-    d.style.cssText='background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:6px';
-    const ativo = it.ativo!==false; // padrão: ativo
+    const ativo=it.ativo!==false;
+    // Recalcular paletes corretos a partir dos sacos (< sacsPorPal = 0 pal)
+    const sacsPorPal=getSacsPorPal(i);
+    const palCorretos=calcPaletes(it.sacos,sacsPorPal);
+    it.paletes=palCorretos;
     d.style.cssText='background:'+(ativo?'#fff':'var(--bg3)')+';border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:6px;opacity:'+(ativo?'1':'0.5');
     d.innerHTML=`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -1217,18 +1227,20 @@ function renderApEditList(){
           style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);flex-shrink:0">
         <div style="font-size:10px;color:var(--text3);font-weight:700;flex-shrink:0">${it.cod}</div>
         <div style="font-size:11px;font-weight:600;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</div>
+        <div style="font-size:9px;color:var(--text3);flex-shrink:0">${sacsPorPal} sc/pal</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="apQtyRow_${i}" ${ativo?'':'style="display:none!important"'}>
         <div class="fld">
           <label>Paletes</label>
-          <input type="number" id="apQtyP_${i}" value="${it.paletes}" min="0"
+          <input type="number" id="apQtyP_${i}" value="${palCorretos}" min="0"
             style="height:32px;font-weight:700;font-size:13px;text-align:center"
             oninput="syncSacosFromPal(${i})">
         </div>
         <div class="fld">
           <label>Sacos</label>
           <input type="number" id="apQtyS_${i}" value="${it.sacos}" min="0"
-            style="height:32px;font-weight:700;font-size:13px;text-align:center">
+            style="height:32px;font-weight:700;font-size:13px;text-align:center"
+            oninput="syncPalFromSacos(${i})">
         </div>
       </div>`;
     c.appendChild(d);
