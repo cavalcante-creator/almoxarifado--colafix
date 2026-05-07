@@ -1151,8 +1151,7 @@ function renderApEditList(){
         <div class="fld">
           <label>Sacos</label>
           <input type="number" id="apQtyS_${i}" value="${it.sacos}" min="0"
-            style="height:32px;font-weight:700;font-size:13px;text-align:center"
-            oninput="syncPalFromSacos(${i})">
+            style="height:32px;font-weight:700;font-size:13px;text-align:center">
         </div>
       </div>`;
     c.appendChild(d);
@@ -1345,7 +1344,7 @@ function renderSysCL(){
     const validado=it.sacosValidados||it.sacos;
     const parcial=it.sacosRestantes>0;
     const d=document.createElement('div');d.className='sys-row';
-    const paletes=it.paletes||Math.floor((it.sacosValidados||it.sacos)/88);
+    const paletes=it.paletes!=null?it.paletes:Math.floor((it.sacosValidados||it.sacos)/88);
     d.innerHTML='<div class="sys-chk done" id="sc'+i+'">✓</div>'
       +'<div style="flex:1;min-width:0">'
       +'<span style="font-size:11px;font-weight:600">'+it.cod+'</span>'
