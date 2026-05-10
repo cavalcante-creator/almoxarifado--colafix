@@ -406,54 +406,44 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           </div>
         </div>
 
-        <!-- S2 MOV FISICA + PDF -->
+        <!-- S2 MOV FISICA por item individual -->
         <div id="s2" style="display:none">
-          <div class="card-title">📦 Movimentação Física — Conferência por Item</div>
+          <div class="card-title">📦 Movimentação Física — Por Item</div>
           <div class="aarea">
             <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:8px">Req. <span id="rn2" style="color:var(--accent)"></span> — <span style="color:var(--green)">Aprovada ✓</span></div>
-            <div class="banner bnok" style="font-size:11px;margin-bottom:12px">Marque cada item conforme for movimentando do Almox 30 para o Almox 3.</div>
+            <div class="banner bnok" style="font-size:11px;margin-bottom:12px">Marque e confirme cada item individualmente. Itens confirmados já seguem para validação.</div>
             <div id="s2CheckList"></div>
             <div style="font-size:11px;color:var(--text3);margin:8px 0" id="s2Status"></div>
             <div class="fld"><label>Operador</label><input type="text" id="opName" placeholder="Nome do operador"></div>
             <div class="brow">
               <button class="btn btn-purple" onclick="gerarPDF()">⬇ Baixar PDF</button>
-              <button class="btn btn-success" onclick="confirmarMovFisica()">✅ Confirmar movimentação →</button>
             </div>
           </div>
         </div>
 
-        <!-- S4 VALIDAÇÃO FISICA (parcial) -->
+        <!-- S3 VALIDAÇÃO FISICA por item -->
         <div id="s3" style="display:none">
-          <div class="card-title">Validação física — Conferente</div>
+          <div class="card-title">🔍 Validação Física — Por Item</div>
           <div class="aarea">
             <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn3" style="color:var(--accent)"></span></div>
-            <div class="banner bnwarn" style="font-size:11px">Confira cada item. Você pode validar parcialmente — informe a quantidade recebida por item.</div>
-            <div class="rrow"><span style="font-size:16px">🔍</span><div style="flex:1"><div style="font-size:13px;font-weight:700">Conferente</div><div style="font-size:11px;color:var(--text3)">Valide item a item. Quantidades divergentes ficam pendentes.</div></div><span class="rst rst-wait">Aguardando</span></div>
-            <div class="r2">
-              <div class="fld"><label>Conferente</label><input type="text" id="valName" placeholder="Nome"></div>
-              <div class="fld"><label>Obs</label><input type="text" id="valObs" placeholder="Divergências ou OK"></div>
-            </div>
+            <div class="banner bnwarn" style="font-size:11px;margin-bottom:10px">Valide cada item que já foi movimentado. Itens ainda não movimentados ficam aguardando.</div>
+            <div class="fld" style="margin-bottom:10px"><label>Conferente</label><input type="text" id="valName" placeholder="Nome"></div>
             <div id="valChecklist" style="margin-top:4px"></div>
             <div style="font-size:10px;color:var(--text3);margin-top:4px" id="valStatus"></div>
-            <div class="brow">
-              <button class="btn btn-success" onclick="validarFisico()">Confirmar validação →</button>
-            </div>
           </div>
         </div>
 
-        <!-- S5 SISTEMA -->
+        <!-- S4 SISTEMA por item -->
         <div id="s4" style="display:none">
-          <div class="card-title">Transferência no sistema — Estoque</div>
+          <div class="card-title">💻 Transferência no Sistema — Por Item</div>
           <div class="aarea">
-            <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn4" style="color:var(--accent)"></span> — Físico validado ✓</div>
-            <div id="sysItemList"></div>
-            <div class="rrow"><span style="font-size:16px">💻</span><div style="flex:1"><div style="font-size:13px;font-weight:700">Responsável sistema</div><div style="font-size:11px;color:var(--text3)">Registre e marque cada item</div></div><span class="rst rst-blue">Físico OK</span></div>
-            <div class="r2">
+            <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn4" style="color:var(--accent)"></span></div>
+            <div class="banner bninfo" style="font-size:11px;margin-bottom:10px">Lance no sistema os itens já validados pelo conferente.</div>
+            <div class="r2" style="margin-bottom:10px">
               <div class="fld"><label>Usuário sistema</label><input type="text" id="sysUser" placeholder="Login"></div>
               <div class="fld"><label>Nº doc. (RM/NF)</label><input type="text" id="sysDoc" placeholder="Ex: RM-2025-001"></div>
             </div>
             <div id="sysChecklist" style="margin-top:4px"></div>
-            <div class="brow"><button class="btn btn-success" onclick="concluirSistema()">Concluir transferência →</button></div>
           </div>
         </div>
 
@@ -525,6 +515,7 @@ let ITEMS=[];let CAPACIDADE_MAP={};
 let USUARIO_LOGADO=null; // {nome, perfil}
 
 let HISTORY=[];
+let REQS_REMOVIDAS=new Set(); // IDs removidos localmente para evitar re-aparecimento no poll
 
 // Múltiplas requisições pendentes
 let PENDENTES=[];
@@ -701,76 +692,116 @@ function mostrarLinhaDoTempo(req){
       +'</div>';
   }
   setStep(1);
+  renderPendentes(); // manter req visível nos pendentes
 }
 
 function mostrarConfirmacaoEtapa(cfg){
-  // Cria overlay de confirmação sobre tudo
   const old=document.getElementById('confirmacaoOverlay');
   if(old)old.remove();
   const div=document.createElement('div');
   div.id='confirmacaoOverlay';
-  div.style.cssText='position:fixed;inset:0;background:rgba(255,255,255,.96);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px';
-  // Calcular totais
+  div.style.cssText='position:fixed;inset:0;background:rgba(28,28,26,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)';
   const totalSacos=(cfg.itens||[]).reduce((a,it)=>a+(it.sacosValidados||it.sacos||0),0);
-  const totalPal=Math.floor(totalSacos/88);
-  const restoSc=totalSacos%88;
-  const itensHtml=(cfg.itens||[]).map(it=>{
+  const totalPal=(cfg.itens||[]).reduce((a,it)=>{
     const sc=it.sacosValidados||it.sacos||0;
     const _cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
     const sacsPorPal=(_cap&&_cap.capPal>0&&_cap.capSac>0)?Math.round(_cap.capSac/_cap.capPal):88;
-    const pal=calcPaletes(sc, sacsPorPal);
-    return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:7px 0;border-bottom:1px solid var(--border)">'
-      +'<div><div style="font-weight:700;color:var(--text)">'+it.cod+'</div><div style="font-size:10px;color:var(--text3)">'+it.name.substring(0,40)+'</div></div>'
-      +'<div style="text-align:right;flex-shrink:0;margin-left:12px">'
-        +'<div style="font-weight:800;font-size:13px;color:'+cfg.corItens+'">'+(pal>0?pal+' pal':'—')+'</div>'
-        +'<div style="font-size:12px;font-weight:700;color:var(--accent)">'+sc+' sc</div>'
+    return a+calcPaletes(sc,sacsPorPal);
+  },0);
+  const itensHtml=(cfg.itens||[]).map(it=>{
+    const sc=it.sacosValidados||it.sacos||0;
+    const scOrig=it.sacos||sc;
+    const _cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
+    const sacsPorPal=(_cap&&_cap.capPal>0&&_cap.capSac>0)?Math.round(_cap.capSac/_cap.capPal):88;
+    const pal=calcPaletes(sc,sacsPorPal);
+    const divergente=it.sacosValidados!==undefined&&it.sacosValidados<scOrig;
+    const corFundo=divergente?'var(--yellow-dim)':'var(--green-dim)';
+    const corBorda=divergente?'var(--yellow-mid)':'var(--green-mid)';
+    const corNum=divergente?'var(--yellow)':'var(--green)';
+    const tag=divergente
+      ?'<span style="font-size:9px;background:var(--yellow-dim);color:var(--yellow);border:1px solid var(--yellow-mid);border-radius:10px;padding:1px 6px;font-weight:700;margin-left:4px">⚠ PARCIAL</span>'
+      :'<span style="font-size:9px;background:var(--green-dim);color:var(--green);border:1px solid var(--green-mid);border-radius:10px;padding:1px 6px;font-weight:700;margin-left:4px">✓ OK</span>';
+    const extraCol=divergente
+      ?'<div style="background:#fff;border-radius:6px;padding:8px;text-align:center"><div style="font-size:8px;color:var(--yellow);text-transform:uppercase;font-weight:700;letter-spacing:.05em;margin-bottom:3px">Pendente</div><div style="font-size:18px;font-weight:800;color:var(--yellow);line-height:1">'+(scOrig-sc)+' sc</div></div>'
+      :'';
+    return '<div style="background:'+corFundo+';border:1.5px solid '+corBorda+';border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+        +'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">'
+          +'<span style="font-size:11px;font-weight:800;color:var(--text);background:#fff;border:1px solid var(--border2);border-radius:4px;padding:2px 7px">'+it.cod+'</span>'
+          +tag
+        +'</div>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:500">'+it.name.substring(0,52)+(it.name.length>52?'...':'')+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr'+(divergente?' 1fr':'')+';gap:8px">'
+        +'<div style="background:#fff;border-radius:6px;padding:8px;text-align:center">'
+          +'<div style="font-size:8px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.05em;margin-bottom:3px">Paletes</div>'
+          +'<div style="font-size:20px;font-weight:800;color:'+corNum+';line-height:1">'+(pal>0?pal:'—')+'</div>'
+        +'</div>'
+        +'<div style="background:#fff;border-radius:6px;padding:8px;text-align:center">'
+          +'<div style="font-size:8px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.05em;margin-bottom:3px">Sacos</div>'
+          +'<div style="font-size:20px;font-weight:800;color:'+corNum+';line-height:1">'+sc+'</div>'
+        +'</div>'
+        +extraCol
       +'</div>'
     +'</div>';
   }).join('');
-  div.innerHTML='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:28px 26px;max-width:500px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.12);text-align:center">'
-    +'<div style="font-size:48px;margin-bottom:10px">'+cfg.emoji+'</div>'
-    +'<div style="font-size:18px;font-weight:700;color:var(--green);margin-bottom:4px">'+cfg.titulo+'</div>'
-    +'<div style="font-size:14px;color:var(--accent);font-weight:700;margin-bottom:3px">'+cfg.req+'</div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:16px">'+cfg.sub+'</div>'
-    // Totais em destaque
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">'
-      +'<div style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:var(--radius-sm);padding:12px">'
-        +'<div style="font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;margin-bottom:4px">Total Paletes</div>'
-        +'<div style="font-size:28px;font-weight:800;color:var(--accent);line-height:1">'+totalPal+'</div>'
-        +(restoSc>0?'<div style="font-size:10px;color:var(--text3);margin-top:2px">+ '+restoSc+' sc avulsos</div>':'')
+  const temParcial=(cfg.itens||[]).some(it=>it.sacosValidados!==undefined&&it.sacosValidados<it.sacos);
+  div.innerHTML=
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:0;max-width:540px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.22);overflow:hidden;max-height:90vh;display:flex;flex-direction:column">'
+    +'<div style="background:var(--green);padding:20px 24px 16px;text-align:center;flex-shrink:0">'
+      +'<div style="font-size:36px;margin-bottom:6px">'+cfg.emoji+'</div>'
+      +'<div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:3px">'+cfg.titulo+'</div>'
+      +'<div style="font-size:13px;color:rgba(255,255,255,.85);font-weight:600">'+cfg.req+'</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:3px">'+cfg.sub+'</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border);flex-shrink:0">'
+      +'<div style="padding:14px 18px;text-align:center;border-right:1px solid var(--border)">'
+        +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.07em;margin-bottom:4px">Total Paletes</div>'
+        +'<div style="font-size:32px;font-weight:800;color:var(--accent);line-height:1">'+totalPal+'</div>'
       +'</div>'
-      +'<div style="background:var(--green-dim);border:1px solid var(--green-mid);border-radius:var(--radius-sm);padding:12px">'
-        +'<div style="font-size:9px;color:var(--green);text-transform:uppercase;font-weight:700;margin-bottom:4px">Total Sacos</div>'
-        +'<div style="font-size:28px;font-weight:800;color:var(--green);line-height:1">'+totalSacos+'</div>'
-        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">sc transferidos</div>'
+      +'<div style="padding:14px 18px;text-align:center">'
+        +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.07em;margin-bottom:4px">Total Sacos</div>'
+        +'<div style="font-size:32px;font-weight:800;color:var(--green);line-height:1">'+totalSacos+'</div>'
       +'</div>'
     +'</div>'
-    +'<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px;text-align:left;margin-bottom:14px;max-height:220px;overflow-y:auto">'
-      +'<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between">'
-        +'<span>Itens</span><span>Pal &nbsp;/&nbsp; Sacos</span>'
+    +'<div style="padding:16px 20px;overflow-y:auto;flex:1">'
+      +'<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">'
+        +'<span>Resumo por Material ('+(cfg.itens||[]).length+' item(s))</span>'
+        +(temParcial?'<span style="color:var(--yellow);font-size:9px;font-weight:700">⚠ Há itens parciais</span>':'')
       +'</div>'
       +itensHtml
     +'</div>'
-    +(cfg.banner?'<div style="background:var(--green-dim);border:1px solid var(--green);border-radius:var(--radius-sm);padding:10px;font-size:11px;color:var(--green);font-weight:600;margin-bottom:14px">'+cfg.banner+'</div>':'')
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:16px">'+cfg.label+': <b>'+cfg.resp+'</b></div>'
-    +'<button class="btn btn-primary" style="width:100%;height:40px;font-size:13px" onclick="fecharConfirmacao()">← Voltar ao painel</button>'
-    +'</div>';
+    +'<div style="padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0">'
+      +(cfg.banner?'<div style="background:var(--green-dim);border:1px solid var(--green);border-radius:var(--radius-sm);padding:9px 12px;font-size:11px;color:var(--green);font-weight:600;margin-bottom:10px">'+cfg.banner+'</div>':'')
+      +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;text-align:center">'+cfg.label+': <b style="color:var(--text)">'+cfg.resp+'</b></div>'
+      +'<button class="btn btn-primary" style="width:100%;height:40px;font-size:13px;font-weight:700" onclick="fecharConfirmacao()">← Voltar ao painel</button>'
+    +'</div>'
+  +'</div>';
   document.body.appendChild(div);
 }
 function fecharConfirmacao(){
   const o=document.getElementById('confirmacaoOverlay');if(o)o.remove();
   voltarAoPainel();
-  // Se conferente ou supervisor sistema, verificar se há próxima req pendente
   if(!USUARIO_LOGADO)return;
   const pf=PERFIS[USUARIO_LOGADO.perfil];if(!pf)return;
   setTimeout(()=>{
+    // Conferente: abrir req com itens 'movido'
     if(pf.podeConferir){
-      const pend=PENDENTES.find(p=>p.step===3);
+      const pend=PENDENTES.find(p=>(p.itens||[]).some(it=>it.itemStatus==='movido'));
       if(pend){currentPendIdx=PENDENTES.indexOf(pend);st=JSON.parse(JSON.stringify(pend));renderPendentes();restaurarStep(3);}
+      return;
     }
+    // Supervisor sistema: abrir req com itens 'validado'
     if(pf.podeTransferir){
-      const pend=PENDENTES.find(p=>p.step===4);
+      const pend=PENDENTES.find(p=>(p.itens||[]).some(it=>it.itemStatus==='validado'));
       if(pend){currentPendIdx=PENDENTES.indexOf(pend);st=JSON.parse(JSON.stringify(pend));renderPendentes();restaurarStep(4);}
+      return;
+    }
+    // Supervisor (Paulo): auto-abrir monitoramento se ainda há req pendente avançada
+    if(pf.podeAprovar){
+      const pend=PENDENTES.find(p=>p.step>=2);
+      if(pend){currentPendIdx=PENDENTES.indexOf(pend);st=JSON.parse(JSON.stringify(pend));renderPendentes();mostrarLinhaDoTempo(pend);}
+      return;
     }
   },300);
 }
@@ -954,6 +985,7 @@ function voltarAoPainel(){
   const cl=document.querySelector('.col-left');
   if(cl)cl.style.display='';
   renderItems();setStep(0);
+  renderPendentes(); // garantir que a lista de pendentes reflita o estado atual
 }
 function podeVerStep(step){
   if(!USUARIO_LOGADO)return false;
@@ -978,7 +1010,14 @@ function renderPendentes(){
      perfLogado.podeConferir?[3]:
      perfLogado.podeTransferir?[4]:
      []):[];
-  const pendFiltrados=PENDENTES.filter(p=>stepsPerfil.includes(p.step));
+  // Para conferente/sistema: filtrar por itemStatus dos itens, não só pelo step global
+  const pendFiltrados=PENDENTES.filter(p=>{
+    if(perfLogado&&perfLogado.podeConferir)
+      return (p.itens||[]).some(it=>it.itemStatus==='movido'||it.itemStatus==='validado');
+    if(perfLogado&&perfLogado.podeTransferir)
+      return (p.itens||[]).some(it=>it.itemStatus==='validado'||it.itemStatus==='lancado');
+    return stepsPerfil.includes(p.step);
+  });
   // Para conferente e supervisor sistema, mostrar card mesmo sem pendentes (aguardando)
   const pf2=USUARIO_LOGADO&&PERFIS[USUARIO_LOGADO.perfil];
   if(pendFiltrados.length===0){
@@ -1039,7 +1078,7 @@ function iniciarRequisicao(){
   st.req='REQ-'+Date.now().toString().slice(-5);st.itens=[];
   selectedItems.forEach(idx=>{
     const item=ITEMS[idx],r=calcItem(item);
-    st.itens.push({cod:item.cod,name:item.name,paletes:r.palEf,sacos:r.sacosEf,sacosValidados:r.sacosEf,ativo:true});
+    st.itens.push({cod:item.cod,name:item.name,paletes:r.palEf,sacos:r.sacosEf,sacosValidados:r.sacosEf,ativo:true,itemStatus:'aprovado'});
   });
   st.step=1;
   PENDENTES.push(JSON.parse(JSON.stringify(st)));
@@ -1089,17 +1128,13 @@ function aprovar(){
   // Remover itens desmarcados e salvar quantidades dos ativos
   st.itens=(st.itens||[]).filter((it,i)=>{
     const chk=document.getElementById('apChk_'+i);
-    // Se checkbox existe e está desmarcado, remover item
     if(chk&&!chk.checked)return false;
-    // Pegar quantidades do DOM se disponível, senão usar valores do st.itens
     const sacosEl=document.getElementById('apQtyS_'+i);
-    const palEl=document.getElementById('apQtyP_'+i);
     const sacos=sacosEl?parseInt(sacosEl.value)||0:it.sacos||0;
-    // Recalcular paletes com regra correta: < sacsPorPal = 0 pal
     const _cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
     const sacsPorPal=(_cap&&_cap.capPal>0&&_cap.capSac>0)?Math.round(_cap.capSac/_cap.capPal):88;
     const paletes=calcPaletes(sacos, sacsPorPal);
-    it.sacos=sacos;it.paletes=paletes;it.sacosValidados=sacos;it.ativo=true;
+    it.sacos=sacos;it.paletes=paletes;it.sacosValidados=sacos;it.ativo=true;it.itemStatus=it.itemStatus||'aprovado';it.timeAprovado=it.timeAprovado||now();
     return it.sacos>0;
   });
   if(st.itens.length===0){toast('Selecione ao menos 1 item para aprovar');return;}
@@ -1108,19 +1143,89 @@ function aprovar(){
   st.step=2;
   syncPendente();
   atualizarHistorico('Em andamento');
-  // Restaurar col-left e ir para step 2 imediatamente
+  // Mostrar confirmação por material antes de avançar
+  mostrarConfirmacaoAprovacao(n);
+  }catch(err){toast('Erro ao aprovar: '+err.message);console.error(err);}
+}
+
+function mostrarConfirmacaoAprovacao(supervisor){
+  const old=document.getElementById('aprvOverlay');if(old)old.remove();
+  const div=document.createElement('div');
+  div.id='aprvOverlay';
+  div.style.cssText='position:fixed;inset:0;background:rgba(28,28,26,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)';
+  const totalSacos=(st.itens||[]).reduce((a,it)=>a+it.sacos,0);
+  const totalPal=(st.itens||[]).reduce((a,it)=>a+it.paletes,0);
+  const itensRows=(st.itens||[]).map(it=>{
+    const _cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
+    const sacsPorPal=(_cap&&_cap.capPal>0&&_cap.capSac>0)?Math.round(_cap.capSac/_cap.capPal):88;
+    const pal=calcPaletes(it.sacos,sacsPorPal);
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:9px 10px"><span style="font-size:10px;font-weight:800;background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-mid);border-radius:4px;padding:2px 6px">'+it.cod+'</span></td>'
+      +'<td style="padding:9px 6px;font-size:11px;color:var(--text);font-weight:500">'+it.name.substring(0,42)+(it.name.length>42?'...':'')+'</td>'
+      +'<td style="padding:9px 10px;text-align:center;font-size:15px;font-weight:800;color:var(--accent)">'+(pal>0?pal:'—')+'</td>'
+      +'<td style="padding:9px 10px;text-align:center;font-size:15px;font-weight:800;color:var(--green)">'+it.sacos+'</td>'
+    +'</tr>';
+  }).join('');
+  div.innerHTML=
+    '<div style="background:var(--bg2);border-radius:14px;padding:0;max-width:560px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.22);overflow:hidden;max-height:90vh;display:flex;flex-direction:column">'
+    +'<div style="background:var(--accent);padding:18px 24px 14px;flex-shrink:0">'
+      +'<div style="font-size:26px;margin-bottom:6px">✅</div>'
+      +'<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:2px">Confirmar Aprovação</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.8)">'+st.req+' — Supervisor: '+supervisor+'</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border);flex-shrink:0">'
+      +'<div style="padding:12px 18px;text-align:center;border-right:1px solid var(--border)">'
+        +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.06em;margin-bottom:3px">Total Paletes</div>'
+        +'<div style="font-size:28px;font-weight:800;color:var(--accent)">'+totalPal+'</div>'
+      +'</div>'
+      +'<div style="padding:12px 18px;text-align:center">'
+        +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.06em;margin-bottom:3px">Total Sacos</div>'
+        +'<div style="font-size:28px;font-weight:800;color:var(--green)">'+totalSacos+'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="padding:14px 20px;overflow-y:auto;flex:1">'
+      +'<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Materiais aprovados ('+(st.itens||[]).length+')</div>'
+      +'<table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="background:var(--bg3)">'
+          +'<th style="padding:7px 10px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--border2)">Código</th>'
+          +'<th style="padding:7px 6px;text-align:left;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--border2)">Material</th>'
+          +'<th style="padding:7px 10px;text-align:center;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--border2)">Pal.</th>'
+          +'<th style="padding:7px 10px;text-align:center;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--border2)">Sacos</th>'
+        +'</tr></thead>'
+        +'<tbody>'+itensRows+'</tbody>'
+        +'<tfoot><tr style="background:var(--accent-dim)">'
+          +'<td colspan="2" style="padding:9px 10px;font-size:11px;font-weight:700;color:var(--accent)">TOTAL</td>'
+          +'<td style="padding:9px 10px;text-align:center;font-size:14px;font-weight:800;color:var(--accent)">'+totalPal+'</td>'
+          +'<td style="padding:9px 10px;text-align:center;font-size:14px;font-weight:800;color:var(--green)">'+totalSacos+'</td>'
+        +'</tr></tfoot>'
+      +'</table>'
+    +'</div>'
+    +'<div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0">'
+      +'<button class="btn" style="flex:1;height:40px;font-size:12px" onclick="cancelarAprovacao()">✎ Corrigir</button>'
+      +'<button class="btn btn-success" style="flex:2;height:40px;font-size:13px;font-weight:700" onclick="confirmarAprovacaoFinal()">✅ Confirmar e Emitir →</button>'
+    +'</div>'
+  +'</div>';
+  document.body.appendChild(div);
+}
+
+function cancelarAprovacao(){
+  const o=document.getElementById('aprvOverlay');if(o)o.remove();
+  // Reverter step
+  st.step=1;syncPendente();
+}
+
+function confirmarAprovacaoFinal(){
+  const o=document.getElementById('aprvOverlay');if(o)o.remove();
   const colLeftA=document.querySelector('.col-left');
   if(colLeftA)colLeftA.style.display='';
   setStep(2);
-  // Pequeno delay para garantir DOM visível antes de preencher
   setTimeout(()=>{
     const el=document.getElementById('rn2');
     if(el)el.textContent=st.req;
-    renderItensIn('s2ItemList',st.itens);
+    renderMovChecklist();
     const pendentesStep1=PENDENTES.filter(p=>p.step===1).length;
     toast('✅ Req '+st.req+' aprovada!'+(pendentesStep1>0?' · '+pendentesStep1+' req(s) aguardando aprovação.':''));
   },50);
-  }catch(err){toast('Erro ao aprovar: '+err.message);console.error(err);}
 }
 function apagarReqPendente(idx){
   if(!confirm('Apagar esta requisição?'))return;
@@ -1280,199 +1385,319 @@ function syncPalFromSacos(i){
 }
 
 // ─── MOV FÍSICA ──────────────────────────────────────────────────
+// ─── STATUS POR ITEM ─────────────────────────────────────────────
+// itemStatus: 'aprovado' → 'movido' → 'validado' → 'lancado'
+
+function getSacsPorPalItem(it){
+  const cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
+  return (cap&&cap.capPal>0&&cap.capSac>0)?Math.round(cap.capSac/cap.capPal):88;
+}
+
+// ── S2: MOV FÍSICA ────────────────────────────────────────────────
 function renderMovChecklist(){
   const c=document.getElementById('s2CheckList');
   if(!c)return;
   c.innerHTML='';
+  const operador=(document.getElementById('opName')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
   (st.itens||[]).forEach((it,i)=>{
-    const marcado=it.movConfirmada||false;
-    const _cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
-    const sacsPorPal=(_cap&&_cap.capPal>0&&_cap.capSac>0)?Math.round(_cap.capSac/_cap.capPal):88;
-    // paletes corretos: < sacsPorPal = 0 pal
-    const paletes=calcPaletes(it.sacos, sacsPorPal);
+    const movido=it.itemStatus==='movido'||it.itemStatus==='validado'||it.itemStatus==='lancado';
+    const spp=getSacsPorPalItem(it);
+    const pal=calcPaletes(it.sacos,spp);
     const d=document.createElement('div');
-    d.style.cssText='display:flex;align-items:center;gap:10px;padding:12px 13px;margin-bottom:7px;'
-      +'background:'+(marcado?'var(--green-dim)':'#fff')+';'
-      +'border:2px solid '+(marcado?'var(--green)':'var(--border)')+';'
-      +'border-radius:var(--radius-sm);cursor:pointer;transition:all .18s';
-    d.innerHTML='<div style="width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;transition:all .2s;'
-      +'background:'+(marcado?'var(--green)':'var(--border2)')+';color:#fff;box-shadow:'+(marcado?'0 2px 8px rgba(45,125,70,.25)':'none')+';">'
-      +(marcado?'✓':'')+'</div>'
-      +'<div style="flex:1;min-width:0">'
-        +'<div style="font-size:11px;font-weight:700;color:var(--text)">'+it.cod+'</div>'
-        +'<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+it.name+'</div>'
-      +'</div>'
-      +'<div style="text-align:right;flex-shrink:0">'
-        +'<div style="font-size:15px;font-weight:800;color:'+(marcado?'var(--green)':'var(--accent)')+';line-height:1.1">'
-          +(paletes>0?paletes+' pal':'<span style=\'color:var(--text3);font-size:11px\'>sem pal</span>')+' </div>'
-        +'<div style="font-size:12px;font-weight:700;color:'+(marcado?'var(--green)':'var(--text2)')+'">'+it.sacos+' sc</div>'
-      +'</div>';
-    d.onclick=()=>{
-      it.movConfirmada=!it.movConfirmada;
-      syncPendente();
-      renderMovChecklist();
-      atualizarStatusMov();
-    };
+    d.style.cssText='display:flex;align-items:center;gap:10px;padding:12px 13px;margin-bottom:8px;'
+      +'background:'+(movido?'var(--green-dim)':'#fff')+';'
+      +'border:2px solid '+(movido?'var(--green)':'var(--border)')+';'
+      +'border-radius:var(--radius-sm);transition:all .18s';
+    const btnHtml=movido
+      ?'<span style="font-size:11px;font-weight:700;color:var(--green);white-space:nowrap">✓ Movido</span>'
+      :'<button onclick="confirmarItemMov('+i+')" style="height:32px;padding:0 12px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">Confirmar →</button>';
+    d.innerHTML='<div style="flex:1;min-width:0">'
+      +'<div style="font-size:11px;font-weight:800;color:var(--text)">'+it.cod+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+it.name+'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:'+(movido?'var(--green)':'var(--accent)')+';margin-top:3px">'+(pal>0?pal+' pal · ':'')+''+it.sacos+' sc</div>'
+    +'</div>'+btnHtml;
     c.appendChild(d);
   });
   atualizarStatusMov();
 }
+
+function confirmarItemMov(i){
+  const n=(document.getElementById('opName')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
+  if(!n){toast('Informe o operador antes de confirmar');document.getElementById('opName').focus();return;}
+  const it=st.itens[i];
+  if(!it)return;
+  it.itemStatus='movido';
+  it.timeMovido=now();
+  it.operador=n;
+  if(!st.operador)st.operador=n;
+  // Avançar step geral para pelo menos 2 (mov física em andamento)
+  if(!st.step||st.step<2)st.step=2;
+  syncPendente();
+  atualizarHistorico('Em andamento');
+  renderMovChecklist();
+  // Notificar conferente
+  const spp=getSacsPorPalItem(it);
+  const pal=calcPaletes(it.sacos,spp);
+  toast('📦 '+it.cod+' movido: '+(pal>0?pal+' pal · ':'')+''+it.sacos+' sc — aguardando conferente');
+}
+
 function atualizarStatusMov(){
   const el=document.getElementById('s2Status');
   if(!el)return;
   const total=(st.itens||[]).length;
-  const marcados=(st.itens||[]).filter(it=>it.movConfirmada).length;
-  const faltam=total-marcados;
-  if(marcados===total&&total>0){
-    el.innerHTML='<span style="color:var(--green);font-weight:700">✅ Todos os '+total+' item(s) confirmados — pode avançar!</span>';
+  const movidos=(st.itens||[]).filter(it=>it.itemStatus==='movido'||it.itemStatus==='validado'||it.itemStatus==='lancado').length;
+  const faltam=total-movidos;
+  if(movidos===0){
+    el.innerHTML='<span style="color:var(--text3)">Confirme cada item conforme movimentar</span>';
+  } else if(faltam===0){
+    el.innerHTML='<span style="color:var(--green);font-weight:700">✅ Todos os '+total+' itens movimentados!</span>';
   } else {
-    el.innerHTML='<span style="color:var(--text3)">'+marcados+' de '+total+' confirmado(s)</span>'
-      +(faltam>0?'<span style="color:var(--red);margin-left:8px;font-weight:600">· '+faltam+' pendente(s)</span>':'');
-  }
-}
-function confirmarMovFisica(){
-  if(USUARIO_LOGADO&&!PERFIS[USUARIO_LOGADO.perfil].podeMovFisica){toast('Acesso restrito ao Supervisor');return;}
-  const n=(document.getElementById('opName')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
-  if(!n){toast('Informe o operador');return;}
-  const naoMarcados=(st.itens||[]).filter(it=>!it.movConfirmada);
-  if(naoMarcados.length>0){
-    // Mostrar quais itens estão faltando
-    const nomes=naoMarcados.map(it=>it.cod).join(', ');
-    toast('⚠ Confirme todos os itens antes de avançar. Pendentes: '+nomes);
-    // Destacar os itens não marcados visualmente
-    document.querySelectorAll('#s2CheckList > div').forEach((el,i)=>{
-      if(!(st.itens||[])[i]||!(st.itens||[])[i].movConfirmada){
-        el.style.borderColor='var(--red)';
-        el.style.background='var(--red-dim)';
-        setTimeout(()=>{el.style.borderColor='';el.style.background='';},2000);
-      }
-    });
-    return;
-  }
-  st.operador=n;st.step=3;
-  syncPendente();
-  atualizarHistorico('Em andamento');
-  mostrarLinhaDoTempo(st);
-}
-// ─── VALIDAÇÃO PARCIAL ───────────────────────────────────────────
-function renderValChecklist(){
-  // Preencher nome do conferente automaticamente
-  const valName=document.getElementById('valName');
-  if(valName&&!valName.value&&USUARIO_LOGADO)valName.value=USUARIO_LOGADO.nome;
-  const c=document.getElementById('valChecklist');c.innerHTML='';
-  (st.itens||[]).forEach((it,i)=>{
-    const d=document.createElement('div');d.className='sys-row';
-    d.innerHTML=`
-      <div class="sys-chk" id="vc${i}"></div>
-      <div style="flex:1;min-width:0;overflow:hidden">
-        <div style="font-size:11px;font-weight:600">${it.cod}</div>
-        <div style="font-size:10px;color:var(--text3)">${it.name}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
-        <div style="font-size:10px;color:var(--text2)">Esperado: <strong>${fmtQty(it.sacos)}</strong></div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="number" id="valQty${i}" value="${it.sacos}" min="0" max="${it.sacos}" 
-            style="width:70px;height:26px;border:1px solid var(--border2);border-radius:5px;padding:0 6px;font-size:11px;font-weight:700;text-align:center"
-            onclick="event.stopPropagation()" onchange="updateValStatus()">
-          <span style="font-size:10px;color:var(--text3)">recebidos</span>
-        </div>
-      </div>`;
-    d.onclick=(e)=>{
-      if(e.target.tagName==='INPUT')return;
-      const chk=document.getElementById('vc'+i);
-      const on=chk.classList.toggle('done');
-      if(!on)chk.classList.remove('partial');
-      chk.textContent=on?'✓':'';
-      updateValStatus();
-    };
-    c.appendChild(d);
-    // Marcar imediatamente após append (sem setTimeout)
-    const chkEl=document.getElementById('vc'+i);
-    if(chkEl){chkEl.classList.add('done');chkEl.textContent='✓';}
-  });
-  updateValStatus();
-}
-function updateValStatus(){
-  const itens=st.itens||[];let ok=0,parcial=0;
-  itens.forEach((it,i)=>{
-    const chk=document.getElementById('vc'+i);
-    const qty=parseInt(document.getElementById('valQty'+i).value)||0;
-    if(chk&&chk.classList.contains('done')){
-      if(qty>=it.sacos){ok++;}
-      else{parcial++;}
-    }
-  });
-  const el=document.getElementById('valStatus');
-  if(ok+parcial===0){el.textContent='';return;}
-  let txt=`${ok+parcial} de ${itens.length} item(s) validados`;
-  if(parcial>0) txt+=` · ${parcial} com quantidade parcial`;
-  el.textContent=txt;
-}
-function validarFisico(){
-  try{
-    // Validar todos os itens com as quantidades informadas
-    const itens=st.itens||[];
-    if(itens.length===0){toast('Nenhum item na requisição');return;}
-    const nInput=document.getElementById('valName');
-    const n=(nInput&&nInput.value.trim())||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'Conferente';
-    // Salvar quantidades de todos os itens
-    itens.forEach((it,i)=>{
-      const qty=parseInt((document.getElementById('valQty'+i)||{}).value)||it.sacos||0;
-      it.sacosValidados=qty;
-      it.validado=true;
-      if(qty<it.sacos)it.sacosRestantes=it.sacos-qty;
-      else delete it.sacosRestantes;
-    });
-    st.conferente=n;
-    st.valObs=(document.getElementById('valObs')||{}).value||'';
-    st.step=4;
-    syncPendente();
-    atualizarHistorico('Em andamento');
-    // Mostrar confirmação
-    mostrarConfirmacaoEtapa({
-      emoji:'✅',
-      titulo:'Validação Confirmada!',
-      req:st.req,
-      sub:'Encaminhado para Transferência no Sistema',
-      label:'Conferente',
-      resp:n,
-      itens:st.itens,
-      corItens:'var(--green)'
-    });
-  }catch(err){
-    toast('Erro: '+err.message);
-    console.error('validarFisico erro:',err);
+    el.innerHTML='<span style="color:var(--accent);font-weight:600">'+movidos+' de '+total+' movimentado(s)</span>'
+      +'<span style="color:var(--text3);margin-left:8px">· '+faltam+' pendente(s)</span>';
   }
 }
 
-// ─── SISTEMA ─────────────────────────────────────────────────────
-function renderSysCL(){
-  const c=document.getElementById('sysChecklist');c.innerHTML='';sysChecked={};
-  // Preencher nome do usuário logado
-  const sysUserEl=document.getElementById('sysUser');
-  if(sysUserEl&&!sysUserEl.value&&USUARIO_LOGADO)sysUserEl.value=USUARIO_LOGADO.nome;
-  (st.itens||[]).forEach((it,i)=>{
-    sysChecked[i]=true; // já marcado por padrão
-    const validado=it.sacosValidados||it.sacos;
-    const parcial=it.sacosRestantes>0;
-    const d=document.createElement('div');d.className='sys-row';
-    const _cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];
-    const sacsPorPal=(_cap&&_cap.capPal>0&&_cap.capSac>0)?Math.round(_cap.capSac/_cap.capPal):88;
-    const paletes=calcPaletes(validado, sacsPorPal); // < sacsPorPal = 0 pal
-    d.innerHTML='<div class="sys-chk done" id="sc'+i+'">✓</div>'
-      +'<div style="flex:1;min-width:0">'
-      +'<span style="font-size:11px;font-weight:600">'+it.cod+'</span>'
-      +' <span style="font-size:11px;color:var(--text3)">'+it.name+'</span>'
-      +'<div style="font-size:10px;color:var(--text2);margin-top:2px">'
-      +'<b>'+validado+' sc</b>'
-      +' &nbsp;|&nbsp; <b>'+(paletes>0?paletes+' pal':'sem pal')+'</b>'
-      +(parcial?'&nbsp;<span style="color:var(--yellow)">('+fmtQty(it.sacosRestantes)+' pend.)</span>':'')
-      +'</div></div>'
-      +'<span style="font-size:10px;color:var(--green);font-weight:700" id="scL'+i+'">Lançado ✓</span>';
-    d.onclick=()=>{sysChecked[i]=!sysChecked[i];const chk=document.getElementById('sc'+i);const lbl=document.getElementById('scL'+i);if(sysChecked[i]){chk.classList.add('done');chk.textContent='✓';lbl.textContent='Lançado ✓';}else{chk.classList.remove('done');chk.textContent='';lbl.textContent='';}};
-    c.appendChild(d);
+// ── S3: VALIDAÇÃO FÍSICA (conferente) ────────────────────────────
+function renderValChecklist(){
+  const valName=document.getElementById('valName');
+  if(valName&&!valName.value&&USUARIO_LOGADO)valName.value=USUARIO_LOGADO.nome;
+  const c=document.getElementById('valChecklist');c.innerHTML='';
+  const itensProntos=(st.itens||[]).filter(it=>it.itemStatus==='movido');
+  const itensAguardando=(st.itens||[]).filter(it=>it.itemStatus==='aprovado');
+  const itensJaFeitos=(st.itens||[]).filter(it=>it.itemStatus==='validado'||it.itemStatus==='lancado');
+
+  if(itensProntos.length===0&&itensAguardando.length>0){
+    c.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">⏳ Aguardando Paulo movimentar os itens...</div>';
+    return;
+  }
+
+  // Itens prontos para validar
+  if(itensProntos.length>0){
+    const hdr=document.createElement('div');
+    hdr.style.cssText='font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px';
+    hdr.textContent='Prontos para validar ('+itensProntos.length+')';
+    c.appendChild(hdr);
+    itensProntos.forEach(it=>{
+      const idx=(st.itens||[]).indexOf(it);
+      const spp=getSacsPorPalItem(it);
+      const pal=calcPaletes(it.sacos,spp);
+      const d=document.createElement('div');
+      d.style.cssText='background:var(--accent-dim);border:1.5px solid var(--accent-mid);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px';
+      d.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+        +'<div>'
+          +'<span style="font-size:11px;font-weight:800;color:var(--text);background:#fff;border:1px solid var(--border2);border-radius:4px;padding:2px 7px">'+it.cod+'</span>'
+          +'<span style="font-size:10px;color:var(--text3);margin-left:8px">mov. por '+it.operador+'</span>'
+        +'</div>'
+        +'<div style="font-size:12px;font-weight:800;color:var(--accent)">'+(pal>0?pal+' pal · ':'')+''+it.sacos+' sc</div>'
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--text2);margin-bottom:10px">'+it.name+'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<div style="flex:1">'
+          +'<label style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;display:block;margin-bottom:3px">Sacos recebidos</label>'
+          +'<input type="number" id="valQty_'+idx+'" value="'+it.sacos+'" min="0" max="'+it.sacos+'" '
+            +'style="width:100%;height:32px;border:1px solid var(--border2);border-radius:5px;padding:0 8px;font-size:13px;font-weight:700;text-align:center">'
+        +'</div>'
+        +'<button onclick="validarItem('+idx+')" style="height:32px;padding:0 14px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;margin-top:16px">✓ Validar</button>'
+      +'</div>';
+      c.appendChild(d);
+    });
+  }
+
+  // Itens já validados
+  if(itensJaFeitos.length>0){
+    const hdr2=document.createElement('div');
+    hdr2.style.cssText='font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 8px';
+    hdr2.textContent='Já validados ('+itensJaFeitos.length+')';
+    c.appendChild(hdr2);
+    itensJaFeitos.forEach(it=>{
+      const spp=getSacsPorPalItem(it);
+      const pal=calcPaletes(it.sacosValidados||it.sacos,spp);
+      const d=document.createElement('div');
+      d.style.cssText='background:var(--green-dim);border:1px solid var(--green-mid);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between';
+      d.innerHTML='<div>'
+        +'<span style="font-size:11px;font-weight:800;color:var(--green)">✓ '+it.cod+'</span>'
+        +'<span style="font-size:10px;color:var(--text3);margin-left:6px">conf. '+it.conferente+'</span>'
+      +'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--green)">'+(pal>0?pal+' pal · ':'')+(it.sacosValidados||it.sacos)+' sc</div>';
+      c.appendChild(d);
+    });
+  }
+
+  // Itens aguardando
+  if(itensAguardando.length>0){
+    const hdr3=document.createElement('div');
+    hdr3.style.cssText='font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 8px';
+    hdr3.textContent='Aguardando movimentação ('+itensAguardando.length+')';
+    c.appendChild(hdr3);
+    itensAguardando.forEach(it=>{
+      const d=document.createElement('div');
+      d.style.cssText='background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;opacity:.6';
+      d.innerHTML='<div><span style="font-size:11px;font-weight:700;color:var(--text3)">⏳ '+it.cod+'</span></div>'
+        +'<div style="font-size:11px;color:var(--text3)">'+it.sacos+' sc</div>';
+      c.appendChild(d);
+    });
+  }
+  updateValStatus();
+}
+
+function validarItem(idx){
+  const it=st.itens[idx];
+  if(!it||it.itemStatus!=='movido')return;
+  const n=(document.getElementById('valName')||{}).value.trim()||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
+  if(!n){toast('Informe o conferente');document.getElementById('valName').focus();return;}
+  const qty=parseInt((document.getElementById('valQty_'+idx)||{}).value)||it.sacos||0;
+  it.sacosValidados=qty;
+  it.conferente=n;
+  it.itemStatus='validado';
+  it.timeValidado=now();
+  if(qty<it.sacos)it.sacosRestantes=it.sacos-qty;
+  else delete it.sacosRestantes;
+  if(!st.conferente)st.conferente=n;
+  // Avançar step geral se necessário
+  if(!st.step||st.step<3)st.step=3;
+  syncPendente();
+  atualizarHistorico('Em andamento');
+  renderValChecklist();
+  // Atualizar painel sistema também
+  renderSysCL();
+  const spp=getSacsPorPalItem(it);
+  const pal=calcPaletes(qty,spp);
+  toast('✅ '+it.cod+' validado: '+(pal>0?pal+' pal · ':'')+''+qty+' sc — liberado para lançamento');
+}
+
+function updateValStatus(){
+  const el=document.getElementById('valStatus');if(!el)return;
+  const validados=(st.itens||[]).filter(it=>it.itemStatus==='validado'||it.itemStatus==='lancado').length;
+  const total=(st.itens||[]).length;
+  if(validados===0){el.textContent='';return;}
+  el.textContent=validados+' de '+total+' item(s) validado(s)';
+}
+
+function validarFisico(){
+  // Mantido por compatibilidade — agora validação é por item via validarItem()
+  const n=(document.getElementById('valName')||{}).value.trim()||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
+  const prontos=(st.itens||[]).filter(it=>it.itemStatus==='movido');
+  if(prontos.length===0){toast('Nenhum item disponível para validar agora');return;}
+  prontos.forEach((it,_)=>{
+    const idx=(st.itens||[]).indexOf(it);
+    validarItem(idx);
   });
 }
+
+// ── S4: SISTEMA (Iasmyn) ──────────────────────────────────────────
+function renderSysCL(){
+  const c=document.getElementById('sysChecklist');if(!c)return;c.innerHTML='';
+  const sysUserEl=document.getElementById('sysUser');
+  if(sysUserEl&&!sysUserEl.value&&USUARIO_LOGADO)sysUserEl.value=USUARIO_LOGADO.nome;
+
+  const itensProntos=(st.itens||[]).filter(it=>it.itemStatus==='validado');
+  const itensJaLancados=(st.itens||[]).filter(it=>it.itemStatus==='lancado');
+  const itensAguardando=(st.itens||[]).filter(it=>it.itemStatus==='aprovado'||it.itemStatus==='movido');
+
+  if(itensProntos.length===0&&itensAguardando.length>0&&itensJaLancados.length===0){
+    c.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">⏳ Aguardando conferente validar os itens...</div>';
+    return;
+  }
+
+  if(itensProntos.length>0){
+    const hdr=document.createElement('div');
+    hdr.style.cssText='font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px';
+    hdr.textContent='Prontos para lançar ('+itensProntos.length+')';
+    c.appendChild(hdr);
+    itensProntos.forEach(it=>{
+      const idx=(st.itens||[]).indexOf(it);
+      const spp=getSacsPorPalItem(it);
+      const sc=it.sacosValidados||it.sacos;
+      const pal=calcPaletes(sc,spp);
+      const d=document.createElement('div');
+      d.style.cssText='background:var(--green-dim);border:1.5px solid var(--green-mid);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px';
+      d.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+        +'<div>'
+          +'<span style="font-size:11px;font-weight:800;color:var(--text);background:#fff;border:1px solid var(--border2);border-radius:4px;padding:2px 7px">'+it.cod+'</span>'
+          +'<span style="font-size:10px;color:var(--text3);margin-left:8px">val. por '+it.conferente+'</span>'
+        +'</div>'
+        +'<div style="font-size:12px;font-weight:800;color:var(--green)">'+(pal>0?pal+' pal · ':'')+''+sc+' sc</div>'
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--text2);margin-bottom:10px">'+it.name+'</div>'
+      +(it.sacosRestantes>0?'<div style="font-size:10px;color:var(--yellow);margin-bottom:8px">⚠ '+it.sacosRestantes+' sc pendentes</div>':'')
+      +'<button onclick="lancarItem('+idx+')" style="width:100%;height:34px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer">💻 Lançar no Sistema</button>';
+      c.appendChild(d);
+    });
+  }
+
+  if(itensJaLancados.length>0){
+    const hdr2=document.createElement('div');
+    hdr2.style.cssText='font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 8px';
+    hdr2.textContent='Já lançados ('+itensJaLancados.length+')';
+    c.appendChild(hdr2);
+    itensJaLancados.forEach(it=>{
+      const spp=getSacsPorPalItem(it);
+      const sc=it.sacosValidados||it.sacos;
+      const pal=calcPaletes(sc,spp);
+      const d=document.createElement('div');
+      d.style.cssText='background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between';
+      d.innerHTML='<div>'
+        +'<span style="font-size:11px;font-weight:800;color:var(--accent)">✓ '+it.cod+'</span>'
+        +(it.sysDoc?'<span style="font-size:10px;color:var(--text3);margin-left:6px">'+it.sysDoc+'</span>':'')
+      +'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--accent)">'+(pal>0?pal+' pal · ':'')+''+sc+' sc</div>';
+      c.appendChild(d);
+    });
+  }
+
+  if(itensAguardando.length>0){
+    const hdr3=document.createElement('div');
+    hdr3.style.cssText='font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 8px';
+    hdr3.textContent='Aguardando ('+(itensAguardando.length)+')';
+    c.appendChild(hdr3);
+    itensAguardando.forEach(it=>{
+      const d=document.createElement('div');
+      const status=it.itemStatus==='movido'?'Aguardando conferente':'Aguardando movimentação';
+      d.style.cssText='background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;opacity:.6';
+      d.innerHTML='<div><span style="font-size:11px;font-weight:700;color:var(--text3)">⏳ '+it.cod+'</span>'
+        +'<span style="font-size:10px;color:var(--text3);margin-left:8px">'+status+'</span></div>'
+        +'<div style="font-size:11px;color:var(--text3)">'+it.sacos+' sc</div>';
+      c.appendChild(d);
+    });
+  }
+
+  // Botão concluir geral — só quando todos lançados
+  const todosLancados=(st.itens||[]).every(it=>it.itemStatus==='lancado');
+  const algumLancado=(st.itens||[]).some(it=>it.itemStatus==='lancado');
+  if(algumLancado){
+    const btnDiv=document.createElement('div');
+    btnDiv.style.cssText='margin-top:14px;border-top:1px solid var(--border);padding-top:12px';
+    if(todosLancados){
+      btnDiv.innerHTML='<button onclick="concluirSistema()" style="width:100%;height:40px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer">🏁 Concluir Requisição</button>';
+    } else {
+      btnDiv.innerHTML='<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px">Aguardando lançar todos os itens para concluir</div>'
+        +'<button onclick="concluirSistema()" style="width:100%;height:36px;background:var(--border2);color:var(--text2);border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer">Concluir com itens pendentes</button>';
+    }
+    c.appendChild(btnDiv);
+  }
+}
+
+function lancarItem(idx){
+  const it=st.itens[idx];
+  if(!it||it.itemStatus!=='validado')return;
+  const user=(document.getElementById('sysUser')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
+  const doc=(document.getElementById('sysDoc')||{}).value||'';
+  if(!user){toast('Informe o usuário sistema');document.getElementById('sysUser').focus();return;}
+  it.itemStatus='lancado';
+  it.timeLancado=now();
+  it.sysUser=user;
+  it.sysDoc=doc;
+  if(!st.sysUser)st.sysUser=user;
+  if(!st.step||st.step<4)st.step=4;
+  syncPendente();
+  atualizarHistorico('Em andamento');
+  renderSysCL();
+  const spp=getSacsPorPalItem(it);
+  const sc=it.sacosValidados||it.sacos;
+  const pal=calcPaletes(sc,spp);
+  toast('💻 '+it.cod+' lançado: '+(pal>0?pal+' pal · ':'')+''+sc+' sc');
+}
+
 function concluirSistema(){
   try{
     const user=(document.getElementById('sysUser')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
@@ -1480,10 +1705,9 @@ function concluirSistema(){
     if(!user){toast('Informe o usuário sistema');return;}
     st.sysUser=user;st.sysDoc=doc;
     salvarHist('Concluído');removePendente();
-    // Mostrar confirmação
     mostrarConfirmacaoEtapa({
-      emoji:'💻',
-      titulo:'Transferência Concluída!',
+      emoji:'🏁',
+      titulo:'Requisição Concluída!',
       req:st.req,
       sub:(doc?'Doc: '+doc+' · ':'')+'Responsável: '+user,
       label:'Sup. Sistema',
@@ -1508,13 +1732,26 @@ function syncPendente(){
 function removePendente(){
   if(currentPendIdx!==null){
     const req=PENDENTES[currentPendIdx];
-    if(req)removerRequisicaoSheets(req.req);
+    if(req){
+      removerRequisicaoSheets(req.req);
+      REQS_REMOVIDAS.add(req.req); // evita re-aparecimento no próximo poll
+    }
     PENDENTES.splice(currentPendIdx,1);
     currentPendIdx=null;
   }
 }
 function restaurarStep(s){
   const pf=USUARIO_LOGADO&&PERFIS[USUARIO_LOGADO.perfil];
+  // Conferente: sempre mostrar painel de validação se houver itens movidos
+  if(pf&&pf.podeConferir){
+    const el=document.getElementById('rn3');if(el)el.textContent=st.req;
+    renderValChecklist();setStep(3);return;
+  }
+  // Supervisor Sistema (Iasmyn): sempre mostrar painel de lançamento se houver itens validados
+  if(pf&&pf.podeTransferir){
+    const el=document.getElementById('rn4');if(el)el.textContent=st.req;
+    renderSysCL();setStep(4);return;
+  }
   if(s===1){
     if(!pf||pf.podeAprovar){
       const el=document.getElementById('rn1');if(el)el.textContent=st.req;
@@ -1528,18 +1765,6 @@ function restaurarStep(s){
       const opEl=document.getElementById('opName');
       if(opEl&&!opEl.value&&USUARIO_LOGADO)opEl.value=USUARIO_LOGADO.nome;
       renderMovChecklist();
-    } else {mostrarLinhaDoTempo(st);return;}
-  }
-  else if(s===3){
-    if(pf&&pf.podeConferir){
-      const el=document.getElementById('rn3');if(el)el.textContent=st.req;
-      renderValChecklist();
-    } else {mostrarLinhaDoTempo(st);return;}
-  }
-  else if(s===4){
-    if(pf&&pf.podeTransferir){
-      const el=document.getElementById('rn4');if(el)el.textContent=st.req;
-      renderItensIn('sysItemList',st.itens);renderSysCL();
     } else {mostrarLinhaDoTempo(st);return;}
   }
   setStep(s);
@@ -1581,12 +1806,13 @@ function gerarPDF(){
 
 // ─── HISTÓRICO ───────────────────────────────────────────────────
 function atualizarHistorico(status){
-  const tp=(st.itens||[]).reduce((a,b)=>a+b.paletes,0);
-  const ts=(st.itens||[]).reduce((a,b)=>a+b.sacos,0);
+  const tp=(st.itens||[]).reduce((a,b)=>a+(b.paletes||0),0);
+  const ts=(st.itens||[]).reduce((a,b)=>a+(b.sacos||0),0);
+  // Timeline global (retrocompatibilidade)
   const tl=[
-    {step:'Aprovação',     resp:st.aprovador||'—',  time:st.dataHora||now(), done:!!st.aprovador},
-    {step:'Mov. Física',   resp:st.operador||'—',   time:st.operador?now():'—', done:!!st.operador},
-    {step:'Val. Física',   resp:st.conferente||'—', time:st.conferente?now():'—', done:!!st.conferente},
+    {step:'Aprovação',      resp:st.aprovador||'—',  time:st.dataHora||now(), done:!!st.aprovador},
+    {step:'Mov. Física',    resp:st.operador||'—',   time:st.operador?now():'—', done:!!st.operador},
+    {step:'Val. Física',    resp:st.conferente||'—', time:st.conferente?now():'—', done:!!st.conferente},
     {step:'Transf. Sistema',resp:st.sysUser?(st.sysUser+(st.sysDoc?' · '+st.sysDoc:'')):'—',time:st.sysUser?now():'—',done:!!st.sysUser}
   ];
   const entrada={
@@ -1601,14 +1827,142 @@ function atualizarHistorico(status){
   salvarHistoricoSheets(entrada);
   renderHist();
 }
-function salvarHist(status){
-  // Unificado com atualizarHistorico para sempre persistir no Sheets
-  atualizarHistorico(status);
-}
+function salvarHist(status){ atualizarHistorico(status); }
 function renderStats(){const t=HISTORY.length,c=HISTORY.filter(h=>h.status==='Concluído').length,p=HISTORY.filter(h=>h.status==='Em andamento').length,pl=HISTORY.filter(h=>h.status==='Concluído').reduce((a,b)=>a+b.paletes,0);document.getElementById('statGrid').innerHTML=`<div class="stat-box"><div class="stat-num">${t}</div><div class="stat-lbl">Total</div></div><div class="stat-box"><div class="stat-num" style="color:var(--green)">${c}</div><div class="stat-lbl">Concluídas</div></div><div class="stat-box"><div class="stat-num" style="color:var(--yellow)">${p}</div><div class="stat-lbl">Em andamento</div></div><div class="stat-box"><div class="stat-num">${pl}</div><div class="stat-lbl">Paletes transf.</div></div>`;}
 function renderHist(){const q=(document.getElementById('histSearch').value||'').toLowerCase();const f=document.getElementById('histFilter').value;let data=[...HISTORY];if(q)data=data.filter(h=>h.req.toLowerCase().includes(q)||h.solicitante.toLowerCase().includes(q)||(h.itens||[]).some(i=>i.cod.toLowerCase().includes(q)||i.name.toLowerCase().includes(q)));if(f)data=data.filter(h=>h.status===f);data.sort((a,b)=>{let av=a[histSort.col]||'',bv=b[histSort.col]||'';if(typeof av==='number')return histSort.asc?av-bv:bv-av;return histSort.asc?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));});const tbody=document.getElementById('histBody');tbody.innerHTML='';const empty=document.getElementById('histEmpty');if(data.length===0){empty.style.display='block';return;}empty.style.display='none';data.forEach(h=>{const sp=h.status==='Concluído'?'sp-done':h.status==='Rejeitado'?'sp-rej':'sp-pend';const names=(h.itens||[]).map(i=>i.cod).join(', ');const tr=document.createElement('tr');tr.className=selectedReq===h.req?'sel-row':'';tr.style.cursor='pointer';tr.innerHTML=`<td><strong style="color:var(--accent)">${h.req}</strong></td><td style="color:var(--text2)">${h.data}</td><td style="color:var(--text2)">${names}</td><td style="text-align:center;font-weight:700">${h.paletes}</td><td style="text-align:center">${h.sacos}</td><td>${h.solicitante}</td><td>${h.aprovador}</td><td><span class="status-pill ${sp}">${h.status}</span></td>`;tr.onclick=()=>showDetail(h);tbody.appendChild(tr);});}
 function sortHist(col){histSort={col,asc:histSort.col===col?!histSort.asc:false};renderHist();}
-function showDetail(h){selectedReq=h.req;const panel=document.getElementById('detailPanel'),content=document.getElementById('detailContent');const iR=(h.itens||[]).map(it=>`<tr><td>${it.cod}</td><td>${it.name}</td><td style="text-align:center">${it.paletes}</td><td style="text-align:center">${it.sacos}</td></tr>`).join('');const tlH=(h.timeline||[]).map(t=>`<div class="tl-item"><div class="tl-dot ${t.done?'done':'pend'}"></div><div class="tl-label">${t.step}</div><div class="tl-sub">${t.resp}</div><div class="tl-time">${t.time}</div></div>`).join('');const sp=h.status==='Concluído'?'sp-done':h.status==='Rejeitado'?'sp-rej':'sp-pend';content.innerHTML=`<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px"><div><div style="font-size:20px;font-weight:700;color:var(--accent)">${h.req}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${h.data}${h.obs?' · '+h.obs:''}</div></div><span class="status-pill ${sp}" style="font-size:12px;padding:4px 12px;margin-top:4px">${h.status}</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px"><div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Materiais</div><table class="pt" style="margin-bottom:14px"><tr><th>Código</th><th>Material</th><th style="text-align:center">Pal.</th><th style="text-align:center">Sacos</th></tr>${iR}<tr><td colspan="2" style="font-weight:700;color:var(--accent)">Total</td><td style="text-align:center;font-weight:700;color:var(--accent)">${h.paletes}</td><td style="text-align:center;font-weight:700;color:var(--accent)">${h.sacos}</td></tr></table><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px"><div class="info-chip"><div class="l">Solicitante</div><div class="v">${h.solicitante}</div></div><div class="info-chip"><div class="l">Aprovador</div><div class="v">${h.aprovador}</div></div><div class="info-chip"><div class="l">Operador</div><div class="v">${h.operador||'—'}</div></div><div class="info-chip"><div class="l">Conferente</div><div class="v">${h.conferente||'—'}</div></div>${h.sysDoc&&h.sysDoc!=='—'?'<div class="info-chip" style="grid-column:span 2"><div class="l">Doc. sistema</div><div class="v" style="color:var(--accent)">'+h.sysDoc+'</div></div>':''}</div></div><div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Linha do tempo</div>${tlH}</div></div>`;panel.style.display='block';renderHist();setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),100);}
+function showDetail(h){
+  selectedReq=h.req;
+  const panel=document.getElementById('detailPanel'),el=document.getElementById('detailContent');
+  const sp=h.status==='Concluído'?'sp-done':h.status==='Rejeitado'?'sp-rej':'sp-pend';
+  const sppOf=it=>{const c=CAPACIDADE_MAP&&CAPACIDADE_MAP[it.cod];return(c&&c.capPal>0&&c.capSac>0)?Math.round(c.capSac/c.capPal):88;};
+
+  const stColor={'aprovado':'var(--accent)','movido':'var(--yellow)','validado':'var(--green)','lancado':'var(--green)'};
+  const stBg   ={'aprovado':'var(--accent-dim)','movido':'var(--yellow-dim)','validado':'var(--green-dim)','lancado':'var(--green-dim)'};
+  const stLabel={'aprovado':'Aprovado','movido':'Movido','validado':'Validado','lancado':'Lançado'};
+
+  const tp=(h.itens||[]).reduce((a,b)=>a+(b.paletes||0),0);
+  const ts=(h.itens||[]).reduce((a,b)=>a+(b.sacosValidados||b.sacos||0),0);
+
+  // ── Tabela materiais (col esquerda) ──────────────────────────
+  const iR=(h.itens||[]).map(it=>{
+    const spp=sppOf(it), sc=it.sacosValidados||it.sacos||0, pal=calcPaletes(sc,spp);
+    const ist=it.itemStatus||'aprovado', cor=stColor[ist]||'var(--text3)', bg=stBg[ist]||'var(--bg3)';
+    return '<tr>'
+      +'<td><span style="font-weight:700;color:var(--accent)">'+it.cod+'</span></td>'
+      +'<td style="color:var(--text2);font-size:11px">'+it.name+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+(pal>0?pal:'—')+'</td>'
+      +'<td style="text-align:center">'+sc+'</td>'
+      +'<td style="text-align:center">'
+        +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+bg+';color:'+cor+'">'+(stLabel[ist]||ist)+'</span>'
+        +(it.sacosRestantes>0?'<div style="font-size:9px;color:var(--yellow);margin-top:2px">⚠ '+it.sacosRestantes+' pend.</div>':'')
+      +'</td>'
+    +'</tr>';
+  }).join('');
+
+  // ── Timeline por item (col direita) ──────────────────────────
+  const tlHtml=(h.itens||[]).map(it=>{
+    const ist=it.itemStatus||'aprovado';
+    const cor=stColor[ist]||'var(--text3)';
+    const spp=sppOf(it), sc=it.sacosValidados||it.sacos||0, pal=calcPaletes(sc,spp);
+
+    const etapas=[
+      {
+        label:'Aprovação', ico:'✅',
+        done: true,
+        resp: h.aprovador||'—',
+        time: it.timeAprovado||h.data||'—'
+      },{
+        label:'Mov. Física', ico:'📦',
+        done: ist==='movido'||ist==='validado'||ist==='lancado',
+        resp: it.operador||'—',
+        time: it.timeMovido||'—'
+      },{
+        label:'Val. Física', ico:'🔍',
+        done: ist==='validado'||ist==='lancado',
+        resp: it.conferente||h.conferente||'—',
+        time: it.timeValidado||'—'
+      },{
+        label:'Sistema', ico:'💻',
+        done: ist==='lancado',
+        resp: it.sysUser||h.sysUser||'—',
+        time: it.timeLancado||'—',
+        doc:  it.sysDoc||h.sysDoc||''
+      }
+    ];
+
+    const etHtml=etapas.map(e=>{
+      const ativo=e.done;
+      const dotCor=ativo?cor:'var(--border2)';
+      return '<div class="tl-item">'
+        +'<div class="tl-dot" style="background:'+(ativo?cor:'#fff')+';box-shadow:0 0 0 2px '+dotCor+';width:13px;height:13px;top:1px"></div>'
+        +'<div style="padding-left:2px">'
+          +'<div style="font-size:12px;font-weight:700;color:'+(ativo?'var(--text)':'var(--text3)')+'">'+e.ico+' '+e.label+'</div>'
+          +(ativo&&e.resp&&e.resp!=='—'
+            ?'<div style="font-size:11px;color:var(--text2);margin-top:1px">'+e.resp+(e.doc&&e.doc!=='—'?' <span style=\'color:var(--accent);font-weight:600\'>· '+e.doc+'</span>':'')+'</div>'
+            :'<div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:1px">Pendente</div>')
+          +(ativo&&e.time&&e.time!=='—'
+            ?'<div style="font-size:10px;color:var(--text3);margin-top:1px">🕐 '+e.time+'</div>'
+            :'')
+        +'</div>'
+      +'</div>';
+    }).join('');
+
+    return '<div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">'
+      // cabeçalho do item
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+        +'<span style="font-size:11px;font-weight:800;color:var(--text);background:var(--bg3);border:1px solid var(--border2);border-radius:5px;padding:2px 9px;letter-spacing:.03em">'+it.cod+'</span>'
+        +'<span style="font-size:11px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+it.name+'</span>'
+        +'<span style="font-size:12px;font-weight:800;color:'+cor+';flex-shrink:0">'+(pal>0?pal+' pal · ':'')+sc+' sc</span>'
+      +'</div>'
+      +etHtml
+    +'</div>';
+  }).join('');
+
+  el.innerHTML=
+    // ── cabeçalho ──
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">'
+      +'<div>'
+        +'<div style="font-size:20px;font-weight:700;color:var(--accent)">'+h.req+'</div>'
+        +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+h.data+(h.obs?' · '+h.obs:'')+'</div>'
+      +'</div>'
+      +'<span class="status-pill '+sp+'" style="font-size:12px;padding:4px 12px;margin-top:4px">'+h.status+'</span>'
+    +'</div>'
+    // ── grid 2 colunas ──
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">'
+
+      // col esquerda: tabela + chips
+      +'<div>'
+        +'<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Materiais</div>'
+        +'<table class="pt" style="margin-bottom:14px">'
+          +'<tr><th>Código</th><th>Material</th><th style="text-align:center">Pal.</th><th style="text-align:center">Sacos</th><th style="text-align:center">Status</th></tr>'
+          +iR
+          +'<tr><td colspan="2" style="font-weight:700;color:var(--accent)">Total</td>'
+            +'<td style="text-align:center;font-weight:700;color:var(--accent)">'+tp+'</td>'
+            +'<td style="text-align:center;font-weight:700;color:var(--accent)">'+ts+'</td>'
+            +'<td></td></tr>'
+        +'</table>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">'
+          +'<div class="info-chip"><div class="l">Solicitante</div><div class="v">'+h.solicitante+'</div></div>'
+          +'<div class="info-chip"><div class="l">Aprovador</div><div class="v">'+h.aprovador+'</div></div>'
+          +'<div class="info-chip"><div class="l">Operador</div><div class="v">'+(h.operador||'—')+'</div></div>'
+          +'<div class="info-chip"><div class="l">Conferente</div><div class="v">'+(h.conferente||'—')+'</div></div>'
+          +(h.sysDoc&&h.sysDoc!=='—'?'<div class="info-chip" style="grid-column:span 2"><div class="l">Doc. sistema</div><div class="v" style="color:var(--accent)">'+h.sysDoc+'</div></div>':'')
+        +'</div>'
+      +'</div>'
+
+      // col direita: timeline por item
+      +'<div>'
+        +'<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">Linha do tempo por item</div>'
+        +tlHtml
+      +'</div>'
+
+    +'</div>';
+
+  panel.style.display='block';
+  renderHist();
+  setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
 function closeDetail(){document.getElementById('detailPanel').style.display='none';selectedReq=null;renderHist();}
 function exportCSV(){const rows=[['Req.','Data','Itens','Paletes','Sacos','Solicitante','Aprovador','Status']];HISTORY.forEach(h=>rows.push([h.req,h.data,(h.itens||[]).map(i=>i.cod).join(';'),h.paletes,h.sacos,h.solicitante,h.aprovador,h.status]));const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='historico_almox.csv';a.click();URL.revokeObjectURL(url);toast('CSV exportado!');}
 
@@ -1710,6 +2064,8 @@ async function removerRequisicaoSheets(reqId){
       headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({acao:'removerReq',id:reqId})
     });
+    // Limpar do Set após 5 min (Sheets já terá processado)
+    setTimeout(()=>REQS_REMOVIDAS.delete(reqId), 5*60*1000);
   }catch(e){console.error('Erro remover req:',e);}
 }
 
@@ -1733,7 +2089,7 @@ async function carregarRequisicoesPendentes(){
     PENDENTES = rowsReq
       .filter(r=>r[0]&&r[0]!=='CONCLUIDO'&&r[1])
       .map(r=>{try{return JSON.parse(r[1]);}catch(e){return null;}})
-      .filter(Boolean);
+      .filter(p=>p&&!REQS_REMOVIDAS.has(p.req)); // ignorar reqs removidas localmente
 
     // Histórico
     const rowsHist = await fetchRange('HISTORICO!A2:B');
@@ -1743,6 +2099,20 @@ async function carregarRequisicoesPendentes(){
       .filter(Boolean)
       .reverse(); // mais recente primeiro
 
+    // Se o usuário está com uma req ativa, sincronizar sem perder o estado local
+    if(currentPendIdx!==null&&Object.keys(st).length>0){
+      // Atualizar o array mas manter a req ativa na posição correta
+      const activeReqId=st.req;
+      const newIdx=PENDENTES.findIndex(p=>p.req===activeReqId);
+      if(newIdx>=0){
+        // Manter o st local (mais atualizado) no array
+        PENDENTES[newIdx]=JSON.parse(JSON.stringify(st));
+        currentPendIdx=newIdx;
+      } else {
+        // Req foi removida em outro dispositivo — resetar
+        currentPendIdx=null;st={};
+      }
+    }
     renderPendentes();
     renderHist();
 
@@ -1752,12 +2122,14 @@ async function carregarRequisicoesPendentes(){
     if(Object.keys(st).length>0)return; // já tem algo aberto
 
     if(pf.podeConferir){
-      const pend=PENDENTES.find(p=>p.step===3);
+      // Abrir req que tenha pelo menos 1 item 'movido'
+      const pend=PENDENTES.find(p=>(p.itens||[]).some(it=>it.itemStatus==='movido'));
       if(pend){currentPendIdx=PENDENTES.indexOf(pend);st=JSON.parse(JSON.stringify(pend));renderPendentes();setTimeout(()=>restaurarStep(3),150);}
       return;
     }
     if(pf.podeTransferir){
-      const pend=PENDENTES.find(p=>p.step===4);
+      // Abrir req que tenha pelo menos 1 item 'validado'
+      const pend=PENDENTES.find(p=>(p.itens||[]).some(it=>it.itemStatus==='validado'));
       if(pend){currentPendIdx=PENDENTES.indexOf(pend);st=JSON.parse(JSON.stringify(pend));renderPendentes();setTimeout(()=>restaurarStep(4),150);}
       return;
     }
