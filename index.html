@@ -15,6 +15,7 @@
   --red:#B83232;--red-dim:#FDEAEA;--red-mid:#F0A8A8;
   --purple:#5B3FA6;--purple-dim:#EEE9FA;
   --radius:10px;--radius-sm:6px;
+  --indigo:#4F46E5;--indigo-dim:#EEF2FF;
   --shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.04);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -24,11 +25,35 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .wrap{max-width:1220px;margin:0 auto}
 .topbar{display:flex;align-items:center;gap:12px;padding:10px 0 14px;flex-wrap:wrap}
 .logo{width:36px;height:36px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.tabs{display:flex;gap:3px;margin-bottom:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:4px;box-shadow:var(--shadow);flex-wrap:wrap}
+.tabs{display:flex;gap:3px;margin-bottom:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:4px;box-shadow:var(--shadow);flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0}
 .tab{flex:1;min-width:80px;padding:8px 10px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;text-align:center;color:var(--text2);border:none;background:transparent;transition:all .2s}
 .tab.active{background:var(--accent);color:#fff}
 .tab:hover:not(.active){background:var(--bg3);color:var(--text)}
 .page{display:none}.page.active{display:block}
+.search-box{position:relative;margin-bottom:12px;display:flex;gap:8px}
+.search-box input{flex:1;height:38px;padding:0 35px 0 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s}
+.search-box input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.search-box .search-icon{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
+.status-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.sb-pending{background:var(--yellow-dim);color:var(--yellow);border:1px solid var(--yellow-mid)}
+.sb-done{background:var(--green-dim);color:var(--green);border:1px solid var(--green-mid)}
+.conf-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:12px}
+.divergencia-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.div-verde{background:var(--green-dim);color:var(--green)}
+.div-amarelo{background:var(--yellow-dim);color:var(--yellow)}
+.div-vermelho{background:var(--red-dim);color:var(--red)}
+.timeline-bar{display:flex;align-items:center;justify-content:space-between;margin:20px 0;padding:0 10px}
+.tl-node{display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;z-index:2}
+.tl-node-dot{width:12px;height:12px;border-radius:50%;background:var(--bg4);border:2px solid var(--border2);transition:all .3s}
+.tl-node-dot.active{background:var(--accent);border-color:var(--accent-mid);box-shadow:0 0 0 4px var(--accent-dim)}
+.tl-node-dot.done{background:var(--green);border-color:var(--green-mid)}
+.tl-node-label{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;white-space:nowrap}
+.tl-node-label.active{color:var(--accent)}
+.tl-node-label.done{color:var(--green)}
+.tl-line{flex:1;height:2px;background:var(--bg4);margin:0 -5px;position:relative;top:-12px;z-index:1;transition:all .3s}
+.tl-line.done{background:var(--green-mid)}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
 .card-title{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 /* LAYOUT ESTOQUE */
@@ -259,14 +284,21 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     </div>
   </div>
   <div class="tabs" id="mainTabs">
-    <button class="tab active" id="tab-estoque" onclick="showPage('pg-estoque',this)">📊 Estoque</button>
+    <button class="tab active" id="tab-estoque" onclick="showPage('pg-estoque',this)">📦 Estoque</button>
+    <button class="tab" id="tab-pend" onclick="showPage('pg-pendencias',this)">🔔 Pendências <span id="pendTotalBadge" class="pend-badge" style="display:none">0</span></button>
+    <button class="tab" id="tab-conf" onclick="showPage('pg-conferencia',this)">🔍 Conferência</button>
+    <button class="tab" id="tab-div" onclick="showPage('pg-divergencias',this)">📊 Divergências</button>
     <button class="tab" id="tab-hist" onclick="showPage('pg-hist',this)">🗂 Histórico</button>
-    <button class="tab" id="tab-op" onclick="showPage('pg-op',this)" style="display:none">📦 Minhas Ordens</button>
+
   </div>
 </div>
 
 <!-- ═══ ESTOQUE & REQUISIÇÃO ═══ -->
 <div id="pg-estoque" class="page active"><div class="wrap">
+  <div class="search-box">
+    <input type="text" id="mainSearch" placeholder="Pesquisa Global (Código ou Descrição)..." oninput="globalSearch()">
+    <span class="search-icon">🔍</span>
+  </div>
   <div class="estoque-layout">
     <!-- COL ESQUERDA: saldos -->
     <div class="estoque-col">
@@ -284,8 +316,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
             <select id="itemSortMode" onchange="renderItems()" style="height:26px;font-size:10px;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:0 6px;background:#fff;color:var(--text);outline:none;cursor:pointer">
               <option value="status">Status ↕</option>
-              <option value="az">A → Z</option>
-              <option value="za">Z → A</option>
+              <option value="az">Código A → Z</option>
+              <option value="za">Código Z → A</option>
+              <option value="name">Descrição A → Z</option>
             </select>
             <select id="itemFilterStatus" onchange="renderItems()" style="height:26px;font-size:10px;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:0 6px;background:#fff;color:var(--text);outline:none;cursor:pointer">
               <option value="">Todos</option>
@@ -363,7 +396,16 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
               </div>
             </div>
             <div class="r2">
+              <div class="fld">
+                <label>Tipo de Transferência</label>
+                <select id="fTipo">
+                  <option value="Normal">Normal</option>
+                  <option value="Antecipada">Antecipada</option>
+                </select>
+              </div>
               <div class="fld"><label>Observação</label><input type="text" id="fObs" placeholder="Urgência, referência..."></div>
+            </div>
+            <div class="r2">
               <div class="fld"><label>Nome do Supervisor</label><input type="text" id="apName" placeholder="Nome completo"></div>
             </div>
             <div class="rrow"><span style="font-size:16px">👤</span><div style="flex:1"><div style="font-size:13px;font-weight:700">Supervisor</div><div style="font-size:11px;color:var(--text3)">Revise e assine</div></div><span class="rst rst-wait">Pendente</span></div>
@@ -385,7 +427,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
             <div id="s2ItemList" style="margin:4px 0"></div>
             <div class="brow">
               <button class="btn btn-purple" onclick="gerarPDF()">⬇ Baixar PDF</button>
-              <button class="btn btn-primary" onclick="avancarParaMovimentacao()">Registrar movimentação →</button>
+              <button class="btn btn-primary" onclick="avancarAposPDF()">Próxima etapa →</button>
             </div>
           </div>
         </div>
@@ -463,6 +505,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <option value="Concluído">Concluído</option>
         <option value="Em andamento">Em andamento</option>
         <option value="Rejeitado">Rejeitado</option>
+        <option value="Pendente Físico">Apenas pendentes físicos</option>
+        <option value="Concluído Físico">Apenas concluídos físicos</option>
       </select>
       <button class="btn" onclick="exportCSV()">⬇ CSV</button>
     </div>
@@ -495,20 +539,66 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
 </div></div>
 
-<!-- ═══ OPERADOR MOBILE ═══ -->
-<div id="pg-op" class="page"><div class="wrap">
-  <div style="max-width:480px;margin:0 auto">
-    <div class="card" style="margin-bottom:12px">
-      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px">📦 Minhas Ordens</div>
-      <div style="font-size:12px;color:var(--text3)">Marque os itens conforme movimentar</div>
-    </div>
-    <div id="opOrderList"></div>
-    <div id="opEmpty" style="display:none;text-align:center;padding:40px 0;color:var(--text3)">
-      <div style="font-size:32px;margin-bottom:8px">📭</div>
-      <div>Nenhuma ordem pendente</div>
+<!-- ═══ MINHAS PENDÊNCIAS ═══ -->
+<div id="pg-pendencias" class="page"><div class="wrap">
+  <div class="card">
+    <div class="card-title">🔔 Minhas Pendências</div>
+    <div id="pendListContent" class="pend-list"></div>
+    <div id="pendEmpty" style="text-align:center;padding:40px 0;color:var(--text3);display:none">
+      <div style="font-size:32px;margin-bottom:8px">✅</div>
+      <div>Você não possui pendências no momento</div>
     </div>
   </div>
 </div></div>
+
+<!-- ═══ CONFERÊNCIA FÍSICA ═══ -->
+<div id="pg-conferencia" class="page"><div class="wrap">
+  <div class="card">
+    <div class="card-title">🔍 Conferência Física de Estoque</div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <div class="fld" style="width:150px">
+        <label>Local</label>
+        <select id="confLocal" onchange="renderConferencia()">
+          <option value="todos">Todos</option>
+          <option value="almox3">Almox 3</option>
+          <option value="almox30">Almox 30</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+        <input type="checkbox" id="modoCego" onchange="toggleModoCego()">
+        <label for="modoCego" style="font-size:12px;font-weight:700;cursor:pointer">Modo Contagem Cega</label>
+      </div>
+    </div>
+    <div id="confGrid" class="conf-grid"></div>
+  </div>
+</div></div>
+
+<!-- ═══ DIVERGÊNCIAS ═══ -->
+<div id="pg-divergencias" class="page"><div class="wrap">
+  <div class="card">
+    <div class="card-title">📊 Divergências de Estoque</div>
+    <div style="overflow-x:auto">
+      <table class="hist-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descrição</th>
+            <th style="text-align:center">Estoque Sistema</th>
+            <th style="text-align:center">Estoque Físico</th>
+            <th style="text-align:center">Diferença</th>
+            <th style="text-align:center">Diferença %</th>
+            <th style="text-align:center">Status</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="divBody"></tbody>
+      </table>
+    </div>
+    <div id="divEmpty" style="text-align:center;padding:40px 0;color:var(--text3);display:none">Nenhuma divergência registrada</div>
+  </div>
+</div></div>
+
+
 
 </div><!-- /appScreen -->
 
@@ -530,20 +620,21 @@ let histSort={col:'data',asc:false}, selectedReq=null;
 let currentPendIdx=null;
 let _pollingInterval=null;
 let filtroPeriodo='hoje', dtCustomInicio=null, dtCustomFim=null;
+let CONFERENCIAS={}, MODO_CEGO=false;
 
 // ─── PERFIS ──────────────────────────────────────────────────────
 const PERFIS={
   'supervisor':{
-    label:'Supervisor',abas:['pg-estoque','pg-hist'],
+    label:'Supervisor',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist'],
     podeRequisitar:true,podeAprovar:true,podeMovFisica:true,
-    podeConferir:false,podeTransferir:false,podeAudit:false,podeAdmin:false,
-    verTabOp:false
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:true
   },
   'administrador':{
-    label:'Administrador',abas:['pg-estoque','pg-hist'],
+    label:'Administrador',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist'],
     podeRequisitar:true,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:true,podeAudit:true,podeAdmin:true,
-    verTabOp:false
+    verTabOp:true
   },
   'operador':{
     label:'Operador',abas:['pg-op'],
@@ -552,19 +643,19 @@ const PERFIS={
     verTabOp:true
   },
   'supervisor sistema':{
-    label:'Supervisor Sistema',abas:['pg-estoque','pg-hist'],
-    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-divergencias','pg-hist'],
+    podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
     podeConferir:false,podeTransferir:true,podeAudit:false,podeAdmin:false,
     verTabOp:false
   },
   'conferente':{
-    label:'Conferente',abas:['pg-estoque','pg-hist'],
+    label:'Conferente',abas:['pg-estoque','pg-conferencia'],
     podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false
   },
   'auditor':{
-    label:'Auditor',abas:['pg-estoque','pg-hist'],
+    label:'Auditor',abas:['pg-estoque','pg-hist','pg-divergencias'],
     podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
     podeConferir:false,podeTransferir:false,podeAudit:true,podeAdmin:false,
     verTabOp:false
@@ -583,13 +674,18 @@ function showPage(id,btn){
   const pg=document.getElementById(id);if(pg)pg.classList.add('active');btn.classList.add('active');
   if(id==='pg-hist'){renderStats();renderHist();}
   if(id==='pg-op'){renderOpOrders();}
+  if(id==='pg-conferencia'){renderConferencia();}
+  if(id==='pg-divergencias'){renderDivergencias();}
+  if(id==='pg-pendencias'){renderPendencias();}
 }
 function getSt(s,m){if(s<=0||s<m)return'red';if(s<m*1.5)return'yellow';return'green';}
 function stColor(s){return s==='red'?'var(--red)':s==='yellow'?'var(--yellow-mid)':'var(--green)';}
 function stCB(s){return s==='red'?'cb-red':s==='yellow'?'cb-yellow':'cb-green';}
 function stPip(s){return s==='red'?'pip-red':s==='yellow'?'pip-yellow':'pip-green';}
-function calcPaletes(sacos,sacsPorPal){const spp=sacsPorPal||88;if(!sacos||sacos<spp)return 0;return Math.floor(sacos/spp);}
-function getSacsPorPal(cod){const cap=CAPACIDADE_MAP&&CAPACIDADE_MAP[cod];return(cap&&cap.capPal>0&&cap.capSac>0)?Math.round(cap.capSac/cap.capPal):88;}
+function calcPaletes(sacos,sacsPorPal){const spp=88;if(!sacos||sacos<spp)return 0;return Math.floor(sacos/spp);}
+function getSacsPorPal(cod){
+  return 88; // Agora o múltiplo é fixo em 88 conforme solicitado
+}
 function fmtQty(sacos,cod){
   const spp=getSacsPorPal(cod);
   const pal=calcPaletes(sacos,spp),resto=sacos-(pal*spp);
@@ -634,14 +730,31 @@ function setPeriodo(p,btn){
 }
 
 // ─── ESTOQUE ─────────────────────────────────────────────────────
+function globalSearch(){
+  const q = document.getElementById('mainSearch').value.toLowerCase();
+  renderItems(); // Filtra a lista de estoque
+  
+  // Se estiver em outras abas, também pode filtrar
+  if(document.getElementById('pg-conferencia').classList.contains('active')) renderConferencia();
+  if(document.getElementById('pg-hist').classList.contains('active')) renderHist();
+}
+
 function renderItems(){
   const sortMode=(document.getElementById('itemSortMode')||{}).value||'status';
   const filterSt=(document.getElementById('itemFilterStatus')||{}).value||'';
+  const q=(document.getElementById('mainSearch')||{}).value||'';
   const ordemSt={red:0,yellow:1,green:2};
   let indexed=ITEMS.map((item,idx)=>({item,idx}));
+  
+  if(q){
+    const ql=q.toLowerCase();
+    indexed=indexed.filter(({item})=>item.cod.toLowerCase().includes(ql)||item.name.toLowerCase().includes(ql));
+  }
+
   indexed.sort((a,b)=>{
     if(sortMode==='az')return a.item.cod.localeCompare(b.item.cod);
     if(sortMode==='za')return b.item.cod.localeCompare(a.item.cod);
+    if(sortMode==='name')return a.item.name.localeCompare(b.item.name);
     const sa=getSt(a.item.saldo3,a.item.min3),sb=getSt(b.item.saldo3,b.item.min3);
     const diff=(ordemSt[sa]||0)-(ordemSt[sb]||0);
     return diff!==0?diff:a.item.cod.localeCompare(b.item.cod);
@@ -674,7 +787,7 @@ function renderItems(){
     r30.innerHTML=`<div class="color-bar ${stCB(s30)}"></div><div class="item-info"><div class="item-cod">${item.cod}</div><div class="item-name">${item.name}</div></div><div class="item-saldo"><div class="saldo-num" style="color:${stColor(s30)}">${item.saldo30}</div><div class="saldo-min">mín ${item.min30}</div></div><div class="status-pip ${stPip(s30)}"></div>`;
     l30.appendChild(r30);
   });
-  if(visiveis===0){l3.innerHTML='<div style="text-align:center;padding:18px 0;font-size:11px;color:var(--text3)">Nenhum item com este status.</div>';l30.innerHTML='';}
+  if(visiveis===0){l3.innerHTML='<div style="text-align:center;padding:18px 0;font-size:11px;color:var(--text3)">Nenhum item encontrado.</div>';l30.innerHTML='';}
   const ac=document.getElementById('alertCount');
   if(crit>0){ac.style.display='inline';ac.textContent=crit+' crítico'+(crit>1?'s':'');}else ac.style.display='none';
   const sc=document.getElementById('selCount');
@@ -688,31 +801,201 @@ function renderItems(){
 }
 function toggleItem(idx){if(selectedItems.has(idx))selectedItems.delete(idx);else selectedItems.add(idx);renderItems();}
 
+// ─── CONFERÊNCIA ──────────────────────────────────────────────────
+function globalSearch(){
+  const q = document.getElementById('mainSearch').value.toLowerCase();
+  renderItems(); // Filtra a lista de estoque
+  
+  // Se estiver em outras abas, também pode filtrar
+  if(document.getElementById('pg-conferencia').classList.contains('active')) renderConferencia();
+  if(document.getElementById('pg-hist').classList.contains('active')) renderHist();
+}
+
+function toggleModoCego(){
+  MODO_CEGO=document.getElementById('modoCego').checked;
+  renderConferencia();
+}
+
+function renderConferencia(){
+  const grid = document.getElementById('confGrid');
+  if(!grid) return;
+  
+  const local = document.getElementById('confLocal').value;
+  const q = document.getElementById('mainSearch').value.toLowerCase();
+  
+  grid.innerHTML = '';
+  
+  ITEMS.forEach((item, idx) => {
+    // Filtro de Local
+    if(local === 'almox3' && item.saldo3 === 0 && item.saldo30 > 0) return;
+    if(local === 'almox30' && item.saldo30 === 0 && item.saldo3 > 0) return;
+    
+    // Filtro de Pesquisa
+    if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return;
+    
+    const spp = getSacsPorPal(item.cod);
+    const palSist = Math.floor(item.saldo3 / spp);
+    const sacSist = item.saldo3 % spp;
+    
+    const conf = CONFERENCIAS[item.cod] || { pal: 0, sac: 0, total: 0 };
+    
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.padding = '12px';
+    
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700;font-size:12px">${item.cod} - ${item.name}</div>
+        <div style="font-size:10px;color:var(--text3);background:var(--bg3);padding:2px 6px;border-radius:4px">${spp} sc/pal</div>
+      </div>
+      <div style="display:${MODO_CEGO ? 'none' : 'block'};background:var(--bg3);padding:8px;border-radius:6px;margin-bottom:10px;font-size:11px">
+        <div style="display:flex;justify-content:space-between"><span>Paletes Sistema:</span> <b>${palSist}</b></div>
+        <div style="display:flex;justify-content:space-between"><span>Sacos Sistema:</span> <b>${sacSist}</b></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;border-top:1px solid var(--border);padding-top:4px">
+          <span>Total Sistema:</span> <b>${item.saldo3} sacos</b>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="fld">
+          <label>Paletes Contados</label>
+          <input type="number" value="${conf.pal || ''}" oninput="updateConf('${item.cod}', this.value, 'pal')" style="text-align:center;font-weight:700">
+        </div>
+        <div class="fld">
+          <label>Sacos Contados</label>
+          <input type="number" value="${conf.sac || ''}" oninput="updateConf('${item.cod}', this.value, 'sac')" style="text-align:center;font-weight:700">
+        </div>
+      </div>
+      <div style="margin-top:10px;text-align:right;font-size:12px;font-weight:700;color:var(--accent)">
+        Total Físico: <span id="totalFisico_${item.cod}">${conf.total || 0}</span> sacos
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function updateConf(cod, val, type) {
+  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal: 0, sac: 0, total: 0 };
+  CONFERENCIAS[cod][type] = parseInt(val) || 0;
+  const spp = getSacsPorPal(cod);
+  
+  // FÓRMULA ORIGINAL: (Paletes Contados × Fator Palete) + Sacos Contados
+  CONFERENCIAS[cod].total = (CONFERENCIAS[cod].pal * spp) + CONFERENCIAS[cod].sac;
+  
+  const el = document.getElementById('totalFisico_' + cod);
+  if(el) el.textContent = CONFERENCIAS[cod].total;
+  
+  renderDivergencias();
+}
+
+function renderDivergencias() {
+  const body = document.getElementById('divBody');
+  if(!body) return;
+  
+  body.innerHTML = '';
+  let count = 0;
+  
+  ITEMS.forEach(item => {
+    const conf = CONFERENCIAS[item.cod];
+    if(!conf || (conf.pal === 0 && conf.sac === 0)) return;
+    
+    count++;
+    const sist = item.saldo3;
+    const fis = conf.total;
+    const diff = fis - sist;
+    const diffPerc = sist > 0 ? ((diff / sist) * 100).toFixed(1) : (diff > 0 ? 100 : 0);
+    
+    let colorClass = 'div-verde';
+    if(Math.abs(diff) > 0) colorClass = 'div-amarelo';
+    if(Math.abs(diff) > 50) colorClass = 'div-vermelho';
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${item.cod}</td>
+      <td>${item.name}</td>
+      <td style="text-align:center">${sist}</td>
+      <td style="text-align:center">${fis}</td>
+      <td style="text-align:center;font-weight:700;color:${diff < 0 ? 'var(--red)' : (diff > 0 ? 'var(--green)' : 'inherit')}">${diff}</td>
+      <td style="text-align:center"><span class="divergencia-tag ${colorClass}">${diffPerc}%</span></td>
+      <td style="text-align:center">${Math.abs(diff) === 0 ? 'OK' : 'Divergente'}</td>
+      <td><button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="aprovarDivergencia('${item.cod}')">Ajustar</button></td>
+    `;
+    body.appendChild(tr);
+  });
+  
+  document.getElementById('divEmpty').style.display = count === 0 ? 'block' : 'none';
+}
+
+function aprovarDivergencia(cod) {
+  const obs = prompt('Observação para o ajuste de estoque:');
+  if(obs === null) return;
+  
+  toast('✅ Divergência de ' + cod + ' aprovada e registrada!');
+  delete CONFERENCIAS[cod];
+  renderConferencia();
+  renderDivergencias();
+}
+
 // ─── PENDENTES ────────────────────────────────────────────────────
 function renderPendentes(){
   const card=document.getElementById('pendentesCard');
   const list=document.getElementById('pendentesList');
   const cnt=document.getElementById('pendCount');
+  const mainList = document.getElementById('pendListContent');
+  const mainEmpty = document.getElementById('pendEmpty');
+  const mainBadge = document.getElementById('pendTotalBadge');
+  
   if(!card)return;
   const pf=perfil();
-  if(PENDENTES.length===0){card.style.display='none';return;}
-  // Filtrar por perfil
-  let pendFiltrados=PENDENTES.filter(p=>{
-    if(pf.podeAdmin)return true;
-    if(pf.podeAprovar)return true;
-    if(pf.podeConferir)return(p.itens||[]).some(it=>it.itemStatus==='movido'||it.itemStatus==='validado');
-    if(pf.podeTransferir)return(p.itens||[]).some(it=>it.itemStatus==='movido'||it.itemStatus==='validado'||it.itemStatus==='lancado');
-    return false;
+  const nome = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '';
+  
+  // Filtrar por perfil e responsabilidade
+  let pendFiltrados = PENDENTES.filter(p => {
+    if(pf.podeAdmin) return true;
+    if(pf.label === 'Supervisor') return p.solicitante === nome || p.step === 1 || p.step === 3;
+    if(pf.label === 'Supervisor Sistema') return p.step === 4;
+    if(pf.label === 'Operador') return p.step === 2 || p.step === 3;
+    return true;
   });
-  if(pendFiltrados.length===0){
-    if(pf.podeTransferir||pf.podeConferir){
-      card.style.display='block';cnt.textContent='0';
-      list.innerHTML='<div style="text-align:center;padding:12px;font-size:11px;color:var(--text3)">Aguardando operador mover itens...</div>';
-      return;
+
+  // Atualizar badge e lista na aba "Minhas Pendências"
+  if(mainList) {
+    mainList.innerHTML = '';
+    if(pendFiltrados.length === 0) {
+      mainEmpty.style.display = 'block';
+      mainBadge.style.display = 'none';
+    } else {
+      mainEmpty.style.display = 'none';
+      mainBadge.style.display = 'inline-flex';
+      mainBadge.textContent = pendFiltrados.length;
+      
+      pendFiltrados.forEach(p => {
+        const d = document.createElement('div');
+        d.className = 'pend-card';
+        const stepLabels = ['', 'Aguardando Aprovação', 'PDF Gerado', 'Aguardando Movimentação', 'Aguardando Confirmação Sistema', 'Concluído'];
+        d.innerHTML = `
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <strong style="color:var(--accent)">${p.req}</strong>
+            <span style="font-size:10px;color:var(--text3)">${p.dataHora}</span>
+          </div>
+          <div style="font-size:11px;font-weight:700;margin-bottom:4px">${stepLabels[p.step]}</div>
+          <div style="font-size:10px;color:var(--text3)">Tipo: ${p.tipo} | Solicitante: ${p.solicitante}</div>
+          <div class="brow" style="margin-top:10px">
+            <button class="btn btn-primary" style="height:28px;padding:0 12px;font-size:11px" onclick="carregarPendente(${PENDENTES.indexOf(p)})">Abrir</button>
+          </div>
+        `;
+        mainList.appendChild(d);
+      });
     }
-    card.style.display='none';return;
   }
-  card.style.display='block';cnt.textContent=pendFiltrados.length;
+
+  // Atualizar lista lateral (se visível)
+  if(pendFiltrados.length===0){
+    card.style.display='none';
+    if(cnt) cnt.textContent = '0';
+    return;
+  }
+  card.style.display='block';
+  if(cnt) cnt.textContent = pendFiltrados.length;
   list.innerHTML='';
   pendFiltrados.forEach(p=>{
     const realIdx=PENDENTES.indexOf(p);
@@ -739,7 +1022,20 @@ function getEtapaNome(p){
 function carregarPendente(i){
   currentPendIdx=i;st=JSON.parse(JSON.stringify(PENDENTES[i]));
   renderPendentes();
-  setTimeout(()=>restaurarStep(st.step),50);
+  
+  const pf = perfil();
+  // Se for operador, ele já está na aba pg-op, não precisa mudar
+  if(!pf.verTabOp || pf.label !== 'Operador') {
+    const tabEstoque = document.getElementById('tab-estoque');
+    if(tabEstoque) showPage('pg-estoque', tabEstoque);
+  }
+  
+  setTimeout(() => {
+    restaurarStep(st.step);
+    // Scroll para o topo do painel de requisição
+    const reqPanel = document.querySelector('.req-panel');
+    if(reqPanel) reqPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
 }
 function apagarReqPendente(idx){
   if(!confirm('Apagar esta requisição?'))return;
@@ -753,24 +1049,31 @@ function apagarReqPendente(idx){
 // ─── REQUISIÇÃO ───────────────────────────────────────────────────
 function iniciarRequisicao(){
   if(selectedItems.size===0){toast('Selecione ao menos 1 item');return;}
+  
   st={};currentPendIdx=null;
   st.solicitante=(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'Supervisor';
   st.dataHora=nowFull();
   st.req='REQ-'+Date.now().toString().slice(-6);
+  st.tipo = 'Normal';
   st.itens=[];
   selectedItems.forEach(idx=>{
     const item=ITEMS[idx],r=calcItem(item);
     st.itens.push({cod:item.cod,name:item.name,paletes:r.palEf,sacos:r.sacosEf,sacosValidados:r.sacosEf,ativo:true,itemStatus:'pendente'});
   });
   st.step=1;
-  PENDENTES.push(JSON.parse(JSON.stringify(st)));
-  currentPendIdx=PENDENTES.length-1;
-  salvarRequisicaoSheets(st);
+  
+  // Abrir tela de aprovação
   document.getElementById('rn1').textContent=st.req;
   document.getElementById('fData').textContent=st.dataHora;
-  popularSelectCodigos();renderApEditList();renderPendentes();
-  selectedItems=new Set();renderItems();
+  document.getElementById('fTipo').value = 'Normal';
+  popularSelectCodigos();
+  renderApEditList();
   setStep(1);
+  
+  // Scroll para o painel de requisição em mobile
+  if(window.innerWidth <= 768) {
+    document.querySelector('.req-panel').scrollIntoView({behavior: 'smooth'});
+  }
 }
 
 // ─── APROVAÇÃO ────────────────────────────────────────────────────
@@ -779,27 +1082,69 @@ function aprovar(){
   const n=(apEl&&apEl.value.trim())||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
   if(!n){toast('Informe o nome do aprovador');return;}
   if(!st.itens||st.itens.length===0){toast('Nenhum item na requisição');return;}
+  
+  st.tipo = document.getElementById('fTipo').value || 'Normal';
   st.itens=(st.itens||[]).filter((it,i)=>{
     const chk=document.getElementById('apChk_'+i);
-    if(chk&&!chk.checked)return false;
+    if(chk && !chk.checked) return false;
     const sacosEl=document.getElementById('apQtyS_'+i);
     const sacos=sacosEl?parseInt(sacosEl.value)||0:it.sacos||0;
     const spp=getSacsPorPal(it.cod);
-    it.sacos=sacos;it.paletes=calcPaletes(sacos,spp);it.sacosValidados=sacos;it.ativo=true;it.itemStatus='aprovado';it.timeAprovado=nowFull();
+    it.sacos=sacos;
+    it.paletes=calcPaletes(sacos,spp);
+    it.sacosValidados=sacos;
+    it.ativo=true;
+    it.itemStatus='aprovado';
+    it.timeAprovado=nowFull();
     return it.sacos>0;
   });
+  
   if(st.itens.length===0){toast('Selecione ao menos 1 item');return;}
-  st.aprovador=n;st.obs=(document.getElementById('fObs')||{}).value||'';st.step=2;
-  syncPendente();atualizarHistorico('Em andamento');
-  // PDF automático
+  
+  st.aprovador=n;
+  st.obs=(document.getElementById('fObs')||{}).value||'';
+  st.step=2;
+  st.statusSistemico = 'Pendente';
+  st.statusFisico = 'Pendente';
+  
+  if(currentPendIdx === null) {
+    PENDENTES.push(JSON.parse(JSON.stringify(st)));
+    currentPendIdx = PENDENTES.length - 1;
+  } else {
+    PENDENTES[currentPendIdx] = JSON.parse(JSON.stringify(st));
+  }
+  
+  salvarRequisicaoSheets(st);
+  atualizarHistorico('Em andamento');
+  
+  // Se for Antecipada, o fluxo muda: após PDF, vai para Confirmação Sistema
+  if(st.tipo === 'Antecipada') {
+    toast('✅ Aprovada como ANTECIPADA! Siga para o PDF e depois Confirmação Sistema.');
+  } else {
+    toast('✅ Aprovada! Siga para o PDF e Movimentação Física.');
+  }
+  
   setTimeout(()=>gerarPDF(),200);
-  // Avançar para tela PDF
   setStep(2);
   document.getElementById('rn2').textContent=st.req;
   document.getElementById('aprovadorNome2').textContent=n;
   renderTimelineBar('timelineBar2',2);
   renderS2Items();
-  toast('✅ Aprovado! PDF sendo gerado...');
+  renderPendentes();
+  selectedItems=new Set();
+  renderItems();
+}
+
+function avancarAposPDF() {
+  // Agora não pula mais o passo 3, apenas o passo 3 na antecipada renderiza a Confirmação
+  avancarParaProximaEtapa();
+}
+
+function avancarParaProximaEtapa() {
+  if(!st.step) st.step = 1;
+  st.step++;
+  syncPendente();
+  restaurarStep(st.step);
 }
 function renderS2Items(){
   const c=document.getElementById('s2ItemList');if(!c)return;
@@ -850,13 +1195,13 @@ function toggleApItem(i){
 function syncSacosFromPal(i){
   const p=parseInt(document.getElementById('apQtyP_'+i).value)||0;
   const it=st.itens&&st.itens[i];
-  const spp=it?getSacsPorPal(it.cod):88;
+  const spp=getSacsPorPal(it.cod);
   document.getElementById('apQtyS_'+i).value=p*spp;
 }
 function syncPalFromSacos(i){
   const s=parseInt(document.getElementById('apQtyS_'+i).value)||0;
   const it=st.itens&&st.itens[i];
-  const spp=it?getSacsPorPal(it.cod):88;
+  const spp=getSacsPorPal(it.cod);
   document.getElementById('apQtyP_'+i).value=calcPaletes(s,spp);
 }
 function popularSelectCodigos(){
@@ -870,8 +1215,13 @@ function onAddCodChange(){
   const nameEl=document.getElementById('addName');if(nameEl)nameEl.value=opt.dataset.name||'';
 }
 function syncAddSac(){
+  const cod=document.getElementById('addCod').value;
   const p=parseInt(document.getElementById('addPal').value)||0;
-  if(p>0){const s=document.getElementById('addSac');if(s)s.value=p*88;}
+  if(p>0){
+    const spp=getSacsPorPal(cod);
+    const s=document.getElementById('addSac');
+    if(s)s.value=p*spp;
+  }
 }
 function acrescentarItem(){
   const sel=document.getElementById('addCod');
@@ -897,6 +1247,10 @@ function acrescentarItem(){
 // ─── MOV FÍSICA ───────────────────────────────────────────────────
 function renderMovChecklist(){
   const c=document.getElementById('s3CheckList');if(!c)return;c.innerHTML='';
+  const pf=perfil();
+  const podeMover = pf.podeMovFisica || pf.podeAdmin;
+  const isAntecipada = st.tipo === 'Antecipada';
+
   (st.itens||[]).forEach((it,i)=>{
     const movido=it.itemStatus==='movido'||it.itemStatus==='validado'||it.itemStatus==='lancado';
     const spp=getSacsPorPal(it.cod),pal=calcPaletes(it.sacos,spp);
@@ -905,9 +1259,16 @@ function renderMovChecklist(){
       +'background:'+(movido?'var(--green-dim)':'#fff')+';'
       +'border:2px solid '+(movido?'var(--green)':'var(--border)')+';'
       +'border-radius:var(--radius-sm);transition:all .18s';
-    const btnHtml=movido
-      ?'<span style="font-size:11px;font-weight:700;color:var(--green);white-space:nowrap;flex-shrink:0">✓ Movido</span>'
-      :`<button onclick="confirmarItemMov(${i})" style="height:36px;padding:0 14px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">✓ Marcar Movido</button>`;
+    
+    let btnHtml = '';
+    if(movido) {
+      btnHtml = '<span style="font-size:11px;font-weight:700;color:var(--green);white-space:nowrap;flex-shrink:0">✓ Movido</span>';
+    } else if(podeMover) {
+      btnHtml = `<button onclick="confirmarItemMov(${i})" style="height:36px;padding:0 14px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">✓ Marcar Movido</button>`;
+    } else {
+      btnHtml = '<span style="font-size:10px;color:var(--text3);font-style:italic">Aguard. Operador</span>';
+    }
+
     d.innerHTML='<div style="flex:1;min-width:0">'
       +`<div style="font-size:11px;font-weight:800;color:var(--text)">${it.cod}</div>`
       +`<div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</div>`
@@ -915,6 +1276,18 @@ function renderMovChecklist(){
     +'</div>'+btnHtml;
     c.appendChild(d);
   });
+  
+  // Na antecipada, se todos movidos, mostra o botão de finalizar aqui
+  if(isAntecipada) {
+    const todosMovidos = (st.itens||[]).every(it=>it.itemStatus==='movido'||it.itemStatus==='lancado');
+    if(todosMovidos) {
+      const btnDiv=document.createElement('div');
+      btnDiv.style.cssText='margin-top:14px;border-top:1px solid var(--border);padding-top:12px';
+      btnDiv.innerHTML='<button onclick="finalizarOrdemDefinitivamente()" style="width:100%;height:44px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer">🏁 Finalizar Transferência</button>';
+      c.appendChild(btnDiv);
+    }
+  }
+  
   atualizarStatusMov();
 }
 function confirmarItemMov(i){
@@ -923,17 +1296,28 @@ function confirmarItemMov(i){
   const it=st.itens[i];if(!it)return;
   it.itemStatus='movido';it.timeMovido=nowFull();it.operador=n;
   if(!st.operador)st.operador=n;
-  if(!st.step||st.step<3)st.step=3;
+  
   syncPendente();atualizarHistorico('Em andamento');
   renderMovChecklist();
-  const spp=getSacsPorPal(it.cod),pal=calcPaletes(it.sacos,spp);
   toast(`📦 ${it.cod} marcado como Movido`);
-  // Verificar se todos movidos → avançar passo
+  
   const todos=(st.itens||[]).every(it=>it.itemStatus==='movido'||it.itemStatus==='validado'||it.itemStatus==='lancado');
   if(todos){
     setTimeout(()=>{
-      if(confirm('Todos os itens movidos! Avançar para confirmação no sistema?')){
-        passarParaConfirmacao();
+      const isAntecipada = st.tipo === 'Antecipada';
+      if(isAntecipada) {
+        // Na antecipada, a movimentação é o passo 4 (o último antes de concluir)
+        if(confirm('Todos os itens movidos! Finalizar ordem?')) {
+          finalizarOrdemDefinitivamente();
+          resetar();
+        }
+      } else {
+        // No fluxo normal, a movimentação é o passo 3, vai para o 4 (Confirmação)
+        if(confirm('Todos os itens movidos! Avançar para confirmação no sistema?')){
+          st.step = 4;
+          syncPendente();
+          restaurarStep(4);
+        }
       }
     },300);
   }
@@ -956,17 +1340,28 @@ function passarParaConfirmacao(){
 function renderSysCL(){
   const c=document.getElementById('sysChecklist');if(!c)return;c.innerHTML='';
   const pf=perfil();
-  const itensProntos=(st.itens||[]).filter(it=>it.itemStatus==='movido');
+  
+  // Se for Antecipada, todos os itens "aprovados" já podem ser confirmados no sistema
+  if(st.tipo === 'Antecipada') {
+    (st.itens||[]).forEach(it => {
+      if(it.itemStatus === 'aprovado' || it.itemStatus === 'pendente') it.itemStatus = 'pronto_antecipada';
+    });
+  }
+
+  const itensProntos=(st.itens||[]).filter(it=>it.itemStatus==='movido' || it.itemStatus === 'pronto_antecipada');
   const itensJaLancados=(st.itens||[]).filter(it=>it.itemStatus==='lancado');
   const itensAguardando=(st.itens||[]).filter(it=>it.itemStatus==='aprovado'||it.itemStatus==='pendente');
+
   if(itensProntos.length===0&&itensAguardando.length>0&&itensJaLancados.length===0){
     c.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">⏳ Aguardando operador mover os itens...</div>';return;
   }
   if(itensProntos.length>0){
     const hdr=document.createElement('div');
-    hdr.style.cssText='font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px';
-    hdr.textContent='Prontos para confirmar ('+itensProntos.length+')';
+    hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px';
+    hdr.innerHTML = `<span style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em">Prontos para confirmar (${itensProntos.length})</span>
+                     <button onclick="confirmarTodosSistema()" style="font-size:10px;background:var(--green);color:#fff;border:none;border-radius:4px;padding:4px 10px;font-weight:700;cursor:pointer">✅ Confirmar Todos</button>`;
     c.appendChild(hdr);
+    
     itensProntos.forEach(it=>{
       const idx=(st.itens||[]).indexOf(it);
       const spp=getSacsPorPal(it.cod),sc=it.sacosValidados||it.sacos,pal=calcPaletes(sc,spp);
@@ -974,7 +1369,7 @@ function renderSysCL(){
       d.style.cssText='background:var(--green-dim);border:1.5px solid var(--green-mid);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px';
       d.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div><span style="font-size:11px;font-weight:800;color:var(--text);background:#fff;border:1px solid var(--border2);border-radius:4px;padding:2px 7px">${it.cod}</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:8px">movido por ${it.operador||'operador'}</span></div>
+        <span style="font-size:10px;color:var(--text3);margin-left:8px">${it.itemStatus === 'pronto_antecipada' ? 'Transferência Antecipada' : 'movido por ' + (it.operador||'operador')}</span></div>
         <div style="font-size:12px;font-weight:800;color:var(--green)">${pal>0?pal+' pal · ':''}${sc} sc</div></div>
         <div style="font-size:10px;color:var(--text2);margin-bottom:10px">${it.name}</div>
         <button onclick="lancarItem(${idx})" style="width:100%;height:36px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer">💻 Confirmar no Sistema</button>`;
@@ -1006,39 +1401,136 @@ function renderSysCL(){
       c.appendChild(d);
     });
   }
+  const isAntecipada = st.tipo === 'Antecipada';
   const todosLancados=(st.itens||[]).every(it=>it.itemStatus==='lancado');
   const algumLancado=(st.itens||[]).some(it=>it.itemStatus==='lancado');
+  
   if(algumLancado){
     const btnDiv=document.createElement('div');
     btnDiv.style.cssText='margin-top:14px;border-top:1px solid var(--border);padding-top:12px';
-    btnDiv.innerHTML=todosLancados
-      ?'<button onclick="concluirSistema()" style="width:100%;height:44px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer">🏁 Finalizar Transferência</button>'
-      :'<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px">Aguardando confirmar todos os itens</div>'
-       +'<button onclick="concluirSistema()" style="width:100%;height:36px;background:var(--border2);color:var(--text2);border:none;border-radius:var(--radius-sm);font-size:12px;cursor:pointer">Finalizar com itens pendentes</button>';
+    
+    if(isAntecipada) {
+      // Na antecipada, o botão de "concluir sistema" apenas avança para o passo 4
+      btnDiv.innerHTML = todosLancados 
+        ? '<button onclick="concluirSistema()" style="width:100%;height:44px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer">➡️ Ir para Movimentação Física</button>'
+        : '<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px">Aguardando confirmar todos os itens no sistema</div>';
+    } else {
+      // No fluxo normal, o botão de "concluir sistema" finaliza a ordem (se movido)
+      btnDiv.innerHTML = todosLancados
+        ?'<button onclick="concluirSistema()" style="width:100%;height:44px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer">🏁 Finalizar Transferência</button>'
+        :'<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px">Aguardando confirmar todos os itens</div>'
+         +'<button onclick="concluirSistema()" style="width:100%;height:36px;background:var(--border2);color:var(--text2);border:none;border-radius:var(--radius-sm);font-size:12px;cursor:pointer">Finalizar com itens pendentes</button>';
+    }
     c.appendChild(btnDiv);
   }
 }
-function lancarItem(idx){
-  const it=st.itens[idx];if(!it||it.itemStatus!=='movido')return;
+function lancarItem(idx, isBulk = false){
+  const it=st.itens[idx];
+  if(!it) return;
+  // Permitir confirmar se status for 'movido' OU 'pronto_antecipada'
+  if(it.itemStatus !== 'movido' && it.itemStatus !== 'pronto_antecipada') return;
+  
   const user=(document.getElementById('sysUser')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
   const doc=(document.getElementById('sysDoc')||{}).value||'';
+  if(!user){
+    if(!isBulk) {
+      toast('Informe o usuário sistema');
+      document.getElementById('sysUser').focus();
+    }
+    return false;
+  }
+  
+  it.itemStatus='lancado';
+  it.timeLancado=nowFull();
+  it.sysUser=user;
+  it.sysDoc=doc;
+  
+  if(!st.sysUser) st.sysUser=user;
+  if(!st.step || st.step < 4) st.step = 4;
+  
+  if(!isBulk) {
+    syncPendente();
+    atualizarHistorico('Em andamento');
+    renderSysCL();
+    toast(`✅ ${it.cod} confirmado no sistema`);
+  }
+  return true;
+}
+
+function confirmarTodosSistema(){
+  const user=(document.getElementById('sysUser')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
   if(!user){toast('Informe o usuário sistema');document.getElementById('sysUser').focus();return;}
-  it.itemStatus='lancado';it.timeLancado=nowFull();it.sysUser=user;it.sysDoc=doc;
-  if(!st.sysUser)st.sysUser=user;
-  if(!st.step||st.step<4)st.step=4;
-  syncPendente();atualizarHistorico('Em andamento');renderSysCL();
-  toast(`✅ ${it.cod} confirmado no sistema`);
+  
+  let count = 0;
+  (st.itens||[]).forEach((it, idx) => {
+    if(it.itemStatus === 'movido' || it.itemStatus === 'pronto_antecipada') {
+      if(lancarItem(idx, true)) count++;
+    }
+  });
+  
+  if(count > 0) {
+    syncPendente();
+    atualizarHistorico('Em andamento');
+    renderSysCL();
+    toast(`✅ ${count} itens confirmados no sistema`);
+  }
 }
 function concluirSistema(){
   const user=(document.getElementById('sysUser')||{}).value||(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'';
   const doc=(document.getElementById('sysDoc')||{}).value||'';
   if(!user){toast('Informe o usuário sistema');return;}
-  st.sysUser=user;st.sysDoc=doc;st.step=5;
-  salvarHist('Concluído');removePendente();
+  
+  st.sysUser=user;
+  st.sysDoc=doc;
+  st.timeLancado = nowFull();
+  st.statusSistemico = 'Concluída';
+
+  const isAntecipada = st.tipo === 'Antecipada';
+  const todosMovidos = (st.itens||[]).every(it => it.itemStatus === 'movido' || it.itemStatus === 'lancado');
+  
+  if(isAntecipada) {
+    // Na antecipada, após a confirmação (que é o passo 3), deve ir para a movimentação (passo 4)
+    if(!todosMovidos) {
+      st.step = 4;
+      syncPendente();
+      atualizarHistorico('Em andamento');
+      toast('💻 Parte sistêmica concluída! Agora realize a movimentação física.');
+      restaurarStep(4);
+      return;
+    }
+  } else {
+    if(!todosMovidos) {
+      st.step = 3; 
+      st.statusFisico = 'Pendente';
+      syncPendente();
+      atualizarHistorico('Em andamento');
+      toast('💻 Parte sistêmica concluída! Ordem aguardando movimentação física.');
+      resetar();
+      return;
+    }
+  }
+
+  finalizarOrdemDefinitivamente(user, doc);
+}
+
+function finalizarOrdemDefinitivamente(user, doc) {
+  st.step=5;
+  st.statusFisico = 'Concluída';
+  st.statusSistemico = 'Concluída';
+  if(user) st.sysUser = user;
+  if(doc) st.sysDoc = doc;
+  
+  salvarHist('Concluído');
+  removePendente();
+  
   const tp=(st.itens||[]).reduce((a,b)=>a+(b.paletes||0),0);
   const ts=(st.itens||[]).reduce((a,b)=>a+(b.sacosValidados||b.sacos||0),0);
-  document.getElementById('doneT').innerHTML=`Req. <b>${st.req}</b><br>Aprovado por: <b>${st.aprovador||'—'}</b><br>Operador: <b>${st.operador||'—'}</b><br>Sistema: <b>${user}</b>${doc?' · Doc: <b>'+doc+'</b>':''}<br>Total: <b>${tp} paletes · ${ts} sacos</b>`;
-  setStep(5);toast('🏁 Transferência finalizada!');
+  const doneEl = document.getElementById('doneT');
+  if(doneEl) {
+    doneEl.innerHTML=`Req. <b>${st.req}</b><br>Aprovado por: <b>${st.aprovador||'—'}</b><br>Operador: <b>${st.operador||'—'}</b><br>Sistema: <b>${st.sysUser||user||'—'}</b>${st.sysDoc||doc?' · Doc: <b>'+(st.sysDoc||doc)+'</b>':''}<br>Total: <b>${tp} paletes · ${ts} sacos</b>`;
+  }
+  setStep(5);
+  toast('🏁 Transferência finalizada com sucesso!');
 }
 
 // ─── OPERADOR MOBILE ──────────────────────────────────────────────
@@ -1112,13 +1604,24 @@ function atualizarHistoricoReq(req,status){
 // ─── TIMELINE VISUAL ──────────────────────────────────────────────
 function renderTimelineBar(containerId,stepAtual){
   const c=document.getElementById(containerId);if(!c)return;
-  const steps=[
+  let steps=[
     {label:'Aprovação',ico:'✅'},
     {label:'PDF'},
     {label:'Movimentação',ico:'📦'},
     {label:'Confirmação',ico:'💻'},
     {label:'Concluído',ico:'🏁'}
   ];
+  
+  if(st && st.tipo === 'Antecipada') {
+    steps = [
+      {label:'Aprovação',ico:'✅'},
+      {label:'PDF'},
+      {label:'Confirmação',ico:'💻'},
+      {label:'Movimentação',ico:'📦'},
+      {label:'Concluído',ico:'🏁'}
+    ];
+  }
+
   let html='<div class="timeline-bar">';
   steps.forEach((s,i)=>{
     const cls=i+1<stepAtual?'done':i+1===stepAtual?'active':'';
@@ -1145,41 +1648,100 @@ function removePendente(){
 }
 function restaurarStep(s){
   const pf=perfil();
-  // Operador: não usa o painel de estoque
-  if(pf.verTabOp)return;
-  // Admin/Supervisor Sistema: pode ver qualquer etapa
-  if(pf.podeAdmin||pf.podeTransferir){
-    if(s===4||(!pf.podeAprovar&&!pf.podeMovFisica)){
-      document.getElementById('rn4').textContent=st.req;
-      const sysEl=document.getElementById('sysUser');
-      if(sysEl&&USUARIO_LOGADO)sysEl.value=USUARIO_LOGADO.nome;
-      renderSysCL();setStep(4);return;
-    }
-  }
-  if(s===1&&pf.podeAprovar){
+  const isAntecipada = st && st.tipo === 'Antecipada';
+  
+  // Operador: não usa o painel de estoque, usa pg-op
+  if(pf.label === 'Operador') return;
+
+  if(s===1 && (pf.podeAprovar || pf.podeAdmin)){
     document.getElementById('rn1').textContent=st.req;
     document.getElementById('fData').textContent=st.dataHora;
     popularSelectCodigos();renderApEditList();
-  }else if(s===2){
+  } else if(s===2){
     document.getElementById('rn2').textContent=st.req;
     document.getElementById('aprovadorNome2').textContent=st.aprovador||'—';
     renderTimelineBar('timelineBar2',2);renderS2Items();
-  }else if(s===3&&pf.podeMovFisica){
-    document.getElementById('rn3').textContent=st.req;
-    const opEl=document.getElementById('opName');
-    if(opEl&&USUARIO_LOGADO)opEl.value=USUARIO_LOGADO.nome;
-    renderMovChecklist();
-  }else if(s===4){
-    document.getElementById('rn4').textContent=st.req;
-    const sysEl=document.getElementById('sysUser');
-    if(sysEl&&USUARIO_LOGADO)sysEl.value=USUARIO_LOGADO.nome;
-    renderSysCL();
+  } else if(s===3){
+    // No fluxo normal s=3 é Movimentação. Na Antecipada s=3 é Confirmação.
+    if(isAntecipada) {
+      if(pf.podeTransferir || pf.podeAdmin) {
+        document.getElementById('rn4').textContent=st.req;
+        const sysEl=document.getElementById('sysUser');
+        if(sysEl&&USUARIO_LOGADO)sysEl.value=USUARIO_LOGADO.nome;
+        renderSysCL();
+      }
+    } else {
+      if(pf.podeMovFisica || pf.podeAdmin) {
+        document.getElementById('rn3').textContent=st.req;
+        const opEl=document.getElementById('opName');
+        if(opEl&&USUARIO_LOGADO)opEl.value=USUARIO_LOGADO.nome;
+        renderMovChecklist();
+      }
+    }
+  } else if(s===4){
+    // No fluxo normal s=4 é Confirmação. Na Antecipada s=4 é Movimentação.
+    if(isAntecipada) {
+      if(pf.podeMovFisica || pf.podeAdmin) {
+        document.getElementById('rn3').textContent=st.req;
+        const opEl=document.getElementById('opName');
+        if(opEl&&USUARIO_LOGADO)opEl.value=USUARIO_LOGADO.nome;
+        renderMovChecklist();
+      }
+    } else {
+      if(pf.podeTransferir || pf.podeAdmin) {
+        document.getElementById('rn4').textContent=st.req;
+        const sysEl=document.getElementById('sysUser');
+        if(sysEl&&USUARIO_LOGADO)sysEl.value=USUARIO_LOGADO.nome;
+        renderSysCL();
+      }
+    }
   }
   setStep(s);
 }
 function setStep(s){
-  ['s1','s2','s3','s4','s5'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.style.display=i+1===s?'block':'none';});
-  ['fs1','fs2','fs3','fs4','fs5'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.className='fstep '+(i+1<s?'done':i+1===s?'active':'pending');});
+  const isAntecipada = st && st.tipo === 'Antecipada';
+  const mapping = [1, 2, 3, 4, 5]; // Ordem padrão: Aprovação(1), PDF(2), Mov(3), Conf(4), Concl(5)
+  
+  // No HTML: fs1=Aprovação, fs2=PDF, fs3=Movimentação, fs4=Confirmação, fs5=Concluído
+  // Se Antecipada, a ordem lógica dos passos muda para: 1 -> 2 -> 4 -> 3 -> 5
+  
+  if(isAntecipada) {
+    // Atualizar os labels dos passos no flowbar
+    const fs3 = document.getElementById('fs3');
+    const fs4 = document.getElementById('fs4');
+    if(fs3 && fs4) {
+      fs3.innerHTML = '<div class="step-ico">💻</div><div class="step-lbl">Confirmação</div><div class="step-sub">Iasmyn</div>';
+      fs4.innerHTML = '<div class="step-ico">📦</div><div class="step-lbl">Movimentação</div><div class="step-sub">Operador</div>';
+    }
+    
+    // Mapear o passo atual 's' para a exibição correta
+    // Se s=3 (Movimentação no fluxo normal), na antecipada ele deve mostrar a tela s4 (Confirmação)
+    // Se s=4 (Confirmação no fluxo normal), na antecipada ele deve mostrar a tela s3 (Movimentação)
+    const displayMap = {1:'s1', 2:'s2', 3:'s4', 4:'s3', 5:'s5'};
+    ['s1','s2','s3','s4','s5'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.style.display = (id === displayMap[s]) ? 'block' : 'none';
+    });
+    
+    // Atualizar classes do flowbar seguindo a nova ordem: fs1 -> fs2 -> fs3(Conf) -> fs4(Mov) -> fs5
+    const flowOrder = ['fs1', 'fs2', 'fs3', 'fs4', 'fs5'];
+    flowOrder.forEach((id, i) => {
+      const el = document.getElementById(id);
+      if(el) el.className = 'fstep ' + (i+1 < s ? 'done' : i+1 === s ? 'active' : 'pending');
+    });
+
+  } else {
+    // Restaurar labels originais se não for antecipada
+    const fs3 = document.getElementById('fs3');
+    const fs4 = document.getElementById('fs4');
+    if(fs3 && fs4) {
+      fs3.innerHTML = '<div class="step-ico">📦</div><div class="step-lbl">Movimentação</div><div class="step-sub">Operador</div>';
+      fs4.innerHTML = '<div class="step-ico">💻</div><div class="step-lbl">Confirmação</div><div class="step-sub">Iasmyn</div>';
+    }
+    
+    ['s1','s2','s3','s4','s5'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.style.display=i+1===s?'block':'none';});
+    ['fs1','fs2','fs3','fs4','fs5'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.className='fstep '+(i+1<s?'done':i+1===s?'active':'pending');});
+  }
 }
 function voltarSelecao(){
   if(currentPendIdx!==null){PENDENTES.splice(currentPendIdx,1);currentPendIdx=null;}
@@ -1220,7 +1782,11 @@ function atualizarHistorico(status){
     solicitante:st.solicitante||'—',aprovador:st.aprovador||'—',
     operador:st.operador||'—',conferente:st.conferente||'—',
     sysUser:st.sysUser||'—',sysDoc:st.sysDoc||'—',
-    status,obs:st.obs||''
+    status,
+    statusSistemico: (st.statusSistemico === 'Concluída' || st.step >= 4) ? 'Concluída' : 'Pendente',
+    statusFisico: (st.statusFisico === 'Concluída' || st.step >= 5) ? 'Concluída' : 'Pendente',
+    tipo: st.tipo || 'Transferência Normal',
+    obs: st.obs||''
   };
   const idx=HISTORY.findIndex(h=>h.req===st.req);
   if(idx>=0)HISTORY[idx]=entrada;else HISTORY.unshift(entrada);
@@ -1241,7 +1807,11 @@ function renderHist(){
   // Filtro período
   data=data.filter(h=>isInPeriodo(h.data));
   if(q)data=data.filter(h=>h.req.toLowerCase().includes(q)||h.aprovador.toLowerCase().includes(q)||h.operador.toLowerCase().includes(q)||(h.itens||[]).some(i=>i.cod.toLowerCase().includes(q)||i.name.toLowerCase().includes(q)));
-  if(f)data=data.filter(h=>h.status===f);
+  if(f){
+    if(f==='Pendente Físico') data=data.filter(h=>h.statusFisico==='Pendente');
+    else if(f==='Concluído Físico') data=data.filter(h=>h.statusFisico==='Concluída');
+    else data=data.filter(h=>h.status===f);
+  }
   data.sort((a,b)=>{
     let av=a[histSort.col]||'',bv=b[histSort.col]||'';
     if(typeof av==='number')return histSort.asc?av-bv:bv-av;
@@ -1257,7 +1827,16 @@ function renderHist(){
     const sp=h.status==='Concluído'?'sp-done':h.status==='Rejeitado'?'sp-rej':'sp-pend';
     const names=(h.itens||[]).map(i=>i.cod).join(', ');
     const tr=document.createElement('tr');tr.className=selectedReq===h.req?'sel-row':'';tr.style.cursor='pointer';
-    tr.innerHTML=`<td><strong style="color:var(--accent)">${h.req}</strong></td>
+    const stSist = h.statusSistemico === 'Concluída' ? 'sb-done' : 'sb-pending';
+    const stFis = h.statusFisico === 'Concluída' ? 'sb-done' : 'sb-pending';
+    tr.innerHTML=`<td>
+        <strong style="color:var(--accent)">${h.req}</strong>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px;font-weight:700">${h.tipo === 'Antecipada' ? '🚀 ANTECIPADA' : '📦 NORMAL'}</div>
+        <div style="display:flex;gap:4px;margin-top:4px">
+          <span class="status-badge ${stSist}" title="Sistêmica">S</span>
+          <span class="status-badge ${stFis}" title="Física">F</span>
+        </div>
+      </td>
       <td style="color:var(--text2);white-space:nowrap">${h.data}</td>
       <td style="color:var(--text2);font-size:11px">${names}</td>
       <td style="text-align:center;font-weight:700">${h.paletes}</td>
@@ -1310,6 +1889,7 @@ function showDetail(h){
   }).join('');
   el.innerHTML=`<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
     <div><div style="font-size:20px;font-weight:700;color:var(--accent)">${h.req}</div>
+    <div style="font-size:11px;font-weight:800;color:var(--text2);margin-top:2px">${h.tipo === 'Antecipada' ? '🚀 TRANSFERÊNCIA ANTECIPADA' : '📦 TRANSFERÊNCIA NORMAL'}</div>
     <div style="font-size:11px;color:var(--text3);margin-top:2px">${h.data}${h.obs?' · '+h.obs:''}</div></div>
     <span class="status-pill ${sp}" style="font-size:12px;padding:4px 12px;margin-top:4px">${h.status}</span>
   </div>
@@ -1403,7 +1983,16 @@ async function carregarSheetsData(){
     ITEMS=rowsSaldo.filter(r=>r[0]&&r[1]).map(r=>{
       const cod=String(r[0]).trim(),cap=CAPACIDADE_MAP[cod]||{};
       const s3=parseInt(r[2])||0,s30=parseInt(r[3])||0;
-      return{cod,name:String(r[1]).trim(),saldo3:s3,saldo30:s30,min3:cap.estoqueMin||0,min30:cap.capSac||0,capPal:cap.capPal||0,estoqueMin:cap.estoqueMin||0};
+      return {
+        cod,
+        name: String(r[1]).trim(),
+        saldo3: s3,
+        saldo30: s30,
+        min3: cap.estoqueMin || 0,
+        min30: cap.capSac || 0,
+        capPal: cap.capPal || 88, // Garante que capPal seja levado para o item
+        estoqueMin: cap.estoqueMin || 0
+      };
     });
     const el=document.getElementById('sheetsTimestamp');
     if(el)el.textContent='🔄 '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -1428,20 +2017,31 @@ async function carregarRequisicoesPendentes(){
     PENDENTES=rowsReq.filter(r=>r[0]&&r[0]!=='CONCLUIDO'&&r[1]).map(r=>{try{return JSON.parse(r[1]);}catch(e){return null;}}).filter(p=>p&&!REQS_REMOVIDAS.has(p.req));
     const rowsHist=await fetchRange('HISTORICO!A2:B');
     HISTORY=rowsHist.filter(r=>r[0]&&r[1]).map(r=>{try{return JSON.parse(r[1]);}catch(e){return null;}}).filter(Boolean).reverse();
-    if(currentPendIdx!==null&&Object.keys(st).length>0){
+    if(currentPendIdx!==null && st && st.req){
       const activeReqId=st.req;
       const newIdx=PENDENTES.findIndex(p=>p.req===activeReqId);
-      if(newIdx>=0){PENDENTES[newIdx]=JSON.parse(JSON.stringify(st));currentPendIdx=newIdx;}
-      else{currentPendIdx=null;st={};}
+      if(newIdx>=0){
+        // Manter o estado local se estiver em edição, garantindo que o tipo seja preservado
+        const pend = PENDENTES[newIdx];
+        if(!st.tipo && pend.tipo) st.tipo = pend.tipo;
+        PENDENTES[newIdx]=JSON.parse(JSON.stringify(st));
+        currentPendIdx=newIdx;
+      } else {
+        currentPendIdx=null;st={};
+      }
     }
-    renderPendentes();renderHist();
-    // Auto-abrir para cada perfil
+    renderPendentes();
+    renderHist();
+    renderDivergencias();
+    // Auto-abrir removido para evitar conflitos com a navegação manual de pendências
+    /*
     if(!USUARIO_LOGADO)return;
     const pf=perfil();if(Object.keys(st).length>0)return;
     if(pf.podeTransferir&&!pf.podeAdmin){
       const pend=PENDENTES.find(p=>(p.itens||[]).some(it=>it.itemStatus==='movido'));
       if(pend){currentPendIdx=PENDENTES.indexOf(pend);st=JSON.parse(JSON.stringify(pend));renderPendentes();setTimeout(()=>restaurarStep(4),150);}
     }
+    */
   }catch(e){console.error('carregarPendentes:',e);}
 }
 function iniciarPolling(){
@@ -1484,11 +2084,13 @@ async function fazerLogin(){
     document.getElementById('appScreen').style.display='block';
     aplicarPermissoes();setStep(0);
     const overlay=document.getElementById('appLoading');if(overlay)overlay.style.display='flex';
-    await carregarSheetsData();await carregarRequisicoesPendentes();iniciarPolling();
+    await carregarSheetsData();
+    await carregarRequisicoesPendentes();
+    iniciarPolling();
     if(overlay)overlay.style.display='none';
     loadEl.style.display='none';
     // Operador: ir direto para aba de ordens
-    if(perfil().verTabOp){
+    if(perfil().verTabOp && perfil().label === 'Operador'){
       const opTab=document.getElementById('tab-op');
       if(opTab){showPage('pg-op',opTab);}
     }
@@ -1499,19 +2101,25 @@ function aplicarPermissoes(){
   const p=perfil();if(!p)return;
   const badge=document.getElementById('userBadge');
   if(badge){badge.textContent=USUARIO_LOGADO.nome+' • '+p.label;badge.style.display='inline';}
-  // Abas
-  document.querySelectorAll('.tab').forEach(tab=>{
-    const pg=tab.getAttribute('onclick')||'';
-    const m=pg.match(/'(pg-[^']+)'/);
-    if(m)tab.style.display=p.abas.includes(m[1])?'':'none';
-  });
-  // Tab operador
-  const opTab=document.getElementById('tab-op');
-  if(opTab)opTab.style.display=p.verTabOp?'':'none';
-  // Botão criar req
+  
+  const abasVisiveis = p.abas || [];
+  const tabEstoque = document.getElementById('tab-estoque');
+  const tabConf = document.getElementById('tab-conf');
+  const tabDiv = document.getElementById('tab-div');
+  const tabHist = document.getElementById('tab-hist');
+  const tabOp = document.getElementById('tab-op');
+  const tabPend = document.getElementById('tab-pend');
+
+  if(tabEstoque) tabEstoque.style.display = abasVisiveis.includes('pg-estoque') ? 'block' : 'none';
+  if(tabPend) tabPend.style.display = abasVisiveis.includes('pg-pendencias') ? 'block' : 'none';
+  if(tabConf) tabConf.style.display = abasVisiveis.includes('pg-conferencia') ? 'block' : 'none';
+  if(tabDiv) tabDiv.style.display = abasVisiveis.includes('pg-divergencias') ? 'block' : 'none';
+  if(tabHist) tabHist.style.display = abasVisiveis.includes('pg-hist') ? 'block' : 'none';
+  if(tabOp) tabOp.style.display = p.verTabOp ? 'block' : 'none';
+
   const btnReq=document.getElementById('btnIniciarReq');
   if(btnReq)btnReq.style.display=(p.podeRequisitar||p.podeAdmin)?'':'none';
-  // Flowbar visibility
+
   const fsVisib={fs1:p.podeAprovar||p.podeAdmin,fs2:true,fs3:p.podeMovFisica||p.podeAdmin,fs4:p.podeTransferir||p.podeAdmin,fs5:true};
   Object.keys(fsVisib).forEach(id=>{
     const el=document.getElementById(id);if(!el)return;
