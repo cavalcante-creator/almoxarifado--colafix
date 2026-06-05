@@ -631,6 +631,26 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       <button class="btn btn-primary" style="margin-left:auto;height:28px;padding:0 12px;font-size:11px" onclick="atualizarSaldosDivergencias()">🔄 Atualizar Saldos</button>
     </div>
     <div id="divInfoConf" style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:var(--radius-sm);padding:9px 13px;font-size:11px;color:var(--accent);margin-bottom:12px;display:none"></div>
+    
+    <!-- Filtros de Divergências -->
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fld" style="flex:1;min-width:200px">
+        <label>Buscar Código</label>
+        <input type="text" id="divFiltroCod" placeholder="Pesquisar código do item..." oninput="renderDivergencias()">
+      </div>
+      <div class="fld" style="width:200px">
+        <label>Tipo de Divergência</label>
+        <select id="divFiltroTipo" onchange="renderDivergencias()">
+          <option value="todas">Todas</option>
+          <option value="positiva">Divergência positiva</option>
+          <option value="negativa">Divergência negativa</option>
+          <option value="zerada">Divergência zerada</option>
+          <option value="pendentes">Somente pendentes de justificativa</option>
+          <option value="justificadas">Justificadas</option>
+        </select>
+      </div>
+    </div>
+
     <div style="overflow-x:auto">
       <table class="hist-table">
         <thead>
@@ -696,10 +716,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           <label>Falta apontamento produção</label>
           <input type="number" id="invApontamento" value="0" min="0" oninput="calcResidual()">
         </div>
-        <div class="fld">
-          <label>Avaria / Perda</label>
-          <input type="number" id="invAvaria" value="0" min="0" oninput="calcResidual()">
-        </div>
+	        <div class="fld">
+	          <label>Avaria / Perda</label>
+	          <input type="number" id="invAvaria" value="0" min="0" oninput="calcResidual()">
+	        </div>
+	        <div class="fld">
+	          <label>Empresa 9</label>
+	          <input type="number" id="invEmpresa9" value="0" min="0" oninput="calcResidual()">
+	        </div>
+
       </div>
       <div class="fld" style="margin-bottom:12px">
         <label>Observações</label>
@@ -1363,9 +1388,8 @@ function renderConfHistorico() {
   list.innerHTML = '';
   
   const visiveis = CONF_HISTORICO.slice(0, _confHistPagina);
-  visiveis.forEach((conf, i) => {
+    visiveis.forEach((conf, i) => {
     const qtdItens = Object.keys(conf.itens).length;
-    const isUltima = i === 0;
     // Contar divergências
     let divCount = 0;
     Object.values(conf.itens).forEach(it => {
@@ -1373,7 +1397,17 @@ function renderConfHistorico() {
     });
 
     const div = document.createElement('div');
-    div.style.cssText = 'background:' + (isUltima ? 'var(--accent-dim)' : '#fff') + ';border:1px solid ' + (isUltima ? 'var(--accent-mid)' : 'var(--border)') + ';border-radius:var(--radius-sm);padding:10px 14px';
+    div.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;cursor:pointer;transition:all 0.2s;';
+    div.onclick = (e) => {
+      if(e.target.tagName === 'BUTTON') return;
+      const content = div.querySelector('.conf-detail-content');
+      if(content) {
+        const isHidden = content.style.display === 'none';
+        content.style.display = isHidden ? 'block' : 'none';
+        div.style.borderColor = isHidden ? 'var(--accent-mid)' : 'var(--border)';
+        div.style.background = isHidden ? 'var(--accent-dim)' : '#fff';
+      }
+    };
 
     // Linha resumo dos itens
     let itensHtml = '';
@@ -1395,18 +1429,23 @@ function renderConfHistorico() {
     });
 
     div.innerHTML = `
-      <div style="margin-bottom:${qtdItens > 0 ? '8' : '0'}px">
+      <div style="display:flex;flex-direction:column;gap:4px">
         <div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
-          ${isUltima ? '<span style="font-size:9px;background:var(--accent);color:#fff;border-radius:4px;padding:1px 6px;font-weight:700">ÚLTIMA</span>' : ''}
           ${divCount > 0 ? `<span style="font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid var(--red-mid);border-radius:20px;padding:2px 9px;font-weight:700">⚠ ${divCount} divergência${divCount>1?'s':''}</span>` : `<span style="font-size:10px;background:var(--green-dim);color:var(--green);border:1px solid var(--green-mid);border-radius:20px;padding:2px 9px;font-weight:700">✓ Sem divergências</span>`}
+          <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia(${i})">📄 Gerar PDF</button>
         </div>
-        <div style="font-size:10px;color:var(--text3);line-height:1.7">
-          📅 <b>${conf.data||conf.dataHora}</b> &nbsp;·&nbsp; 🕐 <b>${conf.hora||''}</b><br>
-          👤 <b>${conf.nomeUsuario||conf.usuario}</b> &nbsp;·&nbsp; 📦 <b>${qtdItens} item(s)</b>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div style="font-size:10px;color:var(--text3);line-height:1.4">
+            📅 <b>${conf.data||conf.dataHora}</b> &nbsp;·&nbsp; 🕐 <b>${conf.hora||''}</b><br>
+            👤 <b>${conf.nomeUsuario||conf.usuario}</b> &nbsp;·&nbsp; 📦 <b>${qtdItens} item(s)</b>
+          </div>
+          <div style="font-size:10px;color:var(--accent);font-weight:700">Clique para expandir ▾</div>
         </div>
       </div>
-      ${qtdItens > 0 ? `<div style="display:flex;flex-direction:column;gap:4px">${itensHtml}</div>` : ''}
+      <div class="conf-detail-content" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        ${qtdItens > 0 ? `<div style="display:flex;flex-direction:column;gap:4px">${itensHtml}</div>` : ''}
+      </div>
     `;
     list.appendChild(div);
   });
@@ -1454,73 +1493,63 @@ function renderDivergencias() {
     infoEl.textContent = '📋 Conferência: ' + ultimaConf.numero + ' — 📅 ' + confData + ' 🕐 ' + confHora + ' — 👤 ' + confUser;
   }
   
-  // Almox 3
+  const filtroCod = (document.getElementById('divFiltroCod')?.value || '').toLowerCase();
+  const filtroTipo = document.getElementById('divFiltroTipo')?.value || 'todas';
+
   ITEMS.forEach(item => {
     const confItem = ultimaConf.itens[item.cod];
     if(!confItem) return;
     
-    // Verificar divergência no Almox 3
-    const sist3 = item.saldo3;
-    const fis3 = confItem.almox3 || 0;
-    const diff3 = fis3 - sist3;
-    
-    if(diff3 !== 0) {
-      count++;
-      const divKey = ultimaConf.numero + '_' + item.cod + '_almox3';
-      const investigado = DIV_HISTORICO.find(d => d.divKey === divKey);
-      const status = investigado ? investigado.status : 'Aberta';
-      const statusClass = status === 'Resolvida' ? 'div-verde' : status === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
-      
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><strong>${item.cod}</strong></td>
-        <td style="font-size:11px">${item.name}</td>
-        <td style="text-align:center"><span style="font-size:10px;background:var(--accent-dim);color:var(--accent);padding:2px 7px;border-radius:4px;font-weight:700">Almox 3</span></td>
-        <td style="text-align:center;font-weight:700">${sist3}</td>
-        <td style="text-align:center;font-weight:700">${fis3}</td>
-        <td style="text-align:center;font-weight:700;color:${diff3 < 0 ? 'var(--red)' : 'var(--green)'}">${diff3 > 0 ? '+' : ''}${diff3}</td>
-        <td style="text-align:center"><span class="divergencia-tag ${statusClass}">${status}</span></td>
-        <td>${(perfil().podeAudit||perfil().podeAdmin||perfil().podeAprovar)?`<button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="abrirInvestigacao('${item.cod}','${item.name}','Almox 3',${sist3},${fis3},${diff3},'${ultimaConf.numero}')">🔍 Investigar</button>`:'<span style="font-size:10px;color:var(--text3)">Ver apenas</span>'}</td>
-      `;
-      body.appendChild(tr);
-    }
-    
-    // Verificar divergência no Almox 30
-    const sist30 = item.saldo30;
-    const fis30 = confItem.almox30 || 0;
-    const diff30 = fis30 - sist30;
-    
-    if(diff30 !== 0) {
-      count++;
-      const divKey30 = ultimaConf.numero + '_' + item.cod + '_almox30';
-      const investigado30 = DIV_HISTORICO.find(d => d.divKey === divKey30);
-      const status30 = investigado30 ? investigado30.status : 'Aberta';
-      const statusClass30 = status30 === 'Resolvida' ? 'div-verde' : status30 === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
-      
-      const tr30 = document.createElement('tr');
-      tr30.innerHTML = `
-        <td><strong>${item.cod}</strong></td>
-        <td style="font-size:11px">${item.name}</td>
-        <td style="text-align:center"><span style="font-size:10px;background:var(--green-dim);color:var(--green);padding:2px 7px;border-radius:4px;font-weight:700">Almox 30</span></td>
-        <td style="text-align:center;font-weight:700">${sist30}</td>
-        <td style="text-align:center;font-weight:700">${fis30}</td>
-        <td style="text-align:center;font-weight:700;color:${diff30 < 0 ? 'var(--red)' : 'var(--green)'}">${diff30 > 0 ? '+' : ''}${diff30}</td>
-        <td style="text-align:center"><span class="divergencia-tag ${statusClass30}">${status30}</span></td>
-        <td>${(perfil().podeAudit||perfil().podeAdmin||perfil().podeAprovar)?`<button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="abrirInvestigacao('${item.cod}','${item.name}','Almox 30',${sist30},${fis30},${diff30},'${ultimaConf.numero}')">🔍 Investigar</button>`:'<span style="font-size:10px;color:var(--text3)">Ver apenas</span>'}</td>
-      `;
-      body.appendChild(tr30);
-    }
+	    const locais = [
+	      { nome: 'Almox 3', sist: item.saldo3, fis: confItem.almox3 || 0, css: 'var(--accent-dim)', txt: 'var(--accent)' },
+	      { nome: 'Almox 30', sist: item.saldo30, fis: confItem.almox30 || 0, css: 'var(--green-dim)', txt: 'var(--green)' }
+	    ];
+
+    locais.forEach(loc => {
+      const diff = loc.fis - loc.sist;
+      if (diff === 0 && filtroTipo !== 'zerada' && filtroTipo !== 'todas') return;
+      if (diff !== 0 || filtroTipo === 'zerada' || filtroTipo === 'todas') {
+        const divKey = ultimaConf.numero + '_' + item.cod + '_' + loc.nome.toLowerCase().replace(' ', '');
+        const investigado = DIV_HISTORICO.find(d => d.divKey === divKey);
+        const status = investigado ? investigado.status : 'Aberta';
+        
+        // Aplicar Filtros
+        if (filtroCod && !item.cod.toLowerCase().includes(filtroCod)) return;
+        if (filtroTipo === 'positiva' && diff <= 0) return;
+        if (filtroTipo === 'negativa' && diff >= 0) return;
+        if (filtroTipo === 'zerada' && diff !== 0) return;
+        if (filtroTipo === 'pendentes' && (status === 'Resolvida' || diff === 0)) return;
+        if (filtroTipo === 'justificadas' && status !== 'Resolvida') return;
+        if (filtroTipo !== 'todas' && filtroTipo !== 'zerada' && filtroTipo !== 'pendentes' && filtroTipo !== 'justificadas' && diff === 0) return;
+
+        count++;
+        const statusClass = status === 'Resolvida' ? 'div-verde' : status === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${item.cod}</strong></td>
+          <td style="font-size:11px">${item.name}</td>
+          <td style="text-align:center"><span style="font-size:10px;background:${loc.css};color:${loc.txt};padding:2px 7px;border-radius:4px;font-weight:700">${loc.nome}</span></td>
+          <td style="text-align:center;font-weight:700">${loc.sist}</td>
+          <td style="text-align:center;font-weight:700">${loc.fis}</td>
+          <td style="text-align:center;font-weight:700;color:${diff < 0 ? 'var(--red)' : diff > 0 ? 'var(--green)' : 'var(--text3)'}">${diff > 0 ? '+' : ''}${diff}</td>
+          <td style="text-align:center"><span class="divergencia-tag ${statusClass}">${status}</span></td>
+          <td>${(perfil().podeAudit||perfil().podeAdmin||perfil().podeAprovar)?`<button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="abrirInvestigacao('${item.cod}','${item.name}','${loc.nome}',${loc.sist},${loc.fis},${diff},'${ultimaConf.numero}')">🔍 Investigar</button>`:'<span style="font-size:10px;color:var(--text3)">Ver apenas</span>'}</td>
+        `;
+        body.appendChild(tr);
+      }
+    });
   });
   
   document.getElementById('divEmpty').style.display = count === 0 ? 'block' : 'none';
 }
 
 function abrirInvestigacao(cod, nome, almox, sist, fis, diff, numConf) {
-  _invAtual = { cod, nome, almox, sist, fis, diff, numConf,
-    divKey: numConf + '_' + cod + '_' + almox.toLowerCase().replace(' ','') };
+  // A divKey deve ser única para a combinação de Conferência + Produto + Almoxarifado
+  const divKey = numConf + '_' + cod + '_' + almox.replace(/\s+/g, '').toLowerCase();
+  _invAtual = { cod, nome, almox, sist, fis, diff, numConf, divKey };
   
-  // Preencher com dados já investigados se existirem
-  const prev = DIV_HISTORICO.find(d => d.divKey === _invAtual.divKey);
+  // Buscar se já existe uma investigação para este item nesta conferência específica
+  const prev = DIV_HISTORICO.find(d => d.divKey === divKey);
   
   document.getElementById('modalInvTitle').textContent = '🔍 Investigação — ' + cod + ' (' + almox + ')';
   document.getElementById('modalInvInfo').innerHTML = `
@@ -1537,11 +1566,14 @@ function abrirInvestigacao(cod, nome, almox, sist, fis, diff, numConf) {
   document.getElementById('invFaturado').value = prev ? (prev.faturado || 0) : 0;
   document.getElementById('invTransferencia').value = prev ? (prev.transferencia || 0) : 0;
   document.getElementById('invApontamento').value = prev ? (prev.apontamento || 0) : 0;
-  document.getElementById('invAvaria').value = prev ? (prev.avaria || 0) : 0;
-  document.getElementById('invObs').value = prev ? (prev.obs || '') : '';
-  document.getElementById('invStatus').value = prev ? (prev.status || 'Aberta') : 'Aberta';
-  
-  calcResidual();
+	  document.getElementById('invAvaria').value = prev ? (prev.avaria || 0) : 0;
+	  document.getElementById('invEmpresa9').value = prev ? (prev.empresa9 || 0) : 0;
+
+	  document.getElementById('invObs').value = prev ? (prev.obs || '') : '';
+	  document.getElementById('invStatus').value = prev ? (prev.status || 'Aberta') : 'Aberta';
+	  document.getElementById('invStatus').disabled = false;
+	  
+	  calcResidual();
   document.getElementById('modalInvestigacao').style.display = 'flex';
 }
 
@@ -1556,8 +1588,9 @@ function calcResidual() {
   const fat = parseInt(document.getElementById('invFaturado').value) || 0;
   const tra = parseInt(document.getElementById('invTransferencia').value) || 0;
   const apo = parseInt(document.getElementById('invApontamento').value) || 0;
-  const ava = parseInt(document.getElementById('invAvaria').value) || 0;
-  const justTotal = fat + tra + apo + ava;
+	  const ava = parseInt(document.getElementById('invAvaria').value) || 0;
+	  const emp9 = parseInt(document.getElementById('invEmpresa9').value) || 0;
+	  const justTotal = fat + tra + apo + ava + emp9;
   const residual = diff - justTotal;
   
   const el = document.getElementById('invResidual');
@@ -1569,12 +1602,19 @@ function calcResidual() {
     el.style.color = residual <= 0 ? 'var(--green)' : 'var(--red)';
   }
   
-  if(residual <= 0) {
-    if(statusEl) statusEl.textContent = '✅ Diferença residual zerada — Status será marcado como Resolvida';
-    if(statusSel) statusSel.value = 'Resolvida';
-  } else {
-    if(statusEl) statusEl.textContent = 'Diferença residual: ' + residual + ' unidades ainda não justificadas';
-  }
+	  if(residual <= 0) {
+	    if(statusEl) statusEl.textContent = '✅ Diferença residual zerada — Status será marcado como Resolvida';
+	    if(statusSel) {
+	      statusSel.value = 'Resolvida';
+	      statusSel.disabled = true; // Forçar Resolvida se zerado
+	    }
+	  } else {
+	    if(statusEl) statusEl.textContent = 'Diferença residual: ' + residual + ' unidades ainda não justificadas';
+	    if(statusSel) {
+	      statusSel.disabled = false;
+	      if(statusSel.value === 'Resolvida') statusSel.value = 'Em investigação';
+	    }
+	  }
 }
 
 function salvarInvestigacao() {
@@ -1583,10 +1623,11 @@ function salvarInvestigacao() {
   const fat = parseInt(document.getElementById('invFaturado').value) || 0;
   const tra = parseInt(document.getElementById('invTransferencia').value) || 0;
   const apo = parseInt(document.getElementById('invApontamento').value) || 0;
-  const ava = parseInt(document.getElementById('invAvaria').value) || 0;
-  const obs = document.getElementById('invObs').value || '';
-  let status = document.getElementById('invStatus').value;
-  const justTotal = fat + tra + apo + ava;
+	  const ava = parseInt(document.getElementById('invAvaria').value) || 0;
+	  const emp9 = parseInt(document.getElementById('invEmpresa9').value) || 0;
+	  const obs = document.getElementById('invObs').value || '';
+	  let status = document.getElementById('invStatus').value;
+	  const justTotal = fat + tra + apo + ava + emp9;
   const residual = Math.abs(_invAtual.diff) - justTotal;
   if(residual <= 0) status = 'Resolvida';
   
@@ -1606,8 +1647,9 @@ function salvarInvestigacao() {
     faturado: fat,
     transferencia: tra,
     apontamento: apo,
-    avaria: ava,
-    obs,
+	    avaria: ava,
+	    empresa9: emp9,
+	    obs,
     residual,
     status
   };
@@ -1639,13 +1681,14 @@ function renderDivHistorico() {
   body.innerHTML = '';
   DIV_HISTORICO.forEach(d => {
     const statusClass = d.status === 'Resolvida' ? 'div-verde' : d.status === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
-    const justs = [];
-    if(d.faturado > 0) justs.push('Fat. não exp.: ' + d.faturado);
-    if(d.transferencia > 0) justs.push('Trans. pend.: ' + d.transferencia);
-    if(d.apontamento > 0) justs.push('Apontam.: ' + d.apontamento);
-    if(d.avaria > 0) justs.push('Avaria: ' + d.avaria);
-    
-    const tr = document.createElement('tr');
+	    const justs = [];
+	    if(d.faturado > 0) justs.push('Faturado: ' + d.faturado);
+	    if(d.transferencia > 0) justs.push('Transf.: ' + d.transferencia);
+	    if(d.apontamento > 0) justs.push('Apontam.: ' + d.apontamento);
+	    if(d.avaria > 0) justs.push('Avaria: ' + d.avaria);
+	    if(d.empresa9 > 0) justs.push('Empresa 9: ' + d.empresa9);
+	    
+	    const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong style="color:var(--accent)">${d.numConf}</strong></td>
       <td style="white-space:nowrap;font-size:11px">${d.dataHora}</td>
@@ -2686,6 +2729,69 @@ function exportCSV(){
 }
 
 // ─── PDF ─────────────────────────────────────────────────────────
+function gerarPDFConferencia(idx) {
+  const conf = CONF_HISTORICO[idx];
+  if(!conf) return;
+  const itens = Object.entries(conf.itens).map(([cod, it]) => {
+    return `<tr>
+      <td rowspan="2"><b>${cod}</b><br><small>${it.nome || ''}</small></td>
+      <td style="text-align:center;background:#fff">Almox 3</td>
+      <td style="text-align:center;background:#fff">${it.pal3 || 0}</td>
+      <td style="text-align:center;background:#fff">${it.sac3 || 0}</td>
+      <td rowspan="2" style="text-align:center;font-weight:700;font-size:14px">${it.total}</td>
+    </tr>
+    <tr>
+      <td style="text-align:center;background:#f9f9f9">Almox 30</td>
+      <td style="text-align:center;background:#f9f9f9">${it.pal30 || 0}</td>
+      <td style="text-align:center;background:#f9f9f9">${it.sac30 || 0}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Conferência ${conf.numero}</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;margin:36px;color:#1C1C1A;font-size:12px}
+    h1{font-size:20px;color:#1B5C7A;text-align:center;margin:0}
+    h2{font-size:11px;color:#5A574F;text-align:center;margin:4px 0 16px}
+    .rn{font-size:14px;font-weight:700;color:#1B5C7A;text-align:center;margin-bottom:20px;border:2px solid #1B5C7A;display:inline-block;padding:4px 20px;border-radius:6px}
+    .ctr{text-align:center}
+    hr{border:none;border-top:2px solid #1B5C7A;margin:14px 0}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px}
+    th{background:#1B5C7A;color:#fff;padding:8px;text-align:center;font-size:10px;text-transform:uppercase}
+    td{padding:8px;border:1px solid #DDD9D0}
+    .info{display:flex;gap:12px;margin-bottom:14px}
+    .ibox{flex:1;border:1px solid #DDD9D0;border-radius:6px;padding:9px}
+    .ibox .l{font-size:9px;color:#9C9888;text-transform:uppercase;margin-bottom:2px}
+    .ibox .v{font-size:12px;font-weight:600}
+    @media print{body{margin:20px}}
+  </style></head>
+  <body>
+    <div style="text-align:center;margin-bottom:12px"><div style="font-size:24px">🔍</div></div>
+    <h1>CONFERÊNCIA DE ESTOQUE</h1>
+    <h2>Relatório de Contagem Física</h2>
+    <div class="ctr"><div class="rn">${conf.numero}</div></div><hr>
+    <div class="info">
+      <div class="ibox"><div class="l">Data e Hora</div><div class="v">${conf.dataHora}</div></div>
+      <div class="ibox"><div class="l">Usuário Responsável</div><div class="v">${conf.nomeUsuario || conf.usuario}</div></div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Item</th>
+          <th>Local</th>
+          <th>Paletes</th>
+          <th>Sacos</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>${itens}</tbody>
+    </table>
+    <script>window.onload=()=>window.print()<\/script>
+  </body></html>`;
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+}
+
 function gerarPDF(){
   const itens=st.itens||[];
   const tp=itens.reduce((a,b)=>a+b.paletes,0),ts=itens.reduce((a,b)=>a+b.sacos,0);
