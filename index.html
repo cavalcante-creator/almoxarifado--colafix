@@ -749,6 +749,19 @@ let selectedItems=new Set(), st={}, sysChecked={};
 let histSort={col:'data',asc:false}, selectedReq=null;
 let currentPendIdx=null;
 let _pollingInterval=null;
+let _sessionTimeout=null;
+const SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutos
+function resetSessionTimeout(){
+  if(!USUARIO_LOGADO)return;
+  if(_sessionTimeout)clearTimeout(_sessionTimeout);
+  _sessionTimeout=setTimeout(()=>{
+    if(USUARIO_LOGADO){
+      alert('Sessão encerrada por inatividade. Faça login novamente.');
+      logout();
+    }
+  },SESSION_TIMEOUT_MS);
+}
+['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,resetSessionTimeout,{passive:true}));
 let filtroPeriodo='hoje', dtCustomInicio=null, dtCustomFim=null;
 let CONFERENCIAS={}, MODO_CEGO=false;
 let CONF_HISTORICO=[]; // Histórico de conferências salvas
@@ -1053,6 +1066,12 @@ function confIniciarConferencia(){
 }
 
 function confVoltarSelecao(){
+  const temDados = Object.keys(CONFERENCIAS).some(cod=>{
+    const c=CONFERENCIAS[cod];
+    return(c.pal3>0||c.sac3>0||c.pal30>0||c.sac30>0);
+  });
+  if(temDados && !confirm('Há contagens preenchidas que serão perdidas. Deseja voltar mesmo assim?')) return;
+  CONFERENCIAS={};
   CONF_MODO = 'selecao';
   const selCard = document.getElementById('confSelCard');
   const painelConf = document.getElementById('confPainelConf');
@@ -1325,6 +1344,11 @@ function salvarConferencia() {
   toast('✅ Conferência ' + num + ' salva! Itens e contagens limpos.', 3500);
 }
 
+let _confHistPagina = 5;
+function verMaisConfHistorico(){
+  _confHistPagina += 5;
+  renderConfHistorico();
+}
 function renderConfHistorico() {
   const list = document.getElementById('confHistList');
   const empty = document.getElementById('confHistEmpty');
@@ -1338,7 +1362,8 @@ function renderConfHistorico() {
   empty.style.display = 'none';
   list.innerHTML = '';
   
-  CONF_HISTORICO.forEach((conf, i) => {
+  const visiveis = CONF_HISTORICO.slice(0, _confHistPagina);
+  visiveis.forEach((conf, i) => {
     const qtdItens = Object.keys(conf.itens).length;
     const isUltima = i === 0;
     // Contar divergências
@@ -1385,6 +1410,15 @@ function renderConfHistorico() {
     `;
     list.appendChild(div);
   });
+
+  if(CONF_HISTORICO.length > _confHistPagina){
+    const btnMais = document.createElement('button');
+    btnMais.className = 'btn';
+    btnMais.style.cssText = 'width:100%;margin-top:8px;font-size:11px';
+    btnMais.textContent = '↓ Ver mais (' + (CONF_HISTORICO.length - _confHistPagina) + ' restantes)';
+    btnMais.onclick = verMaisConfHistorico;
+    list.appendChild(btnMais);
+  }
 }
 
 // ─── DIVERGÊNCIAS ─────────────────────────────────────────────────
@@ -2722,9 +2756,13 @@ async function carregarSheetsData(){
       };
     });
     const el=document.getElementById('sheetsTimestamp');
-    if(el)el.textContent='🔄 '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    if(el){el.textContent='✅ '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});el.style.color='var(--green)';}
     renderItems();
-  }catch(err){console.error('Sheets:',err);}
+  }catch(err){
+    console.error('Sheets:',err);
+    const el=document.getElementById('sheetsTimestamp');
+    if(el){el.textContent='⚠ Erro ao sincronizar';el.style.color='var(--red)';}
+  }
 }
 async function salvarRequisicaoSheets(reqObj){
   try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarReq',id:reqObj.req,dados:JSON.stringify(reqObj)})});}catch(e){}
@@ -2796,9 +2834,13 @@ async function carregarRequisicoesPendentes(){
 }
 function iniciarPolling(){
   if(_pollingInterval)clearInterval(_pollingInterval);
-  _pollingInterval=setInterval(async()=>{if(!USUARIO_LOGADO)return;await carregarRequisicoesPendentes();if(perfil().verTabOp)renderOpOrders();},30000);
+  _pollingInterval=setInterval(async()=>{
+    if(!USUARIO_LOGADO||document.visibilityState==='hidden')return;
+    await carregarRequisicoesPendentes();
+    if(perfil().verTabOp)renderOpOrders();
+  },30000);
 }
-setInterval(()=>{if(USUARIO_LOGADO)carregarSheetsData();},60000);
+setInterval(()=>{if(USUARIO_LOGADO&&document.visibilityState!=='hidden')carregarSheetsData();},60000);
 
 // ─── LOGIN ────────────────────────────────────────────────────────
 async function fazerLogin(){
@@ -2829,8 +2871,6 @@ async function fazerLogin(){
     }
     // NOME: col E se existir, senão usar col A (usuario)
     const nomeUsuario=(match[4]||match[0]||'').trim();
-    // Bloquear Robson Xavier
-    if(nomeUsuario.toLowerCase().includes('robson')){errEl.textContent='Acesso não autorizado.';errEl.style.display='block';loadEl.style.display='none';return;}
     // Iasmyn = administrador forçado
     let perfilKey=(match[2]||'').trim().toLowerCase();
     if(nomeUsuario.toLowerCase().includes('iasmyn'))perfilKey='administrador';
@@ -2845,6 +2885,7 @@ async function fazerLogin(){
     await carregarRequisicoesPendentes();
     await carregarConferenciasSheets();
     iniciarPolling();
+    resetSessionTimeout();
     if(overlay)overlay.style.display='none';
     loadEl.style.display='none';
     // Operador: ir direto para aba de ordens
@@ -2891,7 +2932,7 @@ function aplicarPermissoes(){
   });
 }
 function logout(){
-  USUARIO_LOGADO=null;if(_pollingInterval)clearInterval(_pollingInterval);
+  USUARIO_LOGADO=null;if(_pollingInterval)clearInterval(_pollingInterval);if(_sessionTimeout)clearTimeout(_sessionTimeout);
   document.getElementById('appScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginUser').value='';document.getElementById('loginPass').value='';
