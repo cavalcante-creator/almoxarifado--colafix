@@ -16,6 +16,7 @@
   --purple:#5B3FA6;--purple-dim:#EEE9FA;
   --radius:10px;--radius-sm:6px;
   --indigo:#4F46E5;--indigo-dim:#EEF2FF;
+  --orange:#B85C00;--orange-dim:#FFF3E0;--orange-mid:#FFCC80;
   --shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.04);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -170,6 +171,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .sp-done{background:var(--green-dim);color:var(--green)}
 .sp-pend{background:var(--yellow-dim);color:var(--yellow)}
 .sp-rej{background:var(--red-dim);color:var(--red)}
+.sp-fis-pend{background:var(--orange-dim);color:var(--orange);border:1px solid var(--orange-mid)}
 .detail-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-top:14px;box-shadow:var(--shadow);animation:slideIn .2s ease}
 @keyframes slideIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .tl-item{position:relative;margin-bottom:16px;padding-left:20px}
@@ -437,7 +439,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           <div class="card-title">📦 Movimentação Física — Por Item</div>
           <div class="aarea">
             <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn3" style="color:var(--accent)"></span></div>
-            <div class="banner bnwarn" style="font-size:11px">Marque cada item conforme mover fisicamente do Almox 30 para o Almox 3.</div>
+            <div id="bannerMovFisica" class="banner bnwarn" style="font-size:11px">Marque cada item conforme mover fisicamente do Almox 30 para o Almox 3.</div>
+            <div id="bannerAguardFisica" style="display:none;background:var(--orange-dim);border:1px solid var(--orange-mid);border-radius:var(--radius-sm);padding:9px 13px;font-size:12px;font-weight:700;color:var(--orange)">🟠 Aguardando Movimentação Física — Confirmação no sistema já realizada. Realize agora a movimentação física dos itens.</div>
             <div class="fld"><label>Operador responsável</label><input type="text" id="opName" placeholder="Nome do operador"></div>
             <div id="s3CheckList" style="margin-top:8px"></div>
             <div style="font-size:11px;color:var(--text3);margin:8px 0" id="s3Status"></div>
@@ -553,11 +556,41 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
 <!-- ═══ CONFERÊNCIA FÍSICA ═══ -->
 <div id="pg-conferencia" class="page"><div class="wrap">
-  <div class="card">
-    <div class="card-title">🔍 Conferência Física de Estoque</div>
+
+  <!-- Painel de seleção de itens -->
+  <div class="card" style="margin-bottom:14px" id="confSelCard">
+    <div class="card-title">🔍 Selecionar Itens para Conferência
+      <span id="confSelBadge" style="display:none;margin-left:6px;background:var(--accent);color:#fff;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700">0 selecionados</span>
+    </div>
+    <!-- Barra de pesquisa de item -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <div style="position:relative;flex:1;min-width:200px">
+        <input type="text" id="confSearch" placeholder="🔍 Código ou descrição do produto..." oninput="filtrarItensConf()"
+          style="width:100%;height:36px;padding:0 36px 0 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s"
+          onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--accent-dim)'"
+          onblur="this.style.borderColor='var(--border2)';this.style.boxShadow='none'">
+        <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none">🔍</span>
+      </div>
+      <button class="btn" onclick="confSelecionarTodos()" style="height:36px;font-size:11px">☑ Todos</button>
+      <button class="btn" onclick="confLimparSelecao()" style="height:36px;font-size:11px">☐ Limpar</button>
+    </div>
+    <!-- Lista de itens para seleção -->
+    <div id="confItemSelList" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg3)"></div>
+    <div id="confSelVazio" style="display:none;text-align:center;padding:20px;color:var(--text3);font-size:11px">Nenhum item encontrado para a pesquisa.</div>
+    <!-- Botão iniciar -->
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button id="btnIniciarConf" class="btn btn-primary" onclick="confIniciarConferencia()" style="height:38px;font-size:13px;padding:0 22px;font-weight:700">▶ Iniciar Conferência →</button>
+    </div>
+  </div>
+
+  <!-- Painel de conferência -->
+  <div class="card" style="margin-bottom:14px;display:none" id="confPainelConf">
+    <div class="card-title">📋 Conferência Física de Estoque
+      <span id="confNumDisplay" style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400"></span>
+    </div>
     <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
       <div class="fld" style="width:150px">
-        <label>Local</label>
+        <label>Filtrar Local</label>
         <select id="confLocal" onchange="renderConferencia()">
           <option value="todos">Todos</option>
           <option value="almox3">Almox 3</option>
@@ -568,35 +601,132 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <input type="checkbox" id="modoCego" onchange="toggleModoCego()">
         <label for="modoCego" style="font-size:12px;font-weight:700;cursor:pointer">Modo Contagem Cega</label>
       </div>
+      <div style="margin-top:14px;margin-left:auto;display:flex;gap:8px">
+        <button class="btn" onclick="confVoltarSelecao()" style="font-size:11px">← Itens</button>
+        <button class="btn btn-success" onclick="salvarConferencia()">💾 Salvar Conferência</button>
+      </div>
     </div>
     <div id="confGrid" class="conf-grid"></div>
+    <div id="confGridVazio" style="display:none;text-align:center;padding:30px 0;color:var(--text3)">
+      <div style="font-size:28px;margin-bottom:8px;opacity:.3">📦</div>
+      Selecione itens para conferir.
+    </div>
+  </div>
+
+  <!-- Histórico de Conferências -->
+  <div class="card">
+    <div class="card-title">📋 Histórico de Conferências</div>
+    <div id="confHistEmpty" style="text-align:center;padding:30px 0;color:var(--text3)">
+      <div style="font-size:28px;margin-bottom:8px;opacity:.3">📦</div>
+      Nenhuma conferência salva ainda
+    </div>
+    <div id="confHistList" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
 </div></div>
 
 <!-- ═══ DIVERGÊNCIAS ═══ -->
 <div id="pg-divergencias" class="page"><div class="wrap">
-  <div class="card">
-    <div class="card-title">📊 Divergências de Estoque</div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">📊 Divergências de Estoque
+      <button class="btn btn-primary" style="margin-left:auto;height:28px;padding:0 12px;font-size:11px" onclick="atualizarSaldosDivergencias()">🔄 Atualizar Saldos</button>
+    </div>
+    <div id="divInfoConf" style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:var(--radius-sm);padding:9px 13px;font-size:11px;color:var(--accent);margin-bottom:12px;display:none"></div>
     <div style="overflow-x:auto">
       <table class="hist-table">
         <thead>
           <tr>
             <th>Código</th>
-            <th>Descrição</th>
-            <th style="text-align:center">Estoque Sistema</th>
-            <th style="text-align:center">Estoque Físico</th>
+            <th>Produto</th>
+            <th style="text-align:center">Almoxarifado</th>
+            <th style="text-align:center">Saldo Sistema</th>
+            <th style="text-align:center">Saldo Físico</th>
             <th style="text-align:center">Diferença</th>
-            <th style="text-align:center">Diferença %</th>
             <th style="text-align:center">Status</th>
-            <th>Ação</th>
+            <th>Investigar</th>
           </tr>
         </thead>
         <tbody id="divBody"></tbody>
       </table>
     </div>
-    <div id="divEmpty" style="text-align:center;padding:40px 0;color:var(--text3);display:none">Nenhuma divergência registrada</div>
+    <div id="divEmpty" style="text-align:center;padding:40px 0;color:var(--text3)">
+      <div style="font-size:32px;margin-bottom:8px;opacity:.3">✅</div>
+      Nenhuma divergência encontrada. Salve uma conferência primeiro.
+    </div>
+  </div>
+  <!-- Histórico de Divergências -->
+  <div class="card">
+    <div class="card-title">📋 Histórico de Divergências</div>
+    <div id="divHistEmpty" style="text-align:center;padding:30px 0;color:var(--text3)">
+      <div style="font-size:28px;margin-bottom:8px;opacity:.3">🗂</div>
+      Nenhuma divergência investigada ainda
+    </div>
+    <div style="overflow-x:auto">
+      <table class="hist-table" id="divHistTable" style="display:none">
+        <thead><tr>
+          <th>Nº Conf.</th><th>Data/Hora</th><th>Usuário</th><th>Produto</th>
+          <th style="text-align:center">Almox</th><th style="text-align:center">Diferença</th>
+          <th>Justificativas</th><th style="text-align:center">Residual</th><th style="text-align:center">Status</th>
+        </tr></thead>
+        <tbody id="divHistBody"></tbody>
+      </table>
+    </div>
   </div>
 </div></div>
+
+<!-- Modal Investigação de Divergência -->
+<div id="modalInvestigacao" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:540px">
+    <div class="modal-head">
+      <div style="font-size:13px;font-weight:700" id="modalInvTitle">Investigação de Divergência</div>
+      <button class="btn" style="height:28px;padding:0 10px;font-size:11px" onclick="fecharModalInvestigacao()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modalInvInfo" style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:11px"></div>
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Justificativas da Divergência</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="fld">
+          <label>Faturado e não expedido</label>
+          <input type="number" id="invFaturado" value="0" min="0" oninput="calcResidual()">
+        </div>
+        <div class="fld">
+          <label>Transferência pendente</label>
+          <input type="number" id="invTransferencia" value="0" min="0" oninput="calcResidual()">
+        </div>
+        <div class="fld">
+          <label>Falta apontamento produção</label>
+          <input type="number" id="invApontamento" value="0" min="0" oninput="calcResidual()">
+        </div>
+        <div class="fld">
+          <label>Avaria / Perda</label>
+          <input type="number" id="invAvaria" value="0" min="0" oninput="calcResidual()">
+        </div>
+      </div>
+      <div class="fld" style="margin-bottom:12px">
+        <label>Observações</label>
+        <textarea id="invObs" style="height:64px;padding:8px 10px;resize:none;width:100%;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;outline:none" placeholder="Descreva detalhes adicionais..."></textarea>
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;font-weight:700;color:var(--text2)">Diferença residual após justificativas:</span>
+          <span id="invResidual" style="font-size:16px;font-weight:800;color:var(--red)">0</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px" id="invStatusAuto"></div>
+      </div>
+      <div class="fld" style="margin-bottom:14px">
+        <label>Status da Divergência</label>
+        <select id="invStatus">
+          <option value="Aberta">Aberta</option>
+          <option value="Em investigação">Em investigação</option>
+          <option value="Resolvida">Resolvida</option>
+        </select>
+      </div>
+      <div class="brow">
+        <button class="btn" onclick="fecharModalInvestigacao()">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarInvestigacao()">💾 Salvar Investigação</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 
 
@@ -621,6 +751,9 @@ let currentPendIdx=null;
 let _pollingInterval=null;
 let filtroPeriodo='hoje', dtCustomInicio=null, dtCustomFim=null;
 let CONFERENCIAS={}, MODO_CEGO=false;
+let CONF_HISTORICO=[]; // Histórico de conferências salvas
+let DIV_HISTORICO=[]; // Histórico de divergências investigadas
+let _invAtual=null; // divergência em investigação
 
 // ─── PERFIS ──────────────────────────────────────────────────────
 const PERFIS={
@@ -643,6 +776,12 @@ const PERFIS={
     verTabOp:true
   },
   'supervisor sistema':{
+    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-divergencias','pg-hist'],
+    podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
+    podeConferir:false,podeTransferir:true,podeAudit:false,podeAdmin:false,
+    verTabOp:false
+  },
+  'supervisorsistema':{
     label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-divergencias','pg-hist'],
     podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
     podeConferir:false,podeTransferir:true,podeAudit:false,podeAdmin:false,
@@ -674,8 +813,8 @@ function showPage(id,btn){
   const pg=document.getElementById(id);if(pg)pg.classList.add('active');btn.classList.add('active');
   if(id==='pg-hist'){renderStats();renderHist();}
   if(id==='pg-op'){renderOpOrders();}
-  if(id==='pg-conferencia'){renderConferencia();}
-  if(id==='pg-divergencias'){renderDivergencias();}
+  if(id==='pg-conferencia'){if(CONF_MODO!=='conferencia'){CONF_MODO='selecao';const sc=document.getElementById('confSelCard');const pc=document.getElementById('confPainelConf');if(sc)sc.style.display='block';if(pc)pc.style.display='none';}filtrarItensConf();renderConfHistorico();}
+  if(id==='pg-divergencias'){renderDivergencias();renderDivHistorico();}
   if(id==='pg-pendencias'){renderPendencias();}
 }
 function getSt(s,m){if(s<=0||s<m)return'red';if(s<m*1.5)return'yellow';return'green';}
@@ -730,15 +869,6 @@ function setPeriodo(p,btn){
 }
 
 // ─── ESTOQUE ─────────────────────────────────────────────────────
-function globalSearch(){
-  const q = document.getElementById('mainSearch').value.toLowerCase();
-  renderItems(); // Filtra a lista de estoque
-  
-  // Se estiver em outras abas, também pode filtrar
-  if(document.getElementById('pg-conferencia').classList.contains('active')) renderConferencia();
-  if(document.getElementById('pg-hist').classList.contains('active')) renderHist();
-}
-
 function renderItems(){
   const sortMode=(document.getElementById('itemSortMode')||{}).value||'status';
   const filterSt=(document.getElementById('itemFilterStatus')||{}).value||'';
@@ -802,12 +932,17 @@ function renderItems(){
 function toggleItem(idx){if(selectedItems.has(idx))selectedItems.delete(idx);else selectedItems.add(idx);renderItems();}
 
 // ─── CONFERÊNCIA ──────────────────────────────────────────────────
+// Conjunto de itens selecionados para conferir (por código)
+let CONF_ITENS_SEL = new Set();
+let CONF_MODO = 'selecao'; // 'selecao' | 'conferencia'
+
 function globalSearch(){
   const q = document.getElementById('mainSearch').value.toLowerCase();
-  renderItems(); // Filtra a lista de estoque
-  
-  // Se estiver em outras abas, também pode filtrar
-  if(document.getElementById('pg-conferencia').classList.contains('active')) renderConferencia();
+  renderItems();
+  if(document.getElementById('pg-conferencia').classList.contains('active')) {
+    filtrarItensConf();
+    if(CONF_MODO === 'conferencia') renderConferencia();
+  }
   if(document.getElementById('pg-hist').classList.contains('active')) renderHist();
 }
 
@@ -816,75 +951,432 @@ function toggleModoCego(){
   renderConferencia();
 }
 
+// Renderiza lista de itens no painel de seleção
+function filtrarItensConf(){
+  const q = (document.getElementById('confSearch')||{value:''}).value.toLowerCase();
+  const list = document.getElementById('confItemSelList');
+  const vazio = document.getElementById('confSelVazio');
+  if(!list) return;
+  list.innerHTML = '';
+  let visiveis = 0;
+
+  ITEMS.forEach((item, idx) => {
+    if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return;
+    visiveis++;
+    const sel = CONF_ITENS_SEL.has(item.cod);
+    const s3 = getSt(item.saldo3, item.min3);
+    const spp = getSacsPorPal(item.cod);
+    const palSist3 = Math.floor(item.saldo3 / spp);
+    const palSist30 = Math.floor(item.saldo30 / spp);
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;' + (sel ? 'background:var(--accent-dim)' : 'background:#fff');
+    row.onclick = () => confToggleItem(item.cod);
+    row.innerHTML = `
+      <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s">${sel ? '✓' : ''}</div>
+      <div class="color-bar ${stCB(s3)}" style="width:3px;min-height:28px;align-self:stretch;border-radius:3px;flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em">${item.cod}</div>
+        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.name}</div>
+      </div>
+      <div style="display:flex;gap:14px;flex-shrink:0;text-align:right">
+        <div>
+          <div style="font-size:9px;color:var(--accent);font-weight:700;text-transform:uppercase">Almox 3</div>
+          <div style="font-size:13px;font-weight:700;color:${stColor(s3)}">${item.saldo3}<span style="font-size:9px;font-weight:400;color:var(--text3);margin-left:2px">sc</span></div>
+          <div style="font-size:9px;color:var(--text3)">${palSist3} pal</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--green);font-weight:700;text-transform:uppercase">Almox 30</div>
+          <div style="font-size:13px;font-weight:700;color:var(--green)">${item.saldo30}<span style="font-size:9px;font-weight:400;color:var(--text3);margin-left:2px">sc</span></div>
+          <div style="font-size:9px;color:var(--text3)">${palSist30} pal</div>
+        </div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+
+  if(visiveis === 0){
+    list.style.display='none';
+    vazio.style.display='block';
+  } else {
+    list.style.display='block';
+    vazio.style.display='none';
+  }
+  atualizarBadgeSelConf();
+}
+
+function confToggleItem(cod){
+  if(CONF_ITENS_SEL.has(cod)) CONF_ITENS_SEL.delete(cod);
+  else CONF_ITENS_SEL.add(cod);
+  filtrarItensConf();
+}
+
+function confSelecionarTodos(){
+  const q = (document.getElementById('confSearch')||{value:''}).value.toLowerCase();
+  ITEMS.forEach(item => {
+    if(!q || item.cod.toLowerCase().includes(q) || item.name.toLowerCase().includes(q)){
+      CONF_ITENS_SEL.add(item.cod);
+    }
+  });
+  filtrarItensConf();
+}
+
+function confLimparSelecao(){
+  CONF_ITENS_SEL.clear();
+  filtrarItensConf();
+}
+
+function atualizarBadgeSelConf(){
+  const badge = document.getElementById('confSelBadge');
+  const btnIniciar = document.getElementById('btnIniciarConf');
+  if(badge){
+    if(CONF_ITENS_SEL.size > 0){
+      badge.style.display='inline';
+      badge.textContent = CONF_ITENS_SEL.size + (CONF_ITENS_SEL.size===1?' selecionado':' selecionados');
+    } else {
+      badge.style.display='none';
+    }
+  }
+}
+
+function confIniciarConferencia(){
+  if(CONF_ITENS_SEL.size === 0){ toast('Selecione ao menos um item para conferir.'); return; }
+  CONF_MODO = 'conferencia';
+  const selCard = document.getElementById('confSelCard');
+  const painelConf = document.getElementById('confPainelConf');
+  if(selCard) selCard.style.display = 'none';
+  if(painelConf) painelConf.style.display = 'block';
+  // Número provisório
+  const numEl = document.getElementById('confNumDisplay');
+  if(numEl) numEl.textContent = '🕐 ' + nowFull() + ' · 👤 ' + ((USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—');
+  renderConferencia();
+}
+
+function confVoltarSelecao(){
+  CONF_MODO = 'selecao';
+  const selCard = document.getElementById('confSelCard');
+  const painelConf = document.getElementById('confPainelConf');
+  if(selCard) selCard.style.display = 'block';
+  if(painelConf) painelConf.style.display = 'none';
+  filtrarItensConf();
+}
+
 function renderConferencia(){
   const grid = document.getElementById('confGrid');
+  const gridVazio = document.getElementById('confGridVazio');
   if(!grid) return;
-  
-  const local = document.getElementById('confLocal').value;
-  const q = document.getElementById('mainSearch').value.toLowerCase();
-  
+
+  // Se estamos no modo seleção, apenas re-renderizar a lista de seleção
+  if(CONF_MODO === 'selecao'){
+    filtrarItensConf();
+    return;
+  }
+
+  const local = (document.getElementById('confLocal')||{value:'todos'}).value;
   grid.innerHTML = '';
-  
-  ITEMS.forEach((item, idx) => {
+  let visCount = 0;
+
+  ITEMS.forEach((item) => {
+    // Apenas itens selecionados para conferir
+    if(!CONF_ITENS_SEL.has(item.cod)) return;
+
     // Filtro de Local
-    if(local === 'almox3' && item.saldo3 === 0 && item.saldo30 > 0) return;
-    if(local === 'almox30' && item.saldo30 === 0 && item.saldo3 > 0) return;
-    
-    // Filtro de Pesquisa
-    if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return;
-    
+    if(local === 'almox3' && item.saldo30 > 0 && item.saldo3 === 0) return;
+    if(local === 'almox30' && item.saldo3 > 0 && item.saldo30 === 0) return;
+
+    visCount++;
     const spp = getSacsPorPal(item.cod);
-    const palSist = Math.floor(item.saldo3 / spp);
-    const sacSist = item.saldo3 % spp;
-    
-    const conf = CONFERENCIAS[item.cod] || { pal: 0, sac: 0, total: 0 };
-    
+    const palSist3 = Math.floor(item.saldo3 / spp);
+    const sacSist3 = item.saldo3 % spp;
+    const palSist30 = Math.floor(item.saldo30 / spp);
+    const sacSist30 = item.saldo30 % spp;
+    const s3 = getSt(item.saldo3, item.min3);
+
+    const conf = CONFERENCIAS[item.cod] || { pal3: 0, sac3: 0, total3: 0, pal30: 0, sac30: 0, total30: 0 };
+
     const card = document.createElement('div');
     card.className = 'card';
-    card.style.padding = '12px';
-    
+    card.style.padding = '14px';
+
+    // Calcular diferença para colorir o card
+    const difAlmox3 = conf.total3 > 0 ? (conf.total3 - item.saldo3) : null;
+    const difAlmox30 = conf.total30 > 0 ? (conf.total30 - item.saldo30) : null;
+    const temDivergencia = (difAlmox3 !== null && difAlmox3 !== 0) || (difAlmox30 !== null && difAlmox30 !== 0);
+    if(temDivergencia) card.style.borderColor = 'var(--red-mid)';
+    else if(conf.total3 > 0 || conf.total30 > 0) card.style.borderColor = 'var(--green-mid)';
+
     card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-weight:700;font-size:12px">${item.cod} - ${item.name}</div>
-        <div style="font-size:10px;color:var(--text3);background:var(--bg3);padding:2px 6px;border-radius:4px">${spp} sc/pal</div>
-      </div>
-      <div style="display:${MODO_CEGO ? 'none' : 'block'};background:var(--bg3);padding:8px;border-radius:6px;margin-bottom:10px;font-size:11px">
-        <div style="display:flex;justify-content:space-between"><span>Paletes Sistema:</span> <b>${palSist}</b></div>
-        <div style="display:flex;justify-content:space-between"><span>Sacos Sistema:</span> <b>${sacSist}</b></div>
-        <div style="display:flex;justify-content:space-between;margin-top:4px;border-top:1px solid var(--border);padding-top:4px">
-          <span>Total Sistema:</span> <b>${item.saldo3} sacos</b>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:6px">
+        <div>
+          <div style="font-weight:700;font-size:12px;color:var(--text)">${item.cod}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px">${item.name}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <div style="font-size:10px;color:var(--text3);background:var(--bg3);padding:2px 7px;border-radius:4px">${spp} sc/pal</div>
+          <button onclick="confRemoverItem('${item.cod}')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1" title="Remover item">✕</button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="fld">
-          <label>Paletes Contados</label>
-          <input type="number" value="${conf.pal || ''}" oninput="updateConf('${item.cod}', this.value, 'pal')" style="text-align:center;font-weight:700">
+
+      <!-- SALDO SISTEMA – destaque visual -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:8px;padding:8px 10px">
+          <div style="font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">📍 Saldo Sistema – Almox 3</div>
+          <div style="font-size:18px;font-weight:800;color:${stColor(s3)};line-height:1">${item.saldo3}<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:3px">sacos</span></div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${palSist3} pal + ${sacSist3} sc</div>
         </div>
-        <div class="fld">
-          <label>Sacos Contados</label>
-          <input type="number" value="${conf.sac || ''}" oninput="updateConf('${item.cod}', this.value, 'sac')" style="text-align:center;font-weight:700">
+        <div style="background:var(--green-dim);border:1px solid var(--green-mid);border-radius:8px;padding:8px 10px">
+          <div style="font-size:9px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">📍 Saldo Sistema – Almox 30</div>
+          <div style="font-size:18px;font-weight:800;color:var(--green);line-height:1">${item.saldo30}<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:3px">sacos</span></div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${palSist30} pal + ${sacSist30} sc</div>
         </div>
       </div>
-      <div style="margin-top:10px;text-align:right;font-size:12px;font-weight:700;color:var(--accent)">
-        Total Físico: <span id="totalFisico_${item.cod}">${conf.total || 0}</span> sacos
+
+      ${MODO_CEGO ? '' : ''}
+
+      <!-- CONTAGEM ALMOX 3 -->
+      <div style="margin-bottom:10px;background:var(--bg3);border-radius:8px;padding:10px">
+        <div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:6px">✏️ Contagem Física — Almox 3</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="fld">
+            <label>Paletes Contados</label>
+            <input type="number" min="0" value="${conf.pal3 || ''}" placeholder="0"
+              oninput="updateConf('${item.cod}', this.value, 'pal3')"
+              style="text-align:center;font-weight:700;font-size:15px;height:38px">
+          </div>
+          <div class="fld">
+            <label>Sacos Avulsos</label>
+            <input type="number" min="0" value="${conf.sac3 || ''}" placeholder="0"
+              oninput="updateConf('${item.cod}', this.value, 'sac3')"
+              style="text-align:center;font-weight:700;font-size:15px;height:38px">
+          </div>
+        </div>
+        <div id="resumoFisico3_${item.cod}" style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;font-size:11px;display:${(conf.total3 > 0)?'block':'none'}">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:var(--text2)">Total Físico Almox 3:</span>
+            <b style="color:var(--accent);font-size:13px"><span id="totalFisico3_${item.cod}">${conf.total3 || 0}</span> sc</b>
+          </div>
+          <div id="divTag3_${item.cod}" style="margin-top:4px;font-size:10px;font-weight:700;display:${(conf.total3>0&&(conf.total3-item.saldo3)!==0)?'block':'none'};color:${(conf.total3-item.saldo3)<0?'var(--red)':'var(--green)'}">
+            Diferença: ${conf.total3 > 0 ? ((conf.total3 - item.saldo3) > 0 ? '+' : '') + (conf.total3 - item.saldo3) + ' sc vs sistema' : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTAGEM ALMOX 30 -->
+      <div style="background:var(--bg3);border-radius:8px;padding:10px">
+        <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:6px">✏️ Contagem Física — Almox 30</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="fld">
+            <label>Paletes Contados</label>
+            <input type="number" min="0" value="${conf.pal30 || ''}" placeholder="0"
+              oninput="updateConf('${item.cod}', this.value, 'pal30')"
+              style="text-align:center;font-weight:700;font-size:15px;height:38px">
+          </div>
+          <div class="fld">
+            <label>Sacos Avulsos</label>
+            <input type="number" min="0" value="${conf.sac30 || ''}" placeholder="0"
+              oninput="updateConf('${item.cod}', this.value, 'sac30')"
+              style="text-align:center;font-weight:700;font-size:15px;height:38px">
+          </div>
+        </div>
+        <div id="resumoFisico30_${item.cod}" style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;font-size:11px;display:${(conf.total30 > 0)?'block':'none'}">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:var(--text2)">Total Físico Almox 30:</span>
+            <b style="color:var(--green);font-size:13px"><span id="totalFisico30_${item.cod}">${conf.total30 || 0}</span> sc</b>
+          </div>
+          <div id="divTag30_${item.cod}" style="margin-top:4px;font-size:10px;font-weight:700;display:${(conf.total30>0&&(conf.total30-item.saldo30)!==0)?'block':'none'};color:${(conf.total30-item.saldo30)<0?'var(--red)':'var(--green)'}">
+            Diferença: ${conf.total30 > 0 ? ((conf.total30 - item.saldo30) > 0 ? '+' : '') + (conf.total30 - item.saldo30) + ' sc vs sistema' : ''}
+          </div>
+        </div>
       </div>
     `;
     grid.appendChild(card);
   });
+
+  if(gridVazio){
+    gridVazio.style.display = visCount === 0 ? 'block' : 'none';
+  }
+}
+
+function confRemoverItem(cod){
+  CONF_ITENS_SEL.delete(cod);
+  if(CONF_ITENS_SEL.size === 0){ confVoltarSelecao(); return; }
+  renderConferencia();
+  atualizarBadgeSelConf();
 }
 
 function updateConf(cod, val, type) {
-  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal: 0, sac: 0, total: 0 };
+  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3: 0, sac3: 0, total3: 0, pal30: 0, sac30: 0, total30: 0 };
   CONFERENCIAS[cod][type] = parseInt(val) || 0;
   const spp = getSacsPorPal(cod);
   
-  // FÓRMULA ORIGINAL: (Paletes Contados × Fator Palete) + Sacos Contados
-  CONFERENCIAS[cod].total = (CONFERENCIAS[cod].pal * spp) + CONFERENCIAS[cod].sac;
+  CONFERENCIAS[cod].total3 = (CONFERENCIAS[cod].pal3 * spp) + CONFERENCIAS[cod].sac3;
+  CONFERENCIAS[cod].total30 = (CONFERENCIAS[cod].pal30 * spp) + CONFERENCIAS[cod].sac30;
+  CONFERENCIAS[cod].total = CONFERENCIAS[cod].total3;
+
+  const el3 = document.getElementById('totalFisico3_' + cod);
+  if(el3) el3.textContent = CONFERENCIAS[cod].total3;
+  const el30 = document.getElementById('totalFisico30_' + cod);
+  if(el30) el30.textContent = CONFERENCIAS[cod].total30;
+
+  // Mostrar/ocultar resumo e diferença
+  const item = ITEMS.find(i => i.cod === cod);
+  const resumo3 = document.getElementById('resumoFisico3_' + cod);
+  const resumo30 = document.getElementById('resumoFisico30_' + cod);
+  const divTag3 = document.getElementById('divTag3_' + cod);
+  const divTag30 = document.getElementById('divTag30_' + cod);
+
+  if(resumo3) resumo3.style.display = CONFERENCIAS[cod].total3 > 0 ? 'block' : 'none';
+  if(resumo30) resumo30.style.display = CONFERENCIAS[cod].total30 > 0 ? 'block' : 'none';
+
+  if(item && divTag3){
+    const dif3 = CONFERENCIAS[cod].total3 - item.saldo3;
+    if(CONFERENCIAS[cod].total3 > 0 && dif3 !== 0){
+      divTag3.style.display = 'block';
+      divTag3.style.color = dif3 < 0 ? 'var(--red)' : 'var(--green)';
+      divTag3.textContent = 'Diferença: ' + (dif3 > 0 ? '+' : '') + dif3 + ' sc vs sistema';
+    } else {
+      divTag3.style.display = CONFERENCIAS[cod].total3 > 0 && dif3 === 0 ? 'block' : 'none';
+      if(CONFERENCIAS[cod].total3 > 0 && dif3 === 0){
+        divTag3.style.color = 'var(--green)';
+        divTag3.textContent = '✓ Sem divergência';
+      }
+    }
+  }
+  if(item && divTag30){
+    const dif30 = CONFERENCIAS[cod].total30 - item.saldo30;
+    if(CONFERENCIAS[cod].total30 > 0 && dif30 !== 0){
+      divTag30.style.display = 'block';
+      divTag30.style.color = dif30 < 0 ? 'var(--red)' : 'var(--green)';
+      divTag30.textContent = 'Diferença: ' + (dif30 > 0 ? '+' : '') + dif30 + ' sc vs sistema';
+    } else {
+      divTag30.style.display = CONFERENCIAS[cod].total30 > 0 && dif30 === 0 ? 'block' : 'none';
+      if(CONFERENCIAS[cod].total30 > 0 && dif30 === 0){
+        divTag30.style.color = 'var(--green)';
+        divTag30.textContent = '✓ Sem divergência';
+      }
+    }
+  }
+}
+
+function gerarNumConferencia() {
+  return 'CONF-' + Date.now().toString().slice(-7);
+}
+
+function salvarConferencia() {
+  const pf = perfil();
+  if(!pf.podeConferir && !pf.podeAdmin) { toast('⛔ Sem permissão para salvar conferências.'); return; }
+  const temDados = Object.keys(CONFERENCIAS).some(cod => {
+    const c = CONFERENCIAS[cod];
+    return (c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0);
+  });
+  if(!temDados) { toast('Preencha ao menos um item antes de salvar.'); return; }
   
-  const el = document.getElementById('totalFisico_' + cod);
-  if(el) el.textContent = CONFERENCIAS[cod].total;
+  const agora = new Date();
+  const dataStr = agora.toLocaleDateString('pt-BR');
+  const horaStr = agora.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const num = gerarNumConferencia();
+  const nomeUsuario = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+  const idUsuario = (USUARIO_LOGADO && USUARIO_LOGADO.perfil) || '—';
+
+  const registro = {
+    numero: num,
+    data: dataStr,
+    hora: horaStr,
+    dataHora: dataStr + ' ' + horaStr,
+    usuario: idUsuario,
+    nomeUsuario: nomeUsuario,
+    itens: {}
+  };
   
+  Object.keys(CONFERENCIAS).forEach(cod => {
+    const c = CONFERENCIAS[cod];
+    if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0) {
+      const item = ITEMS.find(i => i.cod === cod);
+      registro.itens[cod] = {
+        nome: item ? item.name : cod,
+        almox3: c.total3,
+        almox30: c.total30,
+        total: c.total3 + c.total30,
+        pal3: c.pal3, sac3: c.sac3,
+        pal30: c.pal30, sac30: c.sac30,
+        saldoSistema3: item ? item.saldo3 : 0,
+        saldoSistema30: item ? item.saldo30 : 0,
+        dif3: c.total3 - (item ? item.saldo3 : 0),
+        dif30: c.total30 - (item ? item.saldo30 : 0)
+      };
+    }
+  });
+  
+  CONF_HISTORICO.unshift(registro);
+  salvarConferenciaSheets(registro);
+  renderConfHistorico();
   renderDivergencias();
+  toast('✅ Conferência ' + num + ' salva com sucesso!', 3000);
+}
+
+function renderConfHistorico() {
+  const list = document.getElementById('confHistList');
+  const empty = document.getElementById('confHistEmpty');
+  if(!list) return;
+  
+  if(CONF_HISTORICO.length === 0) {
+    empty.style.display = 'block';
+    list.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = '';
+  
+  CONF_HISTORICO.forEach((conf, i) => {
+    const qtdItens = Object.keys(conf.itens).length;
+    const isUltima = i === 0;
+    // Contar divergências
+    let divCount = 0;
+    Object.values(conf.itens).forEach(it => {
+      if(it.dif3 !== 0 || it.dif30 !== 0) divCount++;
+    });
+
+    const div = document.createElement('div');
+    div.style.cssText = 'background:' + (isUltima ? 'var(--accent-dim)' : '#fff') + ';border:1px solid ' + (isUltima ? 'var(--accent-mid)' : 'var(--border)') + ';border-radius:var(--radius-sm);padding:10px 14px';
+
+    // Linha resumo dos itens
+    let itensHtml = '';
+    Object.entries(conf.itens).forEach(([cod, it]) => {
+      const hasDif3 = it.dif3 !== 0;
+      const hasDif30 = it.dif30 !== 0;
+      const cor3 = it.dif3 < 0 ? 'var(--red)' : it.dif3 > 0 ? 'var(--green)' : 'var(--text3)';
+      const cor30 = it.dif30 < 0 ? 'var(--red)' : it.dif30 > 0 ? 'var(--green)' : 'var(--text3)';
+      itensHtml += `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg3);border-radius:5px;font-size:10px;flex-wrap:wrap">
+        <span style="font-weight:700;color:var(--text)">${cod}</span>
+        <span style="color:var(--text2)">${it.nome || ''}</span>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <span style="color:var(--accent)">Almox 3: <b>${it.almox3} sc</b>${hasDif3?'<span style="color:'+cor3+';margin-left:3px">('+( it.dif3>0?'+':'')+it.dif3+')</span>':''}</span>
+          <span style="color:var(--green)">Almox 30: <b>${it.almox30} sc</b>${hasDif30?'<span style="color:'+cor30+';margin-left:3px">('+( it.dif30>0?'+':'')+it.dif30+')</span>':''}</span>
+        </span>
+      </div>`;
+    });
+
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:${qtdItens > 0 ? '8' : '0'}px">
+        <div>
+          <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
+          ${isUltima ? '<span style="font-size:9px;background:var(--accent);color:#fff;border-radius:4px;padding:1px 6px;margin-left:6px;font-weight:700">ÚLTIMA</span>' : ''}
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">📅 ${conf.data||conf.dataHora} &nbsp;·&nbsp; 🕐 ${conf.hora||''} &nbsp;·&nbsp; 👤 ${conf.nomeUsuario||conf.usuario} &nbsp;·&nbsp; 📦 ${qtdItens} item(s)</div>
+        </div>
+        ${divCount > 0 ? `<span style="font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid var(--red-mid);border-radius:20px;padding:2px 9px;font-weight:700">⚠ ${divCount} divergência${divCount>1?'s':''}</span>` : `<span style="font-size:10px;background:var(--green-dim);color:var(--green);border:1px solid var(--green-mid);border-radius:20px;padding:2px 9px;font-weight:700">✓ Sem divergências</span>`}
+      </div>
+      ${qtdItens > 0 ? `<div style="display:flex;flex-direction:column;gap:4px">${itensHtml}</div>` : ''}
+    `;
+    list.appendChild(div);
+  });
+}
+
+// ─── DIVERGÊNCIAS ─────────────────────────────────────────────────
+async function atualizarSaldosDivergencias() {
+  toast('🔄 Buscando saldos...');
+  await carregarSheetsData();
+  renderDivergencias();
+  toast('✅ Saldos atualizados!');
 }
 
 function renderDivergencias() {
@@ -894,35 +1386,229 @@ function renderDivergencias() {
   body.innerHTML = '';
   let count = 0;
   
+  // Usar a última conferência salva
+  const ultimaConf = CONF_HISTORICO[0];
+  const infoEl = document.getElementById('divInfoConf');
+  
+  if(!ultimaConf) {
+    if(infoEl) infoEl.style.display = 'none';
+    document.getElementById('divEmpty').style.display = 'block';
+    return;
+  }
+  
+  if(infoEl) {
+    infoEl.style.display = 'block';
+    const confUser = ultimaConf.nomeUsuario || ultimaConf.usuario;
+    const confData = ultimaConf.data || (ultimaConf.dataHora||'').split(' ')[0] || '';
+    const confHora = ultimaConf.hora || (ultimaConf.dataHora||'').split(' ')[1] || '';
+    infoEl.textContent = '📋 Conferência: ' + ultimaConf.numero + ' — 📅 ' + confData + ' 🕐 ' + confHora + ' — 👤 ' + confUser;
+  }
+  
+  // Almox 3
   ITEMS.forEach(item => {
-    const conf = CONFERENCIAS[item.cod];
-    if(!conf || (conf.pal === 0 && conf.sac === 0)) return;
+    const confItem = ultimaConf.itens[item.cod];
+    if(!confItem) return;
     
-    count++;
-    const sist = item.saldo3;
-    const fis = conf.total;
-    const diff = fis - sist;
-    const diffPerc = sist > 0 ? ((diff / sist) * 100).toFixed(1) : (diff > 0 ? 100 : 0);
+    // Verificar divergência no Almox 3
+    const sist3 = item.saldo3;
+    const fis3 = confItem.almox3 || 0;
+    const diff3 = fis3 - sist3;
     
-    let colorClass = 'div-verde';
-    if(Math.abs(diff) > 0) colorClass = 'div-amarelo';
-    if(Math.abs(diff) > 50) colorClass = 'div-vermelho';
+    if(diff3 !== 0) {
+      count++;
+      const divKey = ultimaConf.numero + '_' + item.cod + '_almox3';
+      const investigado = DIV_HISTORICO.find(d => d.divKey === divKey);
+      const status = investigado ? investigado.status : 'Aberta';
+      const statusClass = status === 'Resolvida' ? 'div-verde' : status === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${item.cod}</strong></td>
+        <td style="font-size:11px">${item.name}</td>
+        <td style="text-align:center"><span style="font-size:10px;background:var(--accent-dim);color:var(--accent);padding:2px 7px;border-radius:4px;font-weight:700">Almox 3</span></td>
+        <td style="text-align:center;font-weight:700">${sist3}</td>
+        <td style="text-align:center;font-weight:700">${fis3}</td>
+        <td style="text-align:center;font-weight:700;color:${diff3 < 0 ? 'var(--red)' : 'var(--green)'}">${diff3 > 0 ? '+' : ''}${diff3}</td>
+        <td style="text-align:center"><span class="divergencia-tag ${statusClass}">${status}</span></td>
+        <td>${(perfil().podeAudit||perfil().podeAdmin||perfil().podeAprovar)?`<button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="abrirInvestigacao('${item.cod}','${item.name}','Almox 3',${sist3},${fis3},${diff3},'${ultimaConf.numero}')">🔍 Investigar</button>`:'<span style="font-size:10px;color:var(--text3)">Ver apenas</span>'}</td>
+      `;
+      body.appendChild(tr);
+    }
     
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${item.cod}</td>
-      <td>${item.name}</td>
-      <td style="text-align:center">${sist}</td>
-      <td style="text-align:center">${fis}</td>
-      <td style="text-align:center;font-weight:700;color:${diff < 0 ? 'var(--red)' : (diff > 0 ? 'var(--green)' : 'inherit')}">${diff}</td>
-      <td style="text-align:center"><span class="divergencia-tag ${colorClass}">${diffPerc}%</span></td>
-      <td style="text-align:center">${Math.abs(diff) === 0 ? 'OK' : 'Divergente'}</td>
-      <td><button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="aprovarDivergencia('${item.cod}')">Ajustar</button></td>
-    `;
-    body.appendChild(tr);
+    // Verificar divergência no Almox 30
+    const sist30 = item.saldo30;
+    const fis30 = confItem.almox30 || 0;
+    const diff30 = fis30 - sist30;
+    
+    if(diff30 !== 0) {
+      count++;
+      const divKey30 = ultimaConf.numero + '_' + item.cod + '_almox30';
+      const investigado30 = DIV_HISTORICO.find(d => d.divKey === divKey30);
+      const status30 = investigado30 ? investigado30.status : 'Aberta';
+      const statusClass30 = status30 === 'Resolvida' ? 'div-verde' : status30 === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
+      
+      const tr30 = document.createElement('tr');
+      tr30.innerHTML = `
+        <td><strong>${item.cod}</strong></td>
+        <td style="font-size:11px">${item.name}</td>
+        <td style="text-align:center"><span style="font-size:10px;background:var(--green-dim);color:var(--green);padding:2px 7px;border-radius:4px;font-weight:700">Almox 30</span></td>
+        <td style="text-align:center;font-weight:700">${sist30}</td>
+        <td style="text-align:center;font-weight:700">${fis30}</td>
+        <td style="text-align:center;font-weight:700;color:${diff30 < 0 ? 'var(--red)' : 'var(--green)'}">${diff30 > 0 ? '+' : ''}${diff30}</td>
+        <td style="text-align:center"><span class="divergencia-tag ${statusClass30}">${status30}</span></td>
+        <td>${(perfil().podeAudit||perfil().podeAdmin||perfil().podeAprovar)?`<button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="abrirInvestigacao('${item.cod}','${item.name}','Almox 30',${sist30},${fis30},${diff30},'${ultimaConf.numero}')">🔍 Investigar</button>`:'<span style="font-size:10px;color:var(--text3)">Ver apenas</span>'}</td>
+      `;
+      body.appendChild(tr30);
+    }
   });
   
   document.getElementById('divEmpty').style.display = count === 0 ? 'block' : 'none';
+}
+
+function abrirInvestigacao(cod, nome, almox, sist, fis, diff, numConf) {
+  _invAtual = { cod, nome, almox, sist, fis, diff, numConf,
+    divKey: numConf + '_' + cod + '_' + almox.toLowerCase().replace(' ','') };
+  
+  // Preencher com dados já investigados se existirem
+  const prev = DIV_HISTORICO.find(d => d.divKey === _invAtual.divKey);
+  
+  document.getElementById('modalInvTitle').textContent = '🔍 Investigação — ' + cod + ' (' + almox + ')';
+  document.getElementById('modalInvInfo').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+      <div><span style="color:var(--text3)">Produto:</span> <strong>${nome}</strong></div>
+      <div><span style="color:var(--text3)">Almoxarifado:</span> <strong>${almox}</strong></div>
+      <div><span style="color:var(--text3)">Saldo Sistema:</span> <strong>${sist}</strong></div>
+      <div><span style="color:var(--text3)">Saldo Físico:</span> <strong>${fis}</strong></div>
+      <div><span style="color:var(--text3)">Diferença:</span> <strong style="color:${diff<0?'var(--red)':'var(--green)'}">${diff>0?'+':''}${diff}</strong></div>
+      <div><span style="color:var(--text3)">Conferência:</span> <strong>${numConf}</strong></div>
+    </div>
+  `;
+  
+  document.getElementById('invFaturado').value = prev ? (prev.faturado || 0) : 0;
+  document.getElementById('invTransferencia').value = prev ? (prev.transferencia || 0) : 0;
+  document.getElementById('invApontamento').value = prev ? (prev.apontamento || 0) : 0;
+  document.getElementById('invAvaria').value = prev ? (prev.avaria || 0) : 0;
+  document.getElementById('invObs').value = prev ? (prev.obs || '') : '';
+  document.getElementById('invStatus').value = prev ? (prev.status || 'Aberta') : 'Aberta';
+  
+  calcResidual();
+  document.getElementById('modalInvestigacao').style.display = 'flex';
+}
+
+function fecharModalInvestigacao() {
+  document.getElementById('modalInvestigacao').style.display = 'none';
+  _invAtual = null;
+}
+
+function calcResidual() {
+  if(!_invAtual) return;
+  const diff = Math.abs(_invAtual.diff);
+  const fat = parseInt(document.getElementById('invFaturado').value) || 0;
+  const tra = parseInt(document.getElementById('invTransferencia').value) || 0;
+  const apo = parseInt(document.getElementById('invApontamento').value) || 0;
+  const ava = parseInt(document.getElementById('invAvaria').value) || 0;
+  const justTotal = fat + tra + apo + ava;
+  const residual = diff - justTotal;
+  
+  const el = document.getElementById('invResidual');
+  const statusEl = document.getElementById('invStatusAuto');
+  const statusSel = document.getElementById('invStatus');
+  
+  if(el) {
+    el.textContent = residual;
+    el.style.color = residual <= 0 ? 'var(--green)' : 'var(--red)';
+  }
+  
+  if(residual <= 0) {
+    if(statusEl) statusEl.textContent = '✅ Diferença residual zerada — Status será marcado como Resolvida';
+    if(statusSel) statusSel.value = 'Resolvida';
+  } else {
+    if(statusEl) statusEl.textContent = 'Diferença residual: ' + residual + ' unidades ainda não justificadas';
+  }
+}
+
+function salvarInvestigacao() {
+  if(!_invAtual) return;
+  
+  const fat = parseInt(document.getElementById('invFaturado').value) || 0;
+  const tra = parseInt(document.getElementById('invTransferencia').value) || 0;
+  const apo = parseInt(document.getElementById('invApontamento').value) || 0;
+  const ava = parseInt(document.getElementById('invAvaria').value) || 0;
+  const obs = document.getElementById('invObs').value || '';
+  let status = document.getElementById('invStatus').value;
+  const justTotal = fat + tra + apo + ava;
+  const residual = Math.abs(_invAtual.diff) - justTotal;
+  if(residual <= 0) status = 'Resolvida';
+  
+  const ultimaConf = CONF_HISTORICO[0];
+  const registro = {
+    divKey: _invAtual.divKey,
+    numConf: _invAtual.numConf,
+    dataHora: nowFull(),
+    usuario: (USUARIO_LOGADO && USUARIO_LOGADO.usuario) || '—',
+    nomeUsuario: (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—',
+    cod: _invAtual.cod,
+    nome: _invAtual.nome,
+    almox: _invAtual.almox,
+    sist: _invAtual.sist,
+    fis: _invAtual.fis,
+    diferenca: _invAtual.diff,
+    faturado: fat,
+    transferencia: tra,
+    apontamento: apo,
+    avaria: ava,
+    obs,
+    residual,
+    status
+  };
+  
+  const idx = DIV_HISTORICO.findIndex(d => d.divKey === _invAtual.divKey);
+  if(idx >= 0) DIV_HISTORICO[idx] = registro;
+  else DIV_HISTORICO.unshift(registro);
+  
+  fecharModalInvestigacao();
+  renderDivergencias();
+  renderDivHistorico();
+  toast('✅ Investigação salva! Status: ' + status, 3000);
+}
+
+function renderDivHistorico() {
+  const body = document.getElementById('divHistBody');
+  const table = document.getElementById('divHistTable');
+  const empty = document.getElementById('divHistEmpty');
+  if(!body) return;
+  
+  if(DIV_HISTORICO.length === 0) {
+    if(empty) empty.style.display = 'block';
+    if(table) table.style.display = 'none';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+  if(table) table.style.display = 'table';
+  
+  body.innerHTML = '';
+  DIV_HISTORICO.forEach(d => {
+    const statusClass = d.status === 'Resolvida' ? 'div-verde' : d.status === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
+    const justs = [];
+    if(d.faturado > 0) justs.push('Fat. não exp.: ' + d.faturado);
+    if(d.transferencia > 0) justs.push('Trans. pend.: ' + d.transferencia);
+    if(d.apontamento > 0) justs.push('Apontam.: ' + d.apontamento);
+    if(d.avaria > 0) justs.push('Avaria: ' + d.avaria);
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong style="color:var(--accent)">${d.numConf}</strong></td>
+      <td style="white-space:nowrap;font-size:11px">${d.dataHora}</td>
+      <td style="font-size:11px">${d.nomeUsuario||d.usuario}</td>
+      <td style="font-size:11px"><strong>${d.cod}</strong><br><span style="color:var(--text3)">${d.nome}</span></td>
+      <td style="text-align:center"><span style="font-size:10px;background:var(--bg3);padding:2px 6px;border-radius:4px;font-weight:700">${d.almox}</span></td>
+      <td style="text-align:center;font-weight:700;color:${d.diferenca<0?'var(--red)':'var(--green)'}">${d.diferenca>0?'+':''}${d.diferenca}</td>
+      <td style="font-size:11px;color:var(--text2)">${justs.length > 0 ? justs.join(', ') : '—'}${d.obs ? ' · ' + d.obs : ''}</td>
+      <td style="text-align:center;font-weight:700;color:${d.residual<=0?'var(--green)':'var(--red)'}">${d.residual}</td>
+      <td style="text-align:center"><span class="divergencia-tag ${statusClass}">${d.status}</span></td>
+    `;
+    body.appendChild(tr);
+  });
 }
 
 function aprovarDivergencia(cod) {
@@ -972,12 +1658,13 @@ function renderPendentes(){
         const d = document.createElement('div');
         d.className = 'pend-card';
         const stepLabels = ['', 'Aguardando Aprovação', 'PDF Gerado', 'Aguardando Movimentação', 'Aguardando Confirmação Sistema', 'Concluído'];
+        const etiqLabel = (p.statusSistemico === 'Confirmado' && p.statusFisico === 'Pendente') ? '🟠 Aguardando Movimentação Física' : stepLabels[p.step];
         d.innerHTML = `
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
             <strong style="color:var(--accent)">${p.req}</strong>
             <span style="font-size:10px;color:var(--text3)">${p.dataHora}</span>
           </div>
-          <div style="font-size:11px;font-weight:700;margin-bottom:4px">${stepLabels[p.step]}</div>
+          <div style="font-size:11px;font-weight:700;margin-bottom:4px">${etiqLabel}</div>
           <div style="font-size:10px;color:var(--text3)">Tipo: ${p.tipo} | Solicitante: ${p.solicitante}</div>
           <div class="brow" style="margin-top:10px">
             <button class="btn btn-primary" style="height:28px;padding:0 12px;font-size:11px" onclick="carregarPendente(${PENDENTES.indexOf(p)})">Abrir</button>
@@ -1004,7 +1691,7 @@ function renderPendentes(){
     d.className='pend-card'+(isActive?' active-pend':'');
     const podeLixeira=pf.podeAprovar&&p.step===1;
     const lixeiraBtn=podeLixeira?`<button onclick="event.stopPropagation();apagarReqPendente(${realIdx})" title="Apagar" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text3);font-size:14px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">🗑</button>`:'';
-    const stepColor=p.step===1?'var(--accent)':p.step===2?'var(--yellow)':p.step===3?'var(--green)':p.step===4?'var(--purple)':'var(--text3)';
+    const stepColor=p.statusSistemico==='Confirmado'&&p.statusFisico==='Pendente'?'var(--orange)':p.step===1?'var(--accent)':p.step===2?'var(--yellow)':p.step===3?'var(--green)':p.step===4?'var(--purple)':'var(--text3)';
     d.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">`
       +`<strong style="color:var(--accent)">${p.req}</strong>`
       +`<div style="display:flex;align-items:center;gap:6px">`
@@ -1016,6 +1703,7 @@ function renderPendentes(){
   });
 }
 function getEtapaNome(p){
+  if(p.statusSistemico === 'Confirmado' && p.statusFisico === 'Pendente') return '🟠 Aguard. Mov. Física';
   const nomes=['','Aguard. Aprovação','PDF Emitido','Em Movimentação','Aguard. Confirmação','Concluído'];
   return nomes[p.step]||'Pendente';
 }
@@ -1250,6 +1938,13 @@ function renderMovChecklist(){
   const pf=perfil();
   const podeMover = pf.podeMovFisica || pf.podeAdmin;
   const isAntecipada = st.tipo === 'Antecipada';
+  const aguardandoFisica = isAntecipada && st.statusSistemico === 'Confirmado' && st.statusFisico === 'Pendente';
+
+  // Atualizar banners
+  const bannerNormal = document.getElementById('bannerMovFisica');
+  const bannerAguard = document.getElementById('bannerAguardFisica');
+  if(bannerNormal) bannerNormal.style.display = aguardandoFisica ? 'none' : 'block';
+  if(bannerAguard) bannerAguard.style.display = aguardandoFisica ? 'block' : 'none';
 
   (st.itens||[]).forEach((it,i)=>{
     const movido=it.itemStatus==='movido'||it.itemStatus==='validado'||it.itemStatus==='lancado';
@@ -1277,13 +1972,14 @@ function renderMovChecklist(){
     c.appendChild(d);
   });
   
-  // Na antecipada, se todos movidos, mostra o botão de finalizar aqui
+  // Na antecipada, se todos movidos, mostra o botão de finalizar
   if(isAntecipada) {
     const todosMovidos = (st.itens||[]).every(it=>it.itemStatus==='movido'||it.itemStatus==='lancado');
     if(todosMovidos) {
       const btnDiv=document.createElement('div');
       btnDiv.style.cssText='margin-top:14px;border-top:1px solid var(--border);padding-top:12px';
-      btnDiv.innerHTML='<button onclick="finalizarOrdemDefinitivamente()" style="width:100%;height:44px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer">🏁 Finalizar Transferência</button>';
+      btnDiv.innerHTML=`<div style="background:var(--green-dim);border:1px solid var(--green-mid);border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:10px;font-size:11px;color:var(--green);font-weight:700">✅ Todos os itens movidos fisicamente!</div>
+        <button onclick="finalizarMovimentacaoFisica()" style="width:100%;height:44px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer">🏁 Confirmar Movimentação Física e Concluir</button>`;
       c.appendChild(btnDiv);
     }
   }
@@ -1483,22 +2179,23 @@ function concluirSistema(){
   st.sysUser=user;
   st.sysDoc=doc;
   st.timeLancado = nowFull();
-  st.statusSistemico = 'Concluída';
+  st.statusSistemico = 'Confirmado';
 
   const isAntecipada = st.tipo === 'Antecipada';
   const todosMovidos = (st.itens||[]).every(it => it.itemStatus === 'movido' || it.itemStatus === 'lancado');
   
   if(isAntecipada) {
-    // Na antecipada, após a confirmação (que é o passo 3), deve ir para a movimentação (passo 4)
-    if(!todosMovidos) {
-      st.step = 4;
-      syncPendente();
-      atualizarHistorico('Em andamento');
-      toast('💻 Parte sistêmica concluída! Agora realize a movimentação física.');
-      restaurarStep(4);
-      return;
-    }
+    // Antecipada: sistema confirmado ANTES da movimentação física.
+    // Sempre vai para movimentação física após confirmar no sistema.
+    st.step = 4;
+    st.statusFisico = 'Pendente';
+    syncPendente();
+    atualizarHistorico('Em andamento');
+    toast('💻 Sistema confirmado! Agora realize a movimentação física.');
+    restaurarStep(4);
+    return;
   } else {
+    // Normal: sistema confirmado APÓS a movimentação física.
     if(!todosMovidos) {
       st.step = 3; 
       st.statusFisico = 'Pendente';
@@ -1510,13 +2207,14 @@ function concluirSistema(){
     }
   }
 
+  // Fluxo normal com todos movidos: pode concluir definitivamente
   finalizarOrdemDefinitivamente(user, doc);
 }
 
 function finalizarOrdemDefinitivamente(user, doc) {
   st.step=5;
   st.statusFisico = 'Concluída';
-  st.statusSistemico = 'Concluída';
+  st.statusSistemico = 'Confirmado';
   if(user) st.sysUser = user;
   if(doc) st.sysDoc = doc;
   
@@ -1531,6 +2229,15 @@ function finalizarOrdemDefinitivamente(user, doc) {
   }
   setStep(5);
   toast('🏁 Transferência finalizada com sucesso!');
+}
+
+// Chamado quando a movimentação física é confirmada (Antecipada: após o sistema já ter sido confirmado)
+function finalizarMovimentacaoFisica() {
+  const user = st.sysUser || (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+  const doc = st.sysDoc || '';
+  st.timeMovidoFisico = nowFull();
+  st.operador = (document.getElementById('opName')||{}).value || st.operador || user;
+  finalizarOrdemDefinitivamente(user, doc);
 }
 
 // ─── OPERADOR MOBILE ──────────────────────────────────────────────
@@ -1783,8 +2490,8 @@ function atualizarHistorico(status){
     operador:st.operador||'—',conferente:st.conferente||'—',
     sysUser:st.sysUser||'—',sysDoc:st.sysDoc||'—',
     status,
-    statusSistemico: (st.statusSistemico === 'Concluída' || st.step >= 4) ? 'Concluída' : 'Pendente',
-    statusFisico: (st.statusFisico === 'Concluída' || st.step >= 5) ? 'Concluída' : 'Pendente',
+    statusSistemico: st.statusSistemico || 'Pendente',
+    statusFisico: st.statusFisico || 'Pendente',
     tipo: st.tipo || 'Transferência Normal',
     obs: st.obs||''
   };
@@ -1825,17 +2532,18 @@ function renderHist(){
   if(cnt)cnt.textContent=data.length+' registro(s)';
   data.forEach(h=>{
     const sp=h.status==='Concluído'?'sp-done':h.status==='Rejeitado'?'sp-rej':'sp-pend';
+    const aguardFis = h.statusSistemico === 'Confirmado' && h.statusFisico === 'Pendente';
     const names=(h.itens||[]).map(i=>i.cod).join(', ');
     const tr=document.createElement('tr');tr.className=selectedReq===h.req?'sel-row':'';tr.style.cursor='pointer';
-    const stSist = h.statusSistemico === 'Concluída' ? 'sb-done' : 'sb-pending';
+    const stSist = h.statusSistemico === 'Confirmado' ? 'sb-done' : 'sb-pending';
     const stFis = h.statusFisico === 'Concluída' ? 'sb-done' : 'sb-pending';
     tr.innerHTML=`<td>
         <strong style="color:var(--accent)">${h.req}</strong>
         <div style="font-size:9px;color:var(--text3);margin-top:2px;font-weight:700">${h.tipo === 'Antecipada' ? '🚀 ANTECIPADA' : '📦 NORMAL'}</div>
-        <div style="display:flex;gap:4px;margin-top:4px">
-          <span class="status-badge ${stSist}" title="Sistêmica">S</span>
-          <span class="status-badge ${stFis}" title="Física">F</span>
-        </div>
+        ${aguardFis ? `<div style="margin-top:4px;font-size:9px;font-weight:700;background:var(--orange-dim);color:var(--orange);border:1px solid var(--orange-mid);border-radius:4px;padding:2px 6px;display:inline-block">🟠 Aguard. Mov. Física</div>` : `<div style="display:flex;gap:4px;margin-top:4px">
+          <span class="status-badge ${stSist}" title="Sistêmica">S: ${h.statusSistemico||'Pendente'}</span>
+          <span class="status-badge ${stFis}" title="Física">F: ${h.statusFisico||'Pendente'}</span>
+        </div>`}
       </td>
       <td style="color:var(--text2);white-space:nowrap">${h.data}</td>
       <td style="color:var(--text2);font-size:11px">${names}</td>
@@ -1852,6 +2560,7 @@ function showDetail(h){
   selectedReq=h.req;
   const panel=document.getElementById('detailPanel'),el=document.getElementById('detailContent');
   const sp=h.status==='Concluído'?'sp-done':h.status==='Rejeitado'?'sp-rej':'sp-pend';
+  const aguardFisDet = h.statusSistemico === 'Confirmado' && h.statusFisico === 'Pendente';
   const stColor2={'aprovado':'var(--accent)','movido':'var(--yellow)','validado':'var(--green)','lancado':'var(--green)'};
   const stBg={'aprovado':'var(--accent-dim)','movido':'var(--yellow-dim)','validado':'var(--green-dim)','lancado':'var(--green-dim)'};
   const stLabel={'aprovado':'Aprovado','movido':'Movido','validado':'Validado','lancado':'Confirmado'};
@@ -1890,7 +2599,9 @@ function showDetail(h){
   el.innerHTML=`<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
     <div><div style="font-size:20px;font-weight:700;color:var(--accent)">${h.req}</div>
     <div style="font-size:11px;font-weight:800;color:var(--text2);margin-top:2px">${h.tipo === 'Antecipada' ? '🚀 TRANSFERÊNCIA ANTECIPADA' : '📦 TRANSFERÊNCIA NORMAL'}</div>
-    <div style="font-size:11px;color:var(--text3);margin-top:2px">${h.data}${h.obs?' · '+h.obs:''}</div></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:2px">${h.data}${h.obs?' · '+h.obs:''}</div>
+    ${aguardFisDet ? `<div style="margin-top:6px;font-size:11px;font-weight:700;background:var(--orange-dim);color:var(--orange);border:1px solid var(--orange-mid);border-radius:6px;padding:4px 10px;display:inline-block">🟠 Aguardando Movimentação Física</div>` : ''}
+    </div>
     <span class="status-pill ${sp}" style="font-size:12px;padding:4px 12px;margin-top:4px">${h.status}</span>
   </div>
   <div class="detail-grid">
@@ -2011,6 +2722,29 @@ async function removerRequisicaoSheets(reqId){
 async function salvarHistoricoSheets(entrada){
   try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarHist',id:entrada.req,dados:JSON.stringify(entrada)})});}catch(e){}
 }
+async function salvarConferenciaSheets(conf){
+  try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarConf',id:conf.numero,dados:JSON.stringify(conf)})});}catch(e){}
+}
+async function carregarConferenciasSheets(){
+  try{
+    const rows=await fetchRange('CONFERENCIAS!A2:B');
+    const loaded=rows.filter(r=>r[0]&&r[1]).map(r=>{try{return JSON.parse(r[1]);}catch(e){return null;}}).filter(Boolean);
+    // Merge: loaded registros que não existem localmente
+    loaded.forEach(conf=>{
+      if(!CONF_HISTORICO.find(c=>c.numero===conf.numero)){
+        CONF_HISTORICO.push(conf);
+      }
+    });
+    // Ordenar por data/hora desc
+    CONF_HISTORICO.sort((a,b)=>{
+      const da=new Date((a.dataHora||'').split(' ').reverse().join('T')||0);
+      const db=new Date((b.dataHora||'').split(' ').reverse().join('T')||0);
+      return db-da;
+    });
+    renderConfHistorico();
+    renderDivergencias();
+  }catch(e){console.warn('carregarConferencias:',e);}
+}
 async function carregarRequisicoesPendentes(){
   try{
     const rowsReq=await fetchRange('REQUISICOES!A2:B');
@@ -2067,18 +2801,25 @@ async function fazerLogin(){
     const sheets=meta.sheets||[];
     const usuSheet=sheets.find(s=>(s.properties.title||'').trim().toUpperCase()==='USUARIOS');
     if(!usuSheet)throw new Error('Aba USUARIOS não encontrada');
-    const rows=await fetchRange(usuSheet.properties.title+'!A2:C100');
-    // Verificar Robson Xavier: bloquear
+    const rows=await fetchRange(usuSheet.properties.title+'!A2:E100');
+    // Colunas: A=USUARIO, B=SENHA, C=PERFIL, D=ATIVO (opcional), E=NOME (opcional)
+    // Compatibilidade retroativa: se apenas 3 colunas (A,B,C), funciona normalmente
     const match=rows.find(r=>r[0]&&r[0].trim().toLowerCase()===user.toLowerCase()&&r[1]&&r[1].trim()===pass);
     if(!match){errEl.textContent='Usuário ou senha incorretos.';errEl.style.display='block';loadEl.style.display='none';return;}
-    const nomeUsuario=match[0].trim();
+    // Verificar ATIVO (col D) - se existir e for "NAO" ou "0", bloquear
+    const ativoField=(match[3]||'').trim().toUpperCase();
+    if(ativoField && (ativoField==='NAO'||ativoField==='0'||ativoField==='FALSE'||ativoField==='INATIVO')){
+      errEl.textContent='Acesso desativado. Contate o administrador.';errEl.style.display='block';loadEl.style.display='none';return;
+    }
+    // NOME: col E se existir, senão usar col A (usuario)
+    const nomeUsuario=(match[4]||match[0]||'').trim();
     // Bloquear Robson Xavier
     if(nomeUsuario.toLowerCase().includes('robson')){errEl.textContent='Acesso não autorizado.';errEl.style.display='block';loadEl.style.display='none';return;}
     // Iasmyn = administrador forçado
     let perfilKey=(match[2]||'').trim().toLowerCase();
     if(nomeUsuario.toLowerCase().includes('iasmyn'))perfilKey='administrador';
     if(!PERFIS[perfilKey]){errEl.textContent='Perfil não reconhecido: '+(match[2]||perfilKey);errEl.style.display='block';loadEl.style.display='none';return;}
-    USUARIO_LOGADO={nome:nomeUsuario,perfil:perfilKey};
+    USUARIO_LOGADO={nome:nomeUsuario,perfil:perfilKey,usuario:match[0].trim()};
     loadEl.textContent='⏳ Carregando dados...';
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('appScreen').style.display='block';
@@ -2086,6 +2827,7 @@ async function fazerLogin(){
     const overlay=document.getElementById('appLoading');if(overlay)overlay.style.display='flex';
     await carregarSheetsData();
     await carregarRequisicoesPendentes();
+    await carregarConferenciasSheets();
     iniciarPolling();
     if(overlay)overlay.style.display='none';
     loadEl.style.display='none';
