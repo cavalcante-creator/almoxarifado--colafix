@@ -1309,9 +1309,20 @@ function salvarConferencia() {
   
   CONF_HISTORICO.unshift(registro);
   salvarConferenciaSheets(registro);
+
+  // Limpar estado após salvar
+  CONFERENCIAS = {};
+  CONF_ITENS_SEL.clear();
+  CONF_MODO = 'selecao';
+  const selCard = document.getElementById('confSelCard');
+  const painelConf = document.getElementById('confPainelConf');
+  if(selCard) selCard.style.display = 'block';
+  if(painelConf) painelConf.style.display = 'none';
+
   renderConfHistorico();
   renderDivergencias();
-  toast('✅ Conferência ' + num + ' salva com sucesso!', 3000);
+  filtrarItensConf();
+  toast('✅ Conferência ' + num + ' salva! Itens e contagens limpos.', 3500);
 }
 
 function renderConfHistorico() {
