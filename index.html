@@ -970,14 +970,14 @@ function filtrarItensConf(){
     const palSist30 = Math.floor(item.saldo30 / spp);
 
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;' + (sel ? 'background:var(--accent-dim)' : 'background:#fff');
+    row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;' + (sel ? 'background:var(--accent-dim)' : 'background:#fff');
     row.onclick = () => confToggleItem(item.cod);
     row.innerHTML = `
-      <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s">${sel ? '✓' : ''}</div>
+      <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s;margin-top:2px">${sel ? '✓' : ''}</div>
       <div class="color-bar ${stCB(s3)}" style="width:3px;min-height:28px;align-self:stretch;border-radius:3px;flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em">${item.cod}</div>
-        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.name}</div>
+        <div style="font-size:12px;font-weight:600;word-break:break-word;white-space:normal;line-height:1.4">${item.name}</div>
       </div>
       <div style="display:flex;gap:14px;flex-shrink:0;text-align:right">
         <div>
