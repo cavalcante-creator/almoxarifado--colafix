@@ -788,7 +788,7 @@ const PERFIS={
     verTabOp:false
   },
   'conferente':{
-    label:'Conferente',abas:['pg-estoque','pg-conferencia'],
+    label:'Conferente',abas:['pg-conferencia'],
     podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false
@@ -1346,13 +1346,15 @@ function renderConfHistorico() {
       const hasDif30 = it.dif30 !== 0;
       const cor3 = it.dif3 < 0 ? 'var(--red)' : it.dif3 > 0 ? 'var(--green)' : 'var(--text3)';
       const cor30 = it.dif30 < 0 ? 'var(--red)' : it.dif30 > 0 ? 'var(--green)' : 'var(--text3)';
-      itensHtml += `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg3);border-radius:5px;font-size:10px;flex-wrap:wrap">
-        <span style="font-weight:700;color:var(--text)">${cod}</span>
-        <span style="color:var(--text2)">${it.nome || ''}</span>
-        <span style="margin-left:auto;display:flex;gap:8px">
-          <span style="color:var(--accent)">Almox 3: <b>${it.almox3} sc</b>${hasDif3?'<span style="color:'+cor3+';margin-left:3px">('+( it.dif3>0?'+':'')+it.dif3+')</span>':''}</span>
-          <span style="color:var(--green)">Almox 30: <b>${it.almox30} sc</b>${hasDif30?'<span style="color:'+cor30+';margin-left:3px">('+( it.dif30>0?'+':'')+it.dif30+')</span>':''}</span>
-        </span>
+      itensHtml += `<div style="padding:6px 8px;background:var(--bg3);border-radius:5px;font-size:10px;margin-bottom:3px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+          <span style="font-weight:700;color:var(--text)">${cod}</span>
+          <span style="color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.nome || ''}</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <span style="color:var(--accent)">📍 Almox 3: <b>${it.almox3} sc</b> <span style="font-size:9px;color:var(--text3)">(${it.pal3||0}pal+${it.sac3||0}sc)</span>${hasDif3?'<span style="color:'+cor3+';margin-left:3px;font-weight:700">'+(it.dif3>0?'+':'')+it.dif3+'</span>':''}</span>
+          <span style="color:var(--green)">📍 Almox 30: <b>${it.almox30} sc</b> <span style="font-size:9px;color:var(--text3)">(${it.pal30||0}pal+${it.sac30||0}sc)</span>${hasDif30?'<span style="color:'+cor30+';margin-left:3px;font-weight:700">'+(it.dif30>0?'+':'')+it.dif30+'</span>':''}</span>
+        </div>
       </div>`;
     });
 
