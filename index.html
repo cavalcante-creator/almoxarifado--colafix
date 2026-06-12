@@ -4,6 +4,42 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Almoxarifado Colafix</title>
+
+<!-- ===============================================================
+     PWA - Almoxarifado Colafix
+     Compativel com GitHub Pages (caminhos relativos)
+     Android, Windows (Chrome/Edge) e iOS (Safari)
+     =============================================================== -->
+
+<!-- Web App Manifest -->
+<link rel="manifest" href="./manifest.json">
+
+<!-- Cor da barra de status (Android Chrome / Edge) -->
+<meta name="theme-color" content="#1B5C7A">
+
+<!-- Modo standalone no iOS (Safari) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Colafix">
+
+<!-- Icones Apple Touch (iOS) -->
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="152x152" href="./icons/icon-152x152.png">
+<link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192x192.png">
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16x16.png">
+
+<!-- Microsoft Tiles (Windows) -->
+<meta name="msapplication-TileColor" content="#1B5C7A">
+<meta name="msapplication-TileImage" content="./icons/icon-144x144.png">
+<meta name="msapplication-config" content="none">
+
+<!-- SEO / Descricao -->
+<meta name="description" content="Sistema de gestao de almoxarifado e conferencia fisica de estoque">
+<meta name="application-name" content="Almoxarifado Colafix">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
 :root{
   --bg:#F7F5F0;--bg2:#FFFFFF;--bg3:#F2EFE9;--bg4:#EAE6DF;
@@ -562,8 +598,17 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <div class="card-title">🔍 Selecionar Itens para Conferência
       <span id="confSelBadge" style="display:none;margin-left:6px;background:var(--accent);color:#fff;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700">0 selecionados</span>
     </div>
-    <!-- Barra de pesquisa de item -->
+    <!-- Barra de pesquisa e filtro de almox -->
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <div class="fld" style="width:150px;flex-shrink:0">
+        <label>Almoxarifado</label>
+        <select id="confAlmox" onchange="filtrarItensConf()">
+          <option value="todos">Todos</option>
+          <option value="almox3">Almox 3</option>
+          <option value="almox30">Almox 30</option>
+          <option value="rejunte">Rejunte / Área Líquida</option>
+        </select>
+      </div>
       <div style="position:relative;flex:1;min-width:200px">
         <input type="text" id="confSearch" placeholder="🔍 Código ou descrição do produto..." oninput="filtrarItensConf()"
           style="width:100%;height:36px;padding:0 36px 0 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s"
@@ -577,8 +622,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <!-- Lista de itens para seleção -->
     <div id="confItemSelList" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg3)"></div>
     <div id="confSelVazio" style="display:none;text-align:center;padding:20px;color:var(--text3);font-size:11px">Nenhum item encontrado para a pesquisa.</div>
-    <!-- Botão iniciar -->
-    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+    <!-- Botões: PDF lista em branco + iniciar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-purple" onclick="gerarPDFListaContagem()" style="height:38px;font-size:12px;padding:0 16px;font-weight:700">🖨️ Imprimir Lista de Contagem</button>
       <button id="btnIniciarConf" class="btn btn-primary" onclick="confIniciarConferencia()" style="height:38px;font-size:13px;padding:0 22px;font-weight:700">▶ Iniciar Conferência →</button>
     </div>
   </div>
@@ -595,7 +641,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           <option value="todos">Todos</option>
           <option value="almox3">Almox 3</option>
           <option value="almox30">Almox 30</option>
+          <option value="rejunte">Rejunte / Área Líquida</option>
         </select>
+      </div>
+      <!-- Ajuste 2: campo de pesquisa no painel de conferência -->
+      <div class="fld" style="flex:1;min-width:160px">
+        <label>Pesquisar Item</label>
+        <input type="text" id="confPainelSearch" placeholder="🔍 Código ou descrição..."
+          oninput="renderConferencia()"
+          style="width:100%;box-sizing:border-box">
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
         <input type="checkbox" id="modoCego" onchange="toggleModoCego()">
@@ -603,7 +657,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       </div>
       <div style="margin-top:14px;margin-left:auto;display:flex;gap:8px">
         <button class="btn" onclick="confVoltarSelecao()" style="font-size:11px">← Itens</button>
-        <button class="btn btn-success" onclick="salvarConferencia()">💾 Salvar Conferência</button>
+        <button class="btn btn-success" onclick="salvarConferencia()">&#128190; Salvar Conferência</button>
       </div>
     </div>
     <div id="confGrid" class="conf-grid"></div>
@@ -750,9 +804,10 @@ const SHEETS_ID='1Zix9W2G6QuwyfkhsFrtNVcXWYGCbEuc9M-TP37JUk6Q';
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbznsHd6yWHVKYtqDgIowBdRkj6WfE_2V_3dJUQQBpdumhxiYu-0EaoEotxRhZfCMwZO/exec';
 const RANGE_SALDO='SALDO!A2:D';
 const RANGE_CAPACIDADE='CAPACIDADE !A2:E';
+const RANGE_INVENTARIO_ITENS='INVENTARIO_ITENS!A2:E';
 
 // ─── ESTADO GLOBAL ───────────────────────────────────────────────
-let ITEMS=[], CAPACIDADE_MAP={}, USUARIO_LOGADO=null;
+let ITEMS=[], CAPACIDADE_MAP={}, INV_ITEMS=[], SALDO_BRUTO=[], USUARIO_LOGADO=null;
 let HISTORY=[], PENDENTES=[], REQS_REMOVIDAS=new Set();
 let selectedItems=new Set(), st={}, sysChecked={};
 let histSort={col:'data',asc:false}, selectedReq=null;
@@ -773,6 +828,7 @@ function resetSessionTimeout(){
 ['click','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,resetSessionTimeout,{passive:true}));
 let filtroPeriodo='hoje', dtCustomInicio=null, dtCustomFim=null;
 let CONFERENCIAS={}, MODO_CEGO=false;
+let CONF_ITEMS=[]; // Itens carregados de INVENTARIO_ITENS para a Conferência
 let CONF_HISTORICO=[]; // Histórico de conferências salvas
 let DIV_HISTORICO=[]; // Histórico de divergências investigadas
 let _invAtual=null; // divergência em investigação
@@ -813,7 +869,39 @@ const PERFIS={
     label:'Conferente',abas:['pg-conferencia'],
     podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
-    verTabOp:false
+    verTabOp:false,
+    // Ajuste 2: restrições de almoxarifado na conferência
+    confAlmox3:true,confAlmox30:false,confRejunte:false
+  },
+  'conferente 2':{
+    label:'Conferente 2',abas:['pg-conferencia'],
+    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:false,
+    // Ajuste 2: visualiza e lança apenas ALMOX 30
+    confAlmox3:false,confAlmox30:true,confRejunte:false
+  },
+  'conferente2':{
+    label:'Conferente 2',abas:['pg-conferencia'],
+    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:false,
+    confAlmox3:false,confAlmox30:true,confRejunte:false
+  },
+  'conferente 3':{
+    label:'Conferente 3',abas:['pg-conferencia'],
+    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:false,
+    // Ajuste 2: visualiza e lança apenas REJUNTE/ÁREA LÍQUIDA (pertence ao ALMOX 3)
+    confAlmox3:true,confAlmox30:false,confRejunte:true
+  },
+  'conferente3':{
+    label:'Conferente 3',abas:['pg-conferencia'],
+    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:false,
+    confAlmox3:true,confAlmox30:false,confRejunte:true
   },
   'auditor':{
     label:'Auditor',abas:['pg-estoque','pg-hist','pg-divergencias'],
@@ -824,6 +912,47 @@ const PERFIS={
 };
 
 function perfil(){return USUARIO_LOGADO&&PERFIS[USUARIO_LOGADO.perfil]||{};}
+
+// ─── REGRA CENTRAL DE PERMISSÕES (item 1 das instruções) ────────────────────
+// Retorna objeto com flags de permissão de contagem para o perfil logado.
+// Toda a aplicação deve usar EXCLUSIVAMENTE esta função.
+function confPerm(){
+  const p = perfil();
+  const acessoTotal = !!(p.podeAdmin || p.podeAudit || p.podeAprovar);
+  return {
+    acessoTotal,
+    podeContarAlmox3:  acessoTotal || p.confAlmox3  === true,
+    podeContarAlmox30: acessoTotal || p.confAlmox30 === true,
+    podeContarRejunte: acessoTotal || p.confRejunte === true
+  };
+}
+
+// Retorna o filtro de almoxarifado obrigatório para o perfil logado.
+// Retorna 'almox3', 'almox30', 'rejunte' ou null (acesso total).
+function confPerfilFiltro(){
+  const cp = confPerm();
+  if(cp.acessoTotal) return null;
+  if(cp.podeContarRejunte && !cp.podeContarAlmox30) return 'rejunte';
+  if(cp.podeContarAlmox30 && !cp.podeContarAlmox3) return 'almox30';
+  if(cp.podeContarAlmox3 && !cp.podeContarAlmox30) return 'almox3';
+  return null;
+}
+
+// Retorna o rótulo correto do local de um item (item 4 das instruções)
+function localLabel(item){
+  if(!item) return 'Almox 3';
+  if(item.temRejunte) return 'Rejunte';
+  if(item.temAlmox30 && !item.temAlmox3) return 'Almox 30';
+  return 'Almox 3';
+}
+
+// AJUSTE 1: retorna a unidade correta conforme o tipo do item
+// Para REJUNTE/ÁREA LÍQUIDA: 'fardo'/'Fardos'/'Fardos Avulsos'
+// Para demais itens: 'sc'/'sacos'/'Sacos Avulsos'
+function unidSing(item){ return (item && item.temRejunte) ? 'fardo' : 'sc'; }
+function unidPlur(item){ return (item && item.temRejunte) ? 'Fardos' : 'sacos'; }
+function unidAvul(item){ return (item && item.temRejunte) ? 'Fardos Avulsos' : 'Sacos Avulsos'; }
+function unidTotal(item){ return (item && item.temRejunte) ? 'Total de Fardos' : 'Total de Sacos'; }
 
 // ─── UTILS ───────────────────────────────────────────────────────
 function now(){const d=new Date();return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
@@ -976,13 +1105,32 @@ function toggleModoCego(){
 // Renderiza lista de itens no painel de seleção
 function filtrarItensConf(){
   const q = (document.getElementById('confSearch')||{value:''}).value.toLowerCase();
+  // Regra central de permissões
+  const cp = confPerm();
+  const filtroForcado = confPerfilFiltro();
+  const selectAlmox = document.getElementById('confAlmox');
+  if(filtroForcado && selectAlmox){ selectAlmox.value = filtroForcado; selectAlmox.disabled = true; }
+  else if(selectAlmox){ selectAlmox.disabled = false; }
+  const almoxFiltro = filtroForcado || (selectAlmox ? selectAlmox.value : 'todos');
   const list = document.getElementById('confItemSelList');
   const vazio = document.getElementById('confSelVazio');
   if(!list) return;
   list.innerHTML = '';
   let visiveis = 0;
 
-  ITEMS.forEach((item, idx) => {
+  const fonte = CONF_ITEMS.length > 0 ? CONF_ITEMS : ITEMS;
+
+  fonte.forEach((item) => {
+    // Filtro por almoxarifado + permissão de perfil
+    if(almoxFiltro === 'almox3'   && !item.temAlmox3)   return;
+    if(almoxFiltro === 'almox30'  && !item.temAlmox30)  return;
+    if(almoxFiltro === 'rejunte'  && !item.temRejunte)  return;
+    // Segurança: nunca exibir item de local sem permissão
+    if(!cp.acessoTotal){
+      if(item.temRejunte  && !cp.podeContarRejunte)  return;
+      if(item.temAlmox30 && !item.temAlmox3 && !cp.podeContarAlmox30) return;
+      if(!item.temAlmox30 && !item.temRejunte && !cp.podeContarAlmox3) return;
+    }
     if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return;
     visiveis++;
     const sel = CONF_ITENS_SEL.has(item.cod);
@@ -990,28 +1138,36 @@ function filtrarItensConf(){
     const spp = getSacsPorPal(item.cod);
     const palSist3 = Math.floor(item.saldo3 / spp);
     const palSist30 = Math.floor(item.saldo30 / spp);
+    // Saldos visíveis: usar confPerm() como única regra
+    const verAlmox3  = cp.podeContarAlmox3  && !item.temRejunte && !(item.temAlmox30 && !item.temAlmox3);
+    const verAlmox30 = cp.podeContarAlmox30 && item.temAlmox30 && !item.temRejunte;
+    const verRejunte = cp.podeContarRejunte && item.temRejunte;
+    const lblLocal = localLabel(item);
+    const corLocal = item.temRejunte ? 'var(--purple,#7B5EA7)' : item.temAlmox30 && !item.temAlmox3 ? 'var(--green)' : 'var(--accent)';
+    const saldoVis = item.temRejunte ? item.saldo3 : item.temAlmox30 && !item.temAlmox3 ? item.saldo30 : item.saldo3;
+    const palVis   = item.temRejunte ? palSist3 : item.temAlmox30 && !item.temAlmox3 ? palSist30 : palSist3;
 
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;' + (sel ? 'background:var(--accent-dim)' : 'background:#fff');
     row.onclick = () => confToggleItem(item.cod);
     row.innerHTML = `
-      <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s;margin-top:2px">${sel ? '✓' : ''}</div>
+      <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s;margin-top:2px">${sel ? '\u2713' : ''}</div>
       <div class="color-bar ${stCB(s3)}" style="width:3px;min-height:28px;align-self:stretch;border-radius:3px;flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em">${item.cod}</div>
         <div style="font-size:12px;font-weight:600;word-break:break-word;white-space:normal;line-height:1.4">${item.name}</div>
       </div>
       <div style="display:flex;gap:14px;flex-shrink:0;text-align:right">
-        <div>
-          <div style="font-size:9px;color:var(--accent);font-weight:700;text-transform:uppercase">Almox 3</div>
-          <div style="font-size:13px;font-weight:700;color:${stColor(s3)}">${item.saldo3}<span style="font-size:9px;font-weight:400;color:var(--text3);margin-left:2px">sc</span></div>
-          <div style="font-size:9px;color:var(--text3)">${palSist3} pal</div>
-        </div>
-        <div>
+        ${(verAlmox3 || verRejunte) ? `<div>
+          <div style="font-size:9px;color:${corLocal};font-weight:700;text-transform:uppercase">${lblLocal}</div>
+          <div style="font-size:13px;font-weight:700;color:${stColor(s3)}">${saldoVis}<span style="font-size:9px;font-weight:400;color:var(--text3);margin-left:2px">${unidSing(item)}</span></div>
+          ${!item.temRejunte ? `<div style="font-size:9px;color:var(--text3)">${palVis} pal</div>` : ''}
+        </div>` : ''}
+        ${verAlmox30 ? `<div>
           <div style="font-size:9px;color:var(--green);font-weight:700;text-transform:uppercase">Almox 30</div>
           <div style="font-size:13px;font-weight:700;color:var(--green)">${item.saldo30}<span style="font-size:9px;font-weight:400;color:var(--text3);margin-left:2px">sc</span></div>
           <div style="font-size:9px;color:var(--text3)">${palSist30} pal</div>
-        </div>
+        </div>` : ''}
       </div>
     `;
     list.appendChild(row);
@@ -1035,7 +1191,20 @@ function confToggleItem(cod){
 
 function confSelecionarTodos(){
   const q = (document.getElementById('confSearch')||{value:''}).value.toLowerCase();
-  ITEMS.forEach(item => {
+  const cp = confPerm();
+  const filtroForcado = confPerfilFiltro();
+  const almoxFiltro = filtroForcado || (document.getElementById('confAlmox')||{value:'todos'}).value;
+  const fonte = CONF_ITEMS.length > 0 ? CONF_ITEMS : ITEMS;
+  fonte.forEach(item => {
+    if(almoxFiltro === 'almox3'  && !item.temAlmox3)  return;
+    if(almoxFiltro === 'almox30' && !item.temAlmox30) return;
+    if(almoxFiltro === 'rejunte' && !item.temRejunte) return;
+    // Segurança: nunca selecionar item de local sem permissão
+    if(!cp.acessoTotal){
+      if(item.temRejunte  && !cp.podeContarRejunte)  return;
+      if(item.temAlmox30 && !item.temAlmox3 && !cp.podeContarAlmox30) return;
+      if(!item.temAlmox30 && !item.temRejunte && !cp.podeContarAlmox3) return;
+    }
     if(!q || item.cod.toLowerCase().includes(q) || item.name.toLowerCase().includes(q)){
       CONF_ITENS_SEL.add(item.cod);
     }
@@ -1086,6 +1255,9 @@ function confVoltarSelecao(){
   const painelConf = document.getElementById('confPainelConf');
   if(selCard) selCard.style.display = 'block';
   if(painelConf) painelConf.style.display = 'none';
+  // Ajuste 2: limpar pesquisa do painel ao voltar
+  const ps = document.getElementById('confPainelSearch');
+  if(ps) ps.value = '';
   filtrarItensConf();
 }
 
@@ -1100,17 +1272,30 @@ function renderConferencia(){
     return;
   }
 
-  const local = (document.getElementById('confLocal')||{value:'todos'}).value;
+  // Regra central de permissões
+  const cp = confPerm();
+  const filtroForcadoConf = confPerfilFiltro();
+  const selectLocal = document.getElementById('confLocal');
+  if(filtroForcadoConf && selectLocal){ selectLocal.value = filtroForcadoConf; selectLocal.disabled = true; }
+  else if(selectLocal){ selectLocal.disabled = false; }
+  const local = filtroForcadoConf || (selectLocal ? selectLocal.value : 'todos');
   grid.innerHTML = '';
   let visCount = 0;
 
-  ITEMS.forEach((item) => {
+  const fonteConf = CONF_ITEMS.length > 0 ? CONF_ITEMS : ITEMS;
+
+  fonteConf.forEach((item) => {
     // Apenas itens selecionados para conferir
     if(!CONF_ITENS_SEL.has(item.cod)) return;
 
-    // Filtro de Local
-    if(local === 'almox3' && item.saldo30 > 0 && item.saldo3 === 0) return;
-    if(local === 'almox30' && item.saldo3 > 0 && item.saldo30 === 0) return;
+    // Filtro de Local (usa flags booleanas de INVENTARIO_ITENS quando disponível)
+    if(local === 'almox3' && !item.temAlmox3) return;
+    if(local === 'almox30' && !item.temAlmox30) return;
+    if(local === 'rejunte' && !item.temRejunte) return;
+
+    // Ajuste 2: filtro de pesquisa no painel de conferência
+    const qPainel = (document.getElementById('confPainelSearch')||{value:''}).value.toLowerCase();
+    if(qPainel && !item.cod.toLowerCase().includes(qPainel) && !item.name.toLowerCase().includes(qPainel)) return;
 
     visCount++;
     const spp = getSacsPorPal(item.cod);
@@ -1133,46 +1318,43 @@ function renderConferencia(){
     if(temDivergencia) card.style.borderColor = 'var(--red-mid)';
     else if(conf.total3 > 0 || conf.total30 > 0) card.style.borderColor = 'var(--green-mid)';
 
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:6px">
-        <div style="min-width:0;flex:1">
-          <div style="font-weight:700;font-size:12px;color:var(--text)">${item.cod}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:normal;line-height:1.4">${item.name}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <div style="font-size:10px;color:var(--text3);background:var(--bg3);padding:2px 7px;border-radius:4px">${spp} sc/pal</div>
-          <button onclick="confRemoverItem('${item.cod}')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1" title="Remover item">✕</button>
-        </div>
-      </div>
+    // Regra central: quais blocos este item/perfil pode ver e lançar
+    const isRejunte  = !!item.temRejunte;
+    const isAlmox30Only = !item.temAlmox3 && !!item.temAlmox30;
+    const mostrarBloco3  = (isRejunte ? cp.podeContarRejunte  : !isAlmox30Only && cp.podeContarAlmox3);
+    const mostrarBloco30 = (!isRejunte && isAlmox30Only && cp.podeContarAlmox30) || (!isRejunte && !isAlmox30Only && cp.podeContarAlmox30);
+    // Rótulo dinâmico do local (item 4)
+    const lblLocalCard = localLabel(item);
+    const corLocalCard = isRejunte ? 'var(--purple,#7B5EA7)' : isAlmox30Only ? 'var(--green)' : 'var(--accent)';
+    const saldoCard3 = item.saldo3;
+    const saldoCard30 = item.saldo30;
 
-      <!-- SALDO SISTEMA – destaque visual -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-        <div style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:8px;padding:8px 10px">
-          <div style="font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">📍 Saldo Sistema – Almox 3</div>
-          <div style="font-size:18px;font-weight:800;color:${stColor(s3)};line-height:1">${item.saldo3}<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:3px">sacos</span></div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${palSist3} pal + ${sacSist3} sc</div>
-        </div>
-        <div style="background:var(--green-dim);border:1px solid var(--green-mid);border-radius:8px;padding:8px 10px">
-          <div style="font-size:9px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">📍 Saldo Sistema – Almox 30</div>
-          <div style="font-size:18px;font-weight:800;color:var(--green);line-height:1">${item.saldo30}<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:3px">sacos</span></div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${palSist30} pal + ${sacSist30} sc</div>
-        </div>
-      </div>
+    // Blocos de saldo sistema
+    const gridCols = (mostrarBloco3 && mostrarBloco30) ? '1fr 1fr' : '1fr';
+    const blocoSaldoAlmox3 = mostrarBloco3 ? `
+      <div style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:8px;padding:8px 10px">
+        <div style="font-size:9px;font-weight:700;color:${corLocalCard};text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">📍 Saldo Sistema – ${lblLocalCard}</div>
+        <div style="font-size:18px;font-weight:800;color:${stColor(s3)};line-height:1">${saldoCard3}<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:3px">${unidPlur(item)}</span></div>
+        ${!isRejunte ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${palSist3} pal + ${sacSist3} ${unidSing(item)}</div>` : ''}
+      </div>` : '';
+    const blocoSaldoAlmox30 = mostrarBloco30 ? `
+      <div style="background:var(--green-dim);border:1px solid var(--green-mid);border-radius:8px;padding:8px 10px">
+        <div style="font-size:9px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">📍 Saldo Sistema – Almox 30</div>
+        <div style="font-size:18px;font-weight:800;color:var(--green);line-height:1">${saldoCard30}<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:3px">sacos</span></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">${palSist30} pal + ${sacSist30} sc</div>
+      </div>` : '';
 
-      ${MODO_CEGO ? '' : ''}
-
-      <!-- CONTAGEM ALMOX 3 -->
+    // Blocos de contagem física com rótulo dinâmico
+    const blocoContAlmox3 = mostrarBloco3 ? `
       <div style="margin-bottom:10px;background:var(--bg3);border-radius:8px;padding:10px">
-        <div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:6px">✏️ Contagem Física — Almox 3</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div class="fld">
-            <label>Paletes Contados</label>
+        <div style="font-size:10px;font-weight:700;color:${corLocalCard};margin-bottom:6px">✏️ Contagem Física — ${lblLocalCard}</div>
+        <div style="display:grid;grid-template-columns:${isRejunte ? '1fr' : '1fr 1fr'};gap:8px">
+          ${!isRejunte ? `<div class="fld"><label>Paletes Contados</label>
             <input type="number" min="0" value="${conf.pal3 || ''}" placeholder="0"
               oninput="updateConf('${item.cod}', this.value, 'pal3')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
-          </div>
-          <div class="fld">
-            <label>Sacos Avulsos</label>
+          </div>` : ''}
+          <div class="fld"><label>${unidAvul(item)}</label>
             <input type="number" min="0" value="${conf.sac3 || ''}" placeholder="0"
               oninput="updateConf('${item.cod}', this.value, 'sac3')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
@@ -1180,27 +1362,25 @@ function renderConferencia(){
         </div>
         <div id="resumoFisico3_${item.cod}" style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;font-size:11px;display:${(conf.total3 > 0)?'block':'none'}">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="color:var(--text2)">Total Físico Almox 3:</span>
-            <b style="color:var(--accent);font-size:13px"><span id="totalFisico3_${item.cod}">${conf.total3 || 0}</span> sc</b>
+            <span style="color:var(--text2)">${unidTotal(item)} ${lblLocalCard}:</span>
+            <b style="color:${corLocalCard};font-size:13px"><span id="totalFisico3_${item.cod}">${conf.total3 || 0}</span> ${unidSing(item)}</b>
           </div>
           <div id="divTag3_${item.cod}" style="margin-top:4px;font-size:10px;font-weight:700;display:${(conf.total3>0&&(conf.total3-item.saldo3)!==0)?'block':'none'};color:${(conf.total3-item.saldo3)<0?'var(--red)':'var(--green)'}">
-            Diferença: ${conf.total3 > 0 ? ((conf.total3 - item.saldo3) > 0 ? '+' : '') + (conf.total3 - item.saldo3) + ' sc vs sistema' : ''}
+            Diferença: ${conf.total3 > 0 ? ((conf.total3 - item.saldo3) > 0 ? '+' : '') + (conf.total3 - item.saldo3) + ' ' + unidSing(item) + ' vs sistema' : ''}
           </div>
         </div>
-      </div>
+      </div>` : '';
 
-      <!-- CONTAGEM ALMOX 30 -->
+    const blocoContAlmox30 = mostrarBloco30 ? `
       <div style="background:var(--bg3);border-radius:8px;padding:10px">
         <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:6px">✏️ Contagem Física — Almox 30</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div class="fld">
-            <label>Paletes Contados</label>
+          <div class="fld"><label>Paletes Contados</label>
             <input type="number" min="0" value="${conf.pal30 || ''}" placeholder="0"
               oninput="updateConf('${item.cod}', this.value, 'pal30')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
           </div>
-          <div class="fld">
-            <label>Sacos Avulsos</label>
+          <div class="fld"><label>Sacos Avulsos</label>
             <input type="number" min="0" value="${conf.sac30 || ''}" placeholder="0"
               oninput="updateConf('${item.cod}', this.value, 'sac30')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
@@ -1215,7 +1395,28 @@ function renderConferencia(){
             Diferença: ${conf.total30 > 0 ? ((conf.total30 - item.saldo30) > 0 ? '+' : '') + (conf.total30 - item.saldo30) + ' sc vs sistema' : ''}
           </div>
         </div>
+      </div>` : '';
+
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:6px">
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:700;font-size:12px;color:var(--text)">${item.cod}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:normal;line-height:1.4">${item.name}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          ${!isRejunte ? `<div style="font-size:10px;color:var(--text3);background:var(--bg3);padding:2px 7px;border-radius:4px">${spp} sc/pal</div>` : ''}
+          <button onclick="confRemoverItem('${item.cod}')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1" title="Remover item">✕</button>
+        </div>
       </div>
+
+      <!-- SALDO SISTEMA – destaque visual -->
+      <div style="display:grid;grid-template-columns:${gridCols};gap:8px;margin-bottom:12px">
+        ${blocoSaldoAlmox3}
+        ${blocoSaldoAlmox30}
+      </div>
+
+      ${blocoContAlmox3}
+      ${blocoContAlmox30}
     `;
     grid.appendChild(card);
   });
@@ -1247,7 +1448,7 @@ function updateConf(cod, val, type) {
   if(el30) el30.textContent = CONFERENCIAS[cod].total30;
 
   // Mostrar/ocultar resumo e diferença
-  const item = ITEMS.find(i => i.cod === cod);
+  const item = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
   const resumo3 = document.getElementById('resumoFisico3_' + cod);
   const resumo30 = document.getElementById('resumoFisico30_' + cod);
   const divTag3 = document.getElementById('divTag3_' + cod);
@@ -1258,10 +1459,11 @@ function updateConf(cod, val, type) {
 
   if(item && divTag3){
     const dif3 = CONFERENCIAS[cod].total3 - item.saldo3;
+    const u3 = unidSing(item);
     if(CONFERENCIAS[cod].total3 > 0 && dif3 !== 0){
       divTag3.style.display = 'block';
       divTag3.style.color = dif3 < 0 ? 'var(--red)' : 'var(--green)';
-      divTag3.textContent = 'Diferença: ' + (dif3 > 0 ? '+' : '') + dif3 + ' sc vs sistema';
+      divTag3.textContent = 'Diferença: ' + (dif3 > 0 ? '+' : '') + dif3 + ' ' + u3 + ' vs sistema';
     } else {
       divTag3.style.display = CONFERENCIAS[cod].total3 > 0 && dif3 === 0 ? 'block' : 'none';
       if(CONFERENCIAS[cod].total3 > 0 && dif3 === 0){
@@ -1316,10 +1518,24 @@ function salvarConferencia() {
     itens: {}
   };
   
+  // Item 5: validar permissões antes de salvar — zerar dados de locais não autorizados
+  const cpSave = confPerm();
   Object.keys(CONFERENCIAS).forEach(cod => {
     const c = CONFERENCIAS[cod];
+    const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
+    // Determinar local do item
+    const itemIsRejunte   = !!(invItem && invItem.temRejunte);
+    const itemIsAlmox30   = !!(invItem && invItem.temAlmox30 && !invItem.temAlmox3);
+    // Zerar campos não permitidos
+    if(itemIsRejunte  && !cpSave.podeContarRejunte)  { c.pal3=0; c.sac3=0; c.total3=0; c.pal30=0; c.sac30=0; c.total30=0; }
+    if(itemIsAlmox30  && !cpSave.podeContarAlmox30)  { c.pal30=0; c.sac30=0; c.total30=0; }
+    if(!itemIsRejunte && !itemIsAlmox30 && !cpSave.podeContarAlmox3) { c.pal3=0; c.sac3=0; c.total3=0; }
+    // Zerar almox30 se perfil não tem permissão (mesmo para itens que pertencem aos dois)
+    if(!cpSave.podeContarAlmox30 && !itemIsRejunte) { c.pal30=0; c.sac30=0; c.total30=0; }
+    if(!cpSave.podeContarAlmox3  && !itemIsRejunte && !itemIsAlmox30) { c.pal3=0; c.sac3=0; c.total3=0; }
+
     if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0) {
-      const item = ITEMS.find(i => i.cod === cod);
+      const item = invItem;
       registro.itens[cod] = {
         nome: item ? item.name : cod,
         almox3: c.total3,
@@ -1393,12 +1609,22 @@ function renderConfHistorico() {
       }
     };
 
-    // Linha resumo dos itens
+    // Item 6: Linha resumo dos itens — ocultar locais sem permissão
+    const cpHist = confPerm();
     let itensHtml = '';
     Object.entries(conf.itens).forEach(([cod, it]) => {
-      const hasDif3 = it.dif3 !== 0;
+      const invItemH = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
+      const isRejH  = !!(invItemH && invItemH.temRejunte);
+      const is30H   = !!(invItemH && invItemH.temAlmox30 && !invItemH.temAlmox3);
+      // Determinar quais locais mostrar para este item
+      const mostrar3H  = cpHist.acessoTotal || (isRejH ? cpHist.podeContarRejunte : !is30H && cpHist.podeContarAlmox3);
+      const mostrar30H = cpHist.acessoTotal || (!isRejH && (is30H ? cpHist.podeContarAlmox30 : cpHist.podeContarAlmox30));
+      if(!mostrar3H && !mostrar30H) return; // ocultar item inteiro se sem permissão
+      const lblH3  = isRejH ? 'Rejunte' : 'Almox 3';
+      const cor3H  = isRejH ? 'var(--purple,#7B5EA7)' : 'var(--accent)';
+      const hasDif3  = it.dif3 !== 0;
       const hasDif30 = it.dif30 !== 0;
-      const cor3 = it.dif3 < 0 ? 'var(--red)' : it.dif3 > 0 ? 'var(--green)' : 'var(--text3)';
+      const cor3  = it.dif3  < 0 ? 'var(--red)' : it.dif3  > 0 ? 'var(--green)' : 'var(--text3)';
       const cor30 = it.dif30 < 0 ? 'var(--red)' : it.dif30 > 0 ? 'var(--green)' : 'var(--text3)';
       itensHtml += `<div style="padding:6px 8px;background:var(--bg3);border-radius:5px;font-size:10px;margin-bottom:3px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
@@ -1406,8 +1632,8 @@ function renderConfHistorico() {
           <span style="color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.nome || ''}</span>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <span style="color:var(--accent)">📍 Almox 3: <b>${it.almox3} sc</b> <span style="font-size:9px;color:var(--text3)">(${it.pal3||0}pal+${it.sac3||0}sc)</span>${hasDif3?'<span style="color:'+cor3+';margin-left:3px;font-weight:700">'+(it.dif3>0?'+':'')+it.dif3+'</span>':''}</span>
-          <span style="color:var(--green)">📍 Almox 30: <b>${it.almox30} sc</b> <span style="font-size:9px;color:var(--text3)">(${it.pal30||0}pal+${it.sac30||0}sc)</span>${hasDif30?'<span style="color:'+cor30+';margin-left:3px;font-weight:700">'+(it.dif30>0?'+':'')+it.dif30+'</span>':''}</span>
+          ${mostrar3H ? `<span style="color:${cor3H}">📍 ${lblH3}: <b>${it.almox3} ${isRejH?'fardo':'sc'}</b> ${!isRejH ? `<span style="font-size:9px;color:var(--text3)">(${it.pal3||0}pal+${it.sac3||0}sc)</span>` : ''} ${hasDif3?'<span style="color:'+cor3+';margin-left:3px;font-weight:700">'+(it.dif3>0?'+':'')+it.dif3+'</span>':''}</span>` : ''}
+          ${mostrar30H ? `<span style="color:var(--green)">📍 Almox 30: <b>${it.almox30} sc</b> <span style="font-size:9px;color:var(--text3)">(${it.pal30||0}pal+${it.sac30||0}sc)</span>${hasDif30?'<span style="color:'+cor30+';margin-left:3px;font-weight:700">'+(it.dif30>0?'+':'')+it.dif30+'</span>':''}</span>` : ''}
         </div>
       </div>`;
     });
@@ -1448,6 +1674,7 @@ function renderConfHistorico() {
 async function atualizarSaldosDivergencias() {
   toast('🔄 Buscando saldos...');
   await carregarSheetsData();
+  await carregarInventarioItens();
   renderDivergencias();
   toast('✅ Saldos atualizados!');
 }
@@ -1469,12 +1696,22 @@ function renderDivergencias() {
     // Coletar divergências desta conferência
     Object.keys(conf.itens).forEach(cod => {
       const confItem = conf.itens[cod];
-      const itemOriginal = ITEMS.find(i => i.cod === cod);
+      // Usar SALDO_BRUTO para buscar o item original (contém todos os itens, não apenas os filtrados)
+      const itemOriginal = SALDO_BRUTO.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
       
-      const locais = [
-        { nome: 'Almox 3', sist: confItem.saldoSistema3 || 0, fis: confItem.almox3 || 0, css: 'var(--accent-dim)', txt: 'var(--accent)' },
-        { nome: 'Almox 30', sist: confItem.saldoSistema30 || 0, fis: confItem.almox30 || 0, css: 'var(--green-dim)', txt: 'var(--green)' }
-      ];
+      // Item 7: filtrar locais sem permissão
+      const cpDiv = confPerm();
+      const invItemD = CONF_ITEMS.find(i => i.cod === cod) || SALDO_BRUTO.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
+      const isRejD  = !!(invItemD && invItemD.temRejunte);
+      const is30D   = !!(invItemD && invItemD.temAlmox30 && !invItemD.temAlmox3);
+      const lblD3   = isRejD ? 'Rejunte' : 'Almox 3';
+      const cssD3   = isRejD ? 'var(--purple-dim,#f3eeff)' : 'var(--accent-dim)';
+      const txtD3   = isRejD ? 'var(--purple,#7B5EA7)' : 'var(--accent)';
+      const locais = [];
+      if(cpDiv.acessoTotal || (isRejD ? cpDiv.podeContarRejunte : !is30D && cpDiv.podeContarAlmox3))
+        locais.push({ nome: lblD3, sist: confItem.saldoSistema3 || 0, fis: confItem.almox3 || 0, css: cssD3, txt: txtD3 });
+      if(cpDiv.acessoTotal || (!isRejD && cpDiv.podeContarAlmox30))
+        locais.push({ nome: 'Almox 30', sist: confItem.saldoSistema30 || 0, fis: confItem.almox30 || 0, css: 'var(--green-dim)', txt: 'var(--green)' });
 
       locais.forEach(loc => {
         const diff = loc.fis - loc.sist;
@@ -2028,7 +2265,16 @@ function syncPalFromSacos(i){
 function popularSelectCodigos(){
   const sel=document.getElementById('addCod');if(!sel)return;
   sel.innerHTML='<option value="">Selecione...</option>';
-  ITEMS.forEach(item=>{const o=document.createElement('option');o.value=item.cod;o.textContent=item.cod+' — '+item.name.slice(0,40);o.dataset.name=item.name;sel.appendChild(o);});
+  // Alteração 3: usar INV_ITEMS filtrado por ALMOX 3 (origem da requisição é sempre Almox 30 → Almox 3)
+  // Exibir apenas itens com temAlmox3=TRUE (itens que pertencem ao Almox 3)
+  const fonte = INV_ITEMS.length > 0 ? INV_ITEMS.filter(i=>i.temAlmox3) : ITEMS;
+  fonte.forEach(item=>{
+    const o=document.createElement('option');
+    o.value=item.cod;
+    o.textContent=item.cod+' — '+item.name.slice(0,40);
+    o.dataset.name=item.name;
+    sel.appendChild(o);
+  });
 }
 function onAddCodChange(){
   const sel=document.getElementById('addCod');if(!sel)return;
@@ -2772,20 +3018,69 @@ function exportCSV(){
 function gerarPDFConferencia(idx) {
   const conf = CONF_HISTORICO[idx];
   if(!conf) return;
-  const itens = Object.entries(conf.itens).map(([cod, it]) => {
-    return `<tr>
-      <td rowspan="2"><b>${cod}</b><br><small>${it.nome || ''}</small></td>
-      <td style="text-align:center;background:#fff">Almox 3</td>
-      <td style="text-align:center;background:#fff">${it.pal3 || 0}</td>
-      <td style="text-align:center;background:#fff">${it.sac3 || 0}</td>
-      <td rowspan="2" style="text-align:center;font-weight:700;font-size:14px">${it.total}</td>
-    </tr>
-    <tr>
-      <td style="text-align:center;background:#f9f9f9">Almox 30</td>
-      <td style="text-align:center;background:#f9f9f9">${it.pal30 || 0}</td>
-      <td style="text-align:center;background:#f9f9f9">${it.sac30 || 0}</td>
-    </tr>`;
+
+  // Regra central de permissões (itens 10, 13)
+  const cpPDF = confPerm();
+
+  // Filtrar e mapear itens respeitando permissões
+  const itens = Object.entries(conf.itens).filter(([cod]) => {
+    const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
+    if(!invItem) return cpPDF.acessoTotal;
+    const isRej = !!invItem.temRejunte;
+    const is30  = !invItem.temAlmox3 && !!invItem.temAlmox30;
+    if(isRej)  return cpPDF.podeContarRejunte;
+    if(is30)   return cpPDF.podeContarAlmox30;
+    return cpPDF.podeContarAlmox3;
+  }).map(([cod, it]) => {
+    const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
+    const isRej = !!(invItem && invItem.temRejunte);
+    const is30  = !!(invItem && !invItem.temAlmox3 && invItem.temAlmox30);
+    const lblLocal3 = isRej ? 'Rejunte' : 'Almox 3';
+    const mostrar3  = isRej ? cpPDF.podeContarRejunte  : !is30 && cpPDF.podeContarAlmox3;
+    const mostrar30 = !isRej && cpPDF.podeContarAlmox30;
+    // Ajuste 1: rótulo de unidade no PDF
+    const uPDF = isRej ? 'fardo' : 'sc';
+
+    if(mostrar3 && mostrar30){
+      return `<tr>
+        <td rowspan="2"><b>${cod}</b><br><small>${it.nome || ''}</small></td>
+        <td style="text-align:center;background:#fff">${lblLocal3}</td>
+        <td style="text-align:center;background:#fff">${it.pal3 || 0}</td>
+        <td style="text-align:center;background:#fff">${it.sac3 || 0}</td>
+        <td rowspan="2" style="text-align:center;font-weight:700;font-size:14px">${it.total} ${uPDF}</td>
+      </tr>
+      <tr>
+        <td style="text-align:center;background:#f9f9f9">Almox 30</td>
+        <td style="text-align:center;background:#f9f9f9">${it.pal30 || 0}</td>
+        <td style="text-align:center;background:#f9f9f9">${it.sac30 || 0}</td>
+      </tr>`;
+    } else if(mostrar3){
+      return `<tr>
+        <td><b>${cod}</b><br><small>${it.nome || ''}</small></td>
+        <td style="text-align:center;background:#fff">${lblLocal3}</td>
+        <td style="text-align:center;background:#fff">${it.pal3 || 0}</td>
+        <td style="text-align:center;background:#fff">${it.sac3 || 0}</td>
+        <td style="text-align:center;font-weight:700;font-size:14px">${it.almox3 || 0} ${uPDF}</td>
+      </tr>`;
+    } else {
+      return `<tr>
+        <td><b>${cod}</b><br><small>${it.nome || ''}</small></td>
+        <td style="text-align:center;background:#f9f9f9">Almox 30</td>
+        <td style="text-align:center;background:#f9f9f9">${it.pal30 || 0}</td>
+        <td style="text-align:center;background:#f9f9f9">${it.sac30 || 0}</td>
+        <td style="text-align:center;font-weight:700;font-size:14px">${it.almox30 || 0} sc</td>
+      </tr>`;
+    }
   }).join('');
+
+  // Título dinâmico do PDF (item 13)
+  const tituloPDF = (!cpPDF.podeContarAlmox3 && !cpPDF.podeContarRejunte && cpPDF.podeContarAlmox30)
+    ? 'CONFERÊNCIA FÍSICA - ALMOX 30'
+    : (cpPDF.podeContarRejunte && !cpPDF.podeContarAlmox30 && !cpPDF.acessoTotal)
+    ? 'CONFERÊNCIA FÍSICA - REJUNTE'
+    : (cpPDF.podeContarAlmox3 && !cpPDF.podeContarAlmox30 && !cpPDF.podeContarRejunte)
+    ? 'CONFERÊNCIA FÍSICA - ALMOX 3'
+    : 'CONFERÊNCIA FÍSICA DE ESTOQUE';
 
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Conferência ${conf.numero}</title>
   <style>
@@ -2806,7 +3101,7 @@ function gerarPDFConferencia(idx) {
   </style></head>
   <body>
     <div style="text-align:center;margin-bottom:12px"><div style="font-size:24px">🔍</div></div>
-    <h1>CONFERÊNCIA DE ESTOQUE</h1>
+    <h1>${tituloPDF}</h1>
     <h2>Relatório de Contagem Física</h2>
     <div class="ctr"><div class="rn">${conf.numero}</div></div><hr>
     <div class="info">
@@ -2830,6 +3125,146 @@ function gerarPDFConferencia(idx) {
   const blob = new Blob([html], {type:'text/html'});
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
+}
+
+// PDF de lista de contagem em branco (para anotação manual)
+// Itens 14, 15: imprimir APENAS itens selecionados (flagados) e visíveis, respeitando permissões
+function gerarPDFListaContagem(){
+  // Regra central de permissões
+  const cpL = confPerm();
+  const filtroForcado = confPerfilFiltro();
+  const almoxFiltro = filtroForcado || (document.getElementById('confAlmox') ? document.getElementById('confAlmox').value : 'todos');
+  const q = (document.getElementById('confSearch')||{value:''}).value.toLowerCase();
+  const fonte = CONF_ITEMS.length > 0 ? CONF_ITEMS : ITEMS;
+
+  // Itens 14/15: filtrar APENAS itens que estão selecionados (flagados) E visíveis na tela
+  const itensFiltrados = fonte.filter(item => {
+    // Deve estar selecionado
+    if(!CONF_ITENS_SEL.has(item.cod)) return false;
+    // Filtro de almoxarifado
+    if(almoxFiltro === 'almox3'  && !item.temAlmox3)  return false;
+    if(almoxFiltro === 'almox30' && !item.temAlmox30) return false;
+    if(almoxFiltro === 'rejunte' && !item.temRejunte) return false;
+    // Segurança: nunca imprimir item de local sem permissão
+    if(!cpL.acessoTotal){
+      if(item.temRejunte  && !cpL.podeContarRejunte)  return false;
+      if(item.temAlmox30 && !item.temAlmox3 && !cpL.podeContarAlmox30) return false;
+      if(!item.temAlmox30 && !item.temRejunte && !cpL.podeContarAlmox3) return false;
+    }
+    // Filtro de pesquisa
+    if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const verAlmox3L  = cpL.podeContarAlmox3  || cpL.podeContarRejunte;
+  const verAlmox30L = cpL.podeContarAlmox30;
+
+  if(itensFiltrados.length === 0){ toast('Nenhum item para imprimir. Verifique os filtros.'); return; }
+
+  // Ajuste 3: verificar se todos os itens são rejunte (sem paletes)
+  const todosSaoRejunte = itensFiltrados.length > 0 && itensFiltrados.every(i => i.temRejunte);
+  const unidColHeader = todosSaoRejunte ? 'Fardos' : 'Sacos';
+
+  // Cabeçalho da tabela conforme permissões e tipo de item
+  const colsHeader = verAlmox3L && verAlmox30L
+    ? `<th>Local</th>${!todosSaoRejunte ? '<th style="width:70px;text-align:center">Paletes</th>' : ''}<th style="width:70px;text-align:center">${unidColHeader}</th><th style="width:120px">Observação</th>`
+    : `${!todosSaoRejunte ? '<th style="width:70px;text-align:center">Paletes</th>' : ''}<th style="width:70px;text-align:center">${unidColHeader}</th><th style="width:140px">Observação</th>`;
+
+  // Gerar linhas com rótulo dinâmico do local (item 4)
+  const linhas = itensFiltrados.map((item, i) => {
+    const bg = i % 2 === 0 ? '#fff' : '#F7F5F0';
+    const lblLinha = localLabel(item);
+    const isRejL = !!item.temRejunte;
+    const unidLinha = isRejL ? 'Fardos' : 'Sacos';
+    if(verAlmox3L && verAlmox30L){
+      // Acesso completo: duas linhas por item
+      return `
+        <tr style="background:${bg}">
+          <td rowspan="2" style="vertical-align:middle"><b>${item.cod}</b><br><span style="font-size:10px;color:#5A574F">${item.name}</span></td>
+          <td style="text-align:center;font-size:10px;font-weight:700">${lblLinha}</td>
+          ${!todosSaoRejunte ? '<td style="text-align:center"></td>' : ''}
+          <td style="text-align:center"></td>
+          <td></td>
+        </tr>
+        <tr style="background:${bg}">
+          <td style="text-align:center;font-size:10px;color:#2E7D32;font-weight:700">Almox 30</td>
+          ${!todosSaoRejunte ? '<td style="text-align:center"></td>' : ''}
+          <td style="text-align:center"></td>
+          <td></td>
+        </tr>`;
+    } else {
+      // Apenas um almoxarifado
+      return `
+        <tr style="background:${bg}">
+          <td><b>${item.cod}</b><br><span style="font-size:10px;color:#5A574F">${item.name}</span></td>
+          ${!isRejL ? '<td style="text-align:center"></td>' : ''}
+          <td style="text-align:center"></td>
+          <td></td>
+        </tr>`;
+    }
+  }).join('');
+
+  const nomeUsuario = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+  const labelPerfil = perfil().label || '';
+  const agora = new Date();
+  const dataHoraStr = agora.toLocaleDateString('pt-BR') + ' ' + agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  // Título dinâmico da lista (item 13)
+  const almoxLabel = (!cpL.podeContarAlmox3 && !cpL.podeContarRejunte && cpL.podeContarAlmox30)
+    ? 'Almox 30'
+    : (cpL.podeContarRejunte && !cpL.podeContarAlmox30 && !cpL.acessoTotal)
+    ? 'Rejunte / Área Líquida'
+    : (cpL.podeContarAlmox3 && !cpL.podeContarAlmox30 && !cpL.podeContarRejunte)
+    ? 'Almox 3'
+    : almoxFiltro === 'almox3' ? 'Almox 3'
+    : almoxFiltro === 'almox30' ? 'Almox 30'
+    : almoxFiltro === 'rejunte' ? 'Rejunte / Área Líquida'
+    : 'Todos os Almoxarifados';
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Lista de Contagem</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;margin:36px;color:#1C1C1A;font-size:12px}
+    h1{font-size:20px;color:#1B5C7A;text-align:center;margin:0}
+    h2{font-size:11px;color:#5A574F;text-align:center;margin:4px 0 16px}
+    .rn{font-size:13px;font-weight:700;color:#1B5C7A;text-align:center;margin-bottom:20px;border:2px solid #1B5C7A;display:inline-block;padding:4px 20px;border-radius:6px}
+    .ctr{text-align:center}
+    hr{border:none;border-top:2px solid #1B5C7A;margin:14px 0}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px}
+    th{background:#1B5C7A;color:#fff;padding:8px;text-align:left;font-size:10px;text-transform:uppercase}
+    td{padding:9px 8px;border:1px solid #DDD9D0;min-height:28px}
+    .info{display:flex;gap:12px;margin-bottom:14px}
+    .ibox{flex:1;border:1px solid #DDD9D0;border-radius:6px;padding:9px}
+    .ibox .l{font-size:9px;color:#9C9888;text-transform:uppercase;margin-bottom:2px}
+    .ibox .v{font-size:12px;font-weight:600}
+    .assin{display:flex;gap:20px;margin-top:48px}
+    .ab{flex:1;text-align:center}
+    .aline{border-top:1px solid #1C1C1A;padding-top:6px;margin-top:56px;font-size:10px;color:#5A574F;line-height:1.5}
+    @media print{body{margin:20px}}
+  </style></head>
+  <body>
+    <div style="text-align:center;margin-bottom:12px"><div style="font-size:24px">📋</div></div>
+    <h1>LISTA DE CONTAGEM FÍSICA</h1>
+    <h2>Conferência de Estoque — Almoxarifado</h2>
+    <div class="ctr"><div class="rn">${almoxLabel}</div></div><hr>
+    <div class="info">
+      <div class="ibox"><div class="l">Data / Hora</div><div class="v">${dataHoraStr}</div></div>
+      <div class="ibox"><div class="l">Conferente</div><div class="v">${nomeUsuario}</div></div>
+      <div class="ibox"><div class="l">Perfil</div><div class="v">${labelPerfil}</div></div>
+      <div class="ibox"><div class="l">Total de Itens</div><div class="v">${itensFiltrados.length}</div></div>
+    </div>
+    <table>
+      <thead><tr><th style="min-width:160px">Item</th>${colsHeader}</tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+    <div class="assin">
+      <div class="ab"><div class="aline">Conferente<br><strong>${nomeUsuario}</strong></div></div>
+      <div class="ab"><div class="aline">Supervisor<br>&nbsp;</div></div>
+    </div>
+    <script>window.onload=()=>window.print()<\/script>
+  </body></html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  toast('🖨️ Lista de contagem aberta para impressão');
 }
 
 function gerarPDF(){
@@ -2887,7 +3322,8 @@ async function carregarSheetsData(){
       const cod=String(r[0]).trim();
       CAPACIDADE_MAP[cod]={capPal:parseFloat(r[2])||0,capSac:parseInt(r[3])||0,estoqueMin:parseInt(r[4])||0};
     });
-    ITEMS=rowsSaldo.filter(r=>r[0]&&r[1]).map(r=>{
+    // Salvar saldos brutos em SALDO_BRUTO para uso posterior por carregarInventarioItens
+    SALDO_BRUTO=rowsSaldo.filter(r=>r[0]&&r[1]).map(r=>{
       const cod=String(r[0]).trim(),cap=CAPACIDADE_MAP[cod]||{};
       const s3=parseInt(r[2])||0,s30=parseInt(r[3])||0;
       return {
@@ -2897,10 +3333,13 @@ async function carregarSheetsData(){
         saldo30: s30,
         min3: cap.estoqueMin || 0,
         min30: cap.capSac || 0,
-        capPal: cap.capPal || 88, // Garante que capPal seja levado para o item
+        capPal: cap.capPal || 88,
         estoqueMin: cap.estoqueMin || 0
       };
     });
+    // ITEMS será populado por carregarInventarioItens (Alt. 2: apenas ALMOX3=TRUE E ALMOX30=TRUE)
+    // Enquanto INVENTARIO_ITENS não é carregado, usar SALDO_BRUTO como fallback temporário
+    if(ITEMS.length === 0) ITEMS = SALDO_BRUTO.slice();
     const el=document.getElementById('sheetsTimestamp');
     if(el){el.textContent='✅ '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});el.style.color='var(--green)';}
     renderItems();
@@ -2908,6 +3347,64 @@ async function carregarSheetsData(){
     console.error('Sheets:',err);
     const el=document.getElementById('sheetsTimestamp');
     if(el){el.textContent='⚠ Erro ao sincronizar';el.style.color='var(--red)';}
+  }
+}
+async function carregarInventarioItens(){
+  // Carrega INVENTARIO_ITENS e popula CONF_ITEMS (conferência) e INV_ITEMS (estoque/req/transf)
+  try{
+    const rows = await fetchRange(RANGE_INVENTARIO_ITENS);
+    const parsed = rows.filter(r=>r[0]&&r[1]).map(r=>{
+      const cod = String(r[0]).trim();
+      // Coluna C = ALMOX 3 (TRUE/FALSE)
+      const temAlmox3 = String(r[2]||'').trim().toUpperCase()==='TRUE';
+      // Coluna D = ALMOX 30 (TRUE/FALSE)
+      const temAlmox30 = String(r[3]||'').trim().toUpperCase()==='TRUE';
+      // Coluna E = REJUNTE/ÁREA LÍQUIDA (TRUE/FALSE)
+      const temRejunte = String(r[4]||'').trim().toUpperCase()==='TRUE';
+      // Busca saldos numéricos em SALDO_BRUTO (carregado de SALDO+CAPACIDADE) para exibir
+      const itemSaldo = SALDO_BRUTO.find(i=>i.cod===cod) || {};
+      return {
+        cod,
+        name: String(r[1]).trim(),
+        temAlmox3,
+        temAlmox30,
+        temRejunte,
+        saldo3: itemSaldo.saldo3 || 0,
+        saldo30: itemSaldo.saldo30 || 0,
+        min3: itemSaldo.min3 || 0,
+        min30: itemSaldo.min30 || 0
+      };
+    });
+    // CONF_ITEMS: todos os itens do INVENTARIO_ITENS (Alteração 4)
+    CONF_ITEMS = parsed;
+    // INV_ITEMS: todos os itens do INVENTARIO_ITENS para uso em requisições/transferências
+    INV_ITEMS = parsed;
+    // Alteração 2: ITEMS (Estoque) = apenas itens com ALMOX3=TRUE E ALMOX30=TRUE
+    const itemsEstoque = parsed.filter(i=>i.temAlmox3 && i.temAlmox30);
+    // Preservar saldos e mínimos já carregados de SALDO+CAPACIDADE em ITEMS
+    // Atualizar ITEMS mantendo apenas os itens filtrados (sem alterar saldos já carregados)
+    ITEMS = itemsEstoque.map(inv=>{
+      const existente = SALDO_BRUTO.find(i=>i.cod===inv.cod) || {};
+      return {
+        cod: inv.cod,
+        name: inv.name,
+        temAlmox3: inv.temAlmox3,
+        temAlmox30: inv.temAlmox30,
+        temRejunte: inv.temRejunte,
+        saldo3: existente.saldo3 || inv.saldo3 || 0,
+        saldo30: existente.saldo30 || inv.saldo30 || 0,
+        min3: existente.min3 || inv.min3 || 0,
+        min30: existente.min30 || inv.min30 || 0,
+        capPal: existente.capPal || 88,
+        estoqueMin: existente.estoqueMin || 0
+      };
+    });
+    renderItems();
+  }catch(e){
+    console.warn('carregarInventarioItens:',e);
+    // Em caso de erro, CONF_ITEMS e INV_ITEMS ficam vazios; ITEMS permanece como estava
+    CONF_ITEMS=[];
+    INV_ITEMS=[];
   }
 }
 async function salvarRequisicaoSheets(reqObj){
@@ -2986,7 +3483,13 @@ function iniciarPolling(){
     if(perfil().verTabOp)renderOpOrders();
   },30000);
 }
-setInterval(()=>{if(USUARIO_LOGADO&&document.visibilityState!=='hidden')carregarSheetsData();},60000);
+// Atualização periódica: primeiro carrega SALDO+CAPACIDADE, depois INVENTARIO_ITENS (que refiltra ITEMS)
+setInterval(async()=>{
+  if(USUARIO_LOGADO&&document.visibilityState!=='hidden'){
+    await carregarSheetsData();
+    await carregarInventarioItens();
+  }
+},60000);
 
 // ─── LOGIN ────────────────────────────────────────────────────────
 async function fazerLogin(){
@@ -3028,6 +3531,7 @@ async function fazerLogin(){
     aplicarPermissoes();setStep(0);
     const overlay=document.getElementById('appLoading');if(overlay)overlay.style.display='flex';
     await carregarSheetsData();
+    await carregarInventarioItens();
     await carregarRequisicoesPendentes();
     await carregarConferenciasSheets();
     iniciarPolling();
@@ -3039,8 +3543,8 @@ async function fazerLogin(){
       const opTab=document.getElementById('tab-op');
       if(opTab){showPage('pg-op',opTab);}
     }
-    // Conferente: ir direto para aba de conferência
-    if(perfil().label === 'Conferente'){
+    // Conferente, Conferente 2, Conferente 3: ir direto para aba de conferência
+    if(['Conferente','Conferente 2','Conferente 3'].includes(perfil().label)){
       const confTab=document.getElementById('tab-conf');
       if(confTab){showPage('pg-conferencia',confTab);}
     }
@@ -3083,7 +3587,7 @@ function logout(){
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginUser').value='';document.getElementById('loginPass').value='';
   document.getElementById('loginError').style.display='none';
-  ITEMS=[];st={};selectedItems=new Set();PENDENTES=[];
+  ITEMS=[];CONF_ITEMS=[];INV_ITEMS=[];SALDO_BRUTO=[];st={};selectedItems=new Set();PENDENTES=[];
 }
 // ─── INIT ─────────────────────────────────────────────────────────
 setStep(0);
@@ -3091,6 +3595,131 @@ setStep(0);
 (function(){
   const pbHoje=document.getElementById('pbHoje');if(pbHoje)pbHoje.classList.add('active');
   filtroPeriodo='hoje';
+})();
+</script>
+
+<!-- ===============================================================
+     PWA - Registro do Service Worker e Banner de Instalacao
+     =============================================================== -->
+<script>
+// ─── SERVICE WORKER ──────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+      .then(function(reg) {
+        console.log('[PWA] Service Worker registrado. Scope:', reg.scope);
+
+        // Detecta nova versao disponivel
+        reg.addEventListener('updatefound', function() {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', function() {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // Nova versao disponivel - exibe toast de atualizacao
+              if (typeof toast === 'function') {
+                toast('Nova versao disponivel. Recarregue a pagina para atualizar.');
+              }
+            }
+          });
+        });
+      })
+      .catch(function(err) {
+        console.warn('[PWA] Falha ao registrar Service Worker:', err);
+      });
+  });
+}
+
+// ─── BANNER DE INSTALACAO PWA ────────────────────────────────────────────────
+(function() {
+  var deferredPrompt = null;
+  var installBanner  = null;
+
+  // Cria o banner de instalacao
+  function criarBanner() {
+    if (installBanner) return;
+    installBanner = document.createElement('div');
+    installBanner.id = 'pwa-install-banner';
+    installBanner.style.cssText = [
+      'position:fixed', 'bottom:16px', 'left:50%', 'transform:translateX(-50%)',
+      'background:#1B5C7A', 'color:#fff', 'border-radius:10px',
+      'padding:12px 18px', 'display:flex', 'align-items:center', 'gap:12px',
+      'box-shadow:0 4px 20px rgba(0,0,0,.25)', 'z-index:99999',
+      'font-family:Segoe UI,system-ui,sans-serif', 'font-size:13px',
+      'max-width:calc(100vw - 32px)', 'animation:pwaSlideUp .3s ease'
+    ].join(';');
+
+    var style = document.createElement('style');
+    style.textContent = '@keyframes pwaSlideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    document.head.appendChild(style);
+
+    installBanner.innerHTML = [
+      '<span style="font-size:22px">&#128230;</span>',
+      '<div>',
+        '<div style="font-weight:700;margin-bottom:2px">Instalar Almoxarifado Colafix</div>',
+        '<div style="font-size:11px;opacity:.85">Acesso rapido na tela inicial</div>',
+      '</div>',
+      '<button id="pwa-install-btn" style="',
+        'background:#fff;color:#1B5C7A;border:none;border-radius:6px;',
+        'padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap',
+      '">Instalar</button>',
+      '<button id="pwa-dismiss-btn" style="',
+        'background:transparent;color:#fff;border:none;font-size:18px;',
+        'cursor:pointer;padding:0 4px;line-height:1;opacity:.7',
+      '">&times;</button>'
+    ].join('');
+
+    document.body.appendChild(installBanner);
+
+    document.getElementById('pwa-install-btn').addEventListener('click', function() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(choice) {
+        if (choice.outcome === 'accepted') {
+          console.log('[PWA] Instalacao aceita pelo usuario');
+        }
+        deferredPrompt = null;
+        ocultarBanner();
+      });
+    });
+
+    document.getElementById('pwa-dismiss-btn').addEventListener('click', function() {
+      ocultarBanner();
+      // Nao mostrar novamente por 7 dias
+      try { localStorage.setItem('pwa-dismiss', Date.now()); } catch(e) {}
+    });
+  }
+
+  function ocultarBanner() {
+    if (installBanner) {
+      installBanner.remove();
+      installBanner = null;
+    }
+  }
+
+  // Verifica se ja foi dispensado recentemente (7 dias)
+  function foiDispensado() {
+    try {
+      var ts = parseInt(localStorage.getItem('pwa-dismiss') || '0', 10);
+      return ts && (Date.now() - ts) < 7 * 24 * 60 * 60 * 1000;
+    } catch(e) { return false; }
+  }
+
+  // Evento disparado pelo navegador quando o app pode ser instalado
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (!foiDispensado()) {
+      // Aguarda 3s apos o carregamento para exibir o banner
+      setTimeout(criarBanner, 3000);
+    }
+  });
+
+  // Oculta banner apos instalacao concluida
+  window.addEventListener('appinstalled', function() {
+    console.log('[PWA] App instalado com sucesso');
+    ocultarBanner();
+    deferredPrompt = null;
+  });
 })();
 </script>
 </body>
