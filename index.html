@@ -4,42 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Almoxarifado Colafix</title>
-
-<!-- ===============================================================
-     PWA - Almoxarifado Colafix
-     Compativel com GitHub Pages (caminhos relativos)
-     Android, Windows (Chrome/Edge) e iOS (Safari)
-     =============================================================== -->
-
-<!-- Web App Manifest -->
-<link rel="manifest" href="./manifest.json">
-
-<!-- Cor da barra de status (Android Chrome / Edge) -->
-<meta name="theme-color" content="#1B5C7A">
-
-<!-- Modo standalone no iOS (Safari) -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Colafix">
-
-<!-- Icones Apple Touch (iOS) -->
-<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-<link rel="apple-touch-icon" sizes="152x152" href="./icons/icon-152x152.png">
-<link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192x192.png">
-
-<!-- Favicon -->
-<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16x16.png">
-
-<!-- Microsoft Tiles (Windows) -->
-<meta name="msapplication-TileColor" content="#1B5C7A">
-<meta name="msapplication-TileImage" content="./icons/icon-144x144.png">
-<meta name="msapplication-config" content="none">
-
-<!-- SEO / Descricao -->
-<meta name="description" content="Sistema de gestao de almoxarifado e conferencia fisica de estoque">
-<meta name="application-name" content="Almoxarifado Colafix">
-<meta name="mobile-web-app-capable" content="yes">
 <style>
 :root{
   --bg:#F7F5F0;--bg2:#FFFFFF;--bg3:#F2EFE9;--bg4:#EAE6DF;
@@ -813,7 +777,10 @@ let selectedItems=new Set(), st={}, sysChecked={};
 let histSort={col:'data',asc:false}, selectedReq=null;
 let currentPendIdx=null;
 let _pollingInterval=null;
+let _pollingInterval2=null;
 let _sessionTimeout=null;
+let _sessionToken=null;
+let IS_EDITING=false;
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutos
 function resetSessionTimeout(){
   if(!USUARIO_LOGADO)return;
@@ -912,10 +879,14 @@ const PERFIS={
 };
 
 function perfil(){return USUARIO_LOGADO&&PERFIS[USUARIO_LOGADO.perfil]||{};}
+function sessionValida(){return USUARIO_LOGADO&&_sessionToken&&USUARIO_LOGADO._tok===_sessionToken;}
 
 // ─── REGRA CENTRAL DE PERMISSÕES (item 1 das instruções) ────────────────────
 // Retorna objeto com flags de permissão de contagem para o perfil logado.
 // Toda a aplicação deve usar EXCLUSIVAMENTE esta função.
+// Melhoria 7: helper para prevenir HTML injection em dados externos
+function escapeHTML(s){if(s==null)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
 function confPerm(){
   const p = perfil();
   const acessoTotal = !!(p.podeAdmin || p.podeAudit || p.podeAprovar);
@@ -1059,13 +1030,13 @@ function renderItems(){
     else r3.style.cursor='default';
     r3.innerHTML=`<div class="color-bar ${stCB(s3)}"></div>`
       +(podeSel?`<div class="chk ${sel?'checked':''}">${sel?'✓':''}</div>`:'')
-      +`<div class="item-info"><div class="item-cod">${item.cod}</div><div class="item-name">${item.name}</div></div>`
+      +`<div class="item-info"><div class="item-cod">${escapeHTML(item.cod)}</div><div class="item-name">${escapeHTML(item.name)}</div></div>`
       +`<div class="item-saldo"><div class="saldo-num" style="color:${stColor(s3)}">${item.saldo3}</div><div class="saldo-min">mín ${item.min3}</div></div>`
       +`<div class="status-pip ${stPip(s3)}"></div>`
       +(s3!=='green'?'<div class="flag-tag">⚑</div>':'');
     l3.appendChild(r3);
     const r30=document.createElement('div');r30.className='item-row';r30.style.cursor='default';
-    r30.innerHTML=`<div class="color-bar ${stCB(s30)}"></div><div class="item-info"><div class="item-cod">${item.cod}</div><div class="item-name">${item.name}</div></div><div class="item-saldo"><div class="saldo-num" style="color:${stColor(s30)}">${item.saldo30}</div><div class="saldo-min">mín ${item.min30}</div></div><div class="status-pip ${stPip(s30)}"></div>`;
+    r30.innerHTML=`<div class="color-bar ${stCB(s30)}"></div><div class="item-info"><div class="item-cod">${escapeHTML(item.cod)}</div><div class="item-name">${escapeHTML(item.name)}</div></div><div class="item-saldo"><div class="saldo-num" style="color:${stColor(s30)}">${item.saldo30}</div><div class="saldo-min">mín ${item.min30}</div></div><div class="status-pip ${stPip(s30)}"></div>`;
     l30.appendChild(r30);
   });
   if(visiveis===0){l3.innerHTML='<div style="text-align:center;padding:18px 0;font-size:11px;color:var(--text3)">Nenhum item encontrado.</div>';l30.innerHTML='';}
@@ -1077,7 +1048,7 @@ function renderItems(){
     sc.style.display='inline';sc.textContent=selectedItems.size;selCard.style.display='block';
   }else{sc.style.display='none';selCard.style.display='none';}
   if(selectedItems.size===0){sl.innerHTML='<p style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0">Clique nos itens para selecionar</p>';}
-  else{selectedItems.forEach(idx=>{const item=ITEMS[idx],r=calcItem(item);const d=document.createElement('div');d.className='mini-item';d.innerHTML=`<div class="mi-cod">${item.cod}</div><div class="mi-name">${item.name}</div><div class="mi-qty">${fmtQty(r.sacosEf,item.cod)}</div>`;sl.appendChild(d);});}
+  else{selectedItems.forEach(idx=>{const item=ITEMS[idx],r=calcItem(item);const d=document.createElement('div');d.className='mini-item';d.innerHTML=`<div class="mi-cod">${escapeHTML(item.cod)}</div><div class="mi-name">${escapeHTML(item.name)}</div><div class="mi-qty">${fmtQty(r.sacosEf,item.cod)}</div>`;sl.appendChild(d);});}
   renderPendentes();
 }
 function toggleItem(idx){if(selectedItems.has(idx))selectedItems.delete(idx);else selectedItems.add(idx);renderItems();}
@@ -1154,8 +1125,8 @@ function filtrarItensConf(){
       <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s;margin-top:2px">${sel ? '\u2713' : ''}</div>
       <div class="color-bar ${stCB(s3)}" style="width:3px;min-height:28px;align-self:stretch;border-radius:3px;flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em">${item.cod}</div>
-        <div style="font-size:12px;font-weight:600;word-break:break-word;white-space:normal;line-height:1.4">${item.name}</div>
+        <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em">${escapeHTML(item.cod)}</div>
+        <div style="font-size:12px;font-weight:600;word-break:break-word;white-space:normal;line-height:1.4">${escapeHTML(item.name)}</div>
       </div>
       <div style="display:flex;gap:14px;flex-shrink:0;text-align:right">
         ${(verAlmox3 || verRejunte) ? `<div>
@@ -1257,10 +1228,10 @@ function confVoltarSelecao(){
   if(painelConf) painelConf.style.display = 'none';
   // Ajuste 2: limpar pesquisa do painel ao voltar
   const ps = document.getElementById('confPainelSearch');
-  if(ps) ps.value = '';
+    if(ps) ps.value = '';
+  IS_EDITING=false; // Melhoria 5: libera polling ao cancelar
   filtrarItensConf();
 }
-
 function renderConferencia(){
   const grid = document.getElementById('confGrid');
   const gridVazio = document.getElementById('confGridVazio');
@@ -1400,8 +1371,8 @@ function renderConferencia(){
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:6px">
         <div style="min-width:0;flex:1">
-          <div style="font-weight:700;font-size:12px;color:var(--text)">${item.cod}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:normal;line-height:1.4">${item.name}</div>
+          <div style="font-weight:700;font-size:12px;color:var(--text)">${escapeHTML(item.cod)}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:normal;line-height:1.4">${escapeHTML(item.name)}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${!isRejunte ? `<div style="font-size:10px;color:var(--text3);background:var(--bg3);padding:2px 7px;border-radius:4px">${spp} sc/pal</div>` : ''}
@@ -1434,6 +1405,7 @@ function confRemoverItem(cod){
 }
 
 function updateConf(cod, val, type) {
+  IS_EDITING=true; // Melhoria 5: bloqueia polling enquanto edita
   if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3: 0, sac3: 0, total3: 0, pal30: 0, sac30: 0, total30: 0 };
   CONFERENCIAS[cod][type] = parseInt(val) || 0;
   const spp = getSacsPorPal(cod);
@@ -1493,6 +1465,7 @@ function gerarNumConferencia() {
 }
 
 function salvarConferencia() {
+  if(!sessionValida()){toast('⛔ Sessão inválida. Faça login novamente.');logout();return;}
   const pf = perfil();
   if(!pf.podeConferir && !pf.podeAdmin) { toast('⛔ Sem permissão para salvar conferências.'); return; }
   const temDados = Object.keys(CONFERENCIAS).some(cod => {
@@ -1563,6 +1536,7 @@ function salvarConferencia() {
   if(selCard) selCard.style.display = 'block';
   if(painelConf) painelConf.style.display = 'none';
 
+  IS_EDITING=false; // Melhoria 5: libera polling após salvar
   renderConfHistorico();
   renderDivergencias();
   filtrarItensConf();
@@ -2106,6 +2080,7 @@ function apagarReqPendente(idx){
 
 // ─── REQUISIÇÃO ───────────────────────────────────────────────────
 function iniciarRequisicao(){
+  if(!sessionValida()){toast('⛔ Sessão inválida. Faça login novamente.');logout();return;}
   if(selectedItems.size===0){toast('Selecione ao menos 1 item');return;}
   
   st={};currentPendIdx=null;
@@ -2208,7 +2183,7 @@ function renderS2Items(){
   const c=document.getElementById('s2ItemList');if(!c)return;
   const rows=(st.itens||[]).map(it=>{
     const spp=getSacsPorPal(it.cod),pal=calcPaletes(it.sacos,spp);
-    return`<div class="mini-item"><div class="mi-cod">${it.cod}</div><div class="mi-name">${it.name}</div><div class="mi-qty">${pal>0?pal+' pal · ':''}${it.sacos} sc</div></div>`;
+    return`<div class="mini-item"><div class="mi-cod">${escapeHTML(it.cod)}</div><div class="mi-name">${escapeHTML(it.name)}</div><div class="mi-qty">${pal>0?pal+' pal · ':''}${it.sacos} sc</div></div>`;
   }).join('');
   c.innerHTML=rows;
 }
@@ -3310,7 +3285,7 @@ function gerarPDF(){
 async function fetchRange(range){
   const url='https://sheets.googleapis.com/v4/spreadsheets/'+SHEETS_ID+'/values/'+encodeURIComponent(range)+'?key='+SHEETS_API_KEY;
   const res=await fetch(url);
-  if(!res.ok){let d='';try{const j=await res.json();d=(j.error&&j.error.message)||'';}catch(e){}throw new Error('HTTP '+res.status+(d?': '+d:''));}
+  if(!res.ok){let d='';try{const j=await res.json();d=(j.error&&j.error.message)||'';}catch(e){console.error('fetchRange:parseError',e);}throw new Error('HTTP '+res.status+(d?': '+d:''));}
   return (await res.json()).values||[];
 }
 async function carregarSheetsData(){
@@ -3408,19 +3383,23 @@ async function carregarInventarioItens(){
   }
 }
 async function salvarRequisicaoSheets(reqObj){
-  try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarReq',id:reqObj.req,dados:JSON.stringify(reqObj)})});}catch(e){}
+  // no-cors: resposta opaca, erro de rede é detectado via catch
+  try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarReq',id:reqObj.req,dados:JSON.stringify(reqObj)})});}
+  catch(e){console.error('salvarRequisicaoSheets',e);toast('⚠️ Falha ao enviar requisição. Verifique a conexão.',4000);}
 }
 async function removerRequisicaoSheets(reqId){
   try{
     await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'removerReq',id:reqId})});
     setTimeout(()=>REQS_REMOVIDAS.delete(reqId),5*60*1000);
-  }catch(e){}
+  }catch(e){console.error('removerRequisicaoSheets',e);}
 }
 async function salvarHistoricoSheets(entrada){
-  try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarHist',id:entrada.req,dados:JSON.stringify(entrada)})});}catch(e){}
+  try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarHist',id:entrada.req,dados:JSON.stringify(entrada)})});}
+  catch(e){console.error('salvarHistoricoSheets',e);}
 }
 async function salvarConferenciaSheets(conf){
-  try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarConf',id:conf.numero,dados:JSON.stringify(conf)})});}catch(e){}
+  try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarConf',id:conf.numero,dados:JSON.stringify(conf)})});}
+  catch(e){console.error('salvarConferenciaSheets',e);toast('⚠️ Falha ao salvar conferência. Verifique a conexão.',4000);}
 }
 async function carregarConferenciasSheets(){
   try{
@@ -3478,14 +3457,17 @@ async function carregarRequisicoesPendentes(){
 function iniciarPolling(){
   if(_pollingInterval)clearInterval(_pollingInterval);
   _pollingInterval=setInterval(async()=>{
-    if(!USUARIO_LOGADO||document.visibilityState==='hidden')return;
+    if(!USUARIO_LOGADO||document.visibilityState==='hidden'||IS_EDITING)return;
     await carregarRequisicoesPendentes();
     if(perfil().verTabOp)renderOpOrders();
   },30000);
 }
 // Atualização periódica: primeiro carrega SALDO+CAPACIDADE, depois INVENTARIO_ITENS (que refiltra ITEMS)
-setInterval(async()=>{
-  if(USUARIO_LOGADO&&document.visibilityState!=='hidden'){
+// Melhoria 5: não atualiza enquanto usuário estiver editando (IS_EDITING)
+// Melhoria 6: armazenado em _pollingInterval2 para limpeza no logout
+if(_pollingInterval2)clearInterval(_pollingInterval2);
+_pollingInterval2=setInterval(async()=>{
+  if(USUARIO_LOGADO&&document.visibilityState!=='hidden'&&!IS_EDITING){
     await carregarSheetsData();
     await carregarInventarioItens();
   }
@@ -3520,11 +3502,10 @@ async function fazerLogin(){
     }
     // NOME: col E se existir, senão usar col A (usuario)
     const nomeUsuario=(match[4]||match[0]||'').trim();
-    // Iasmyn = administrador forçado
     let perfilKey=(match[2]||'').trim().toLowerCase();
-    if(nomeUsuario.toLowerCase().includes('iasmyn'))perfilKey='administrador';
     if(!PERFIS[perfilKey]){errEl.textContent='Perfil não reconhecido: '+(match[2]||perfilKey);errEl.style.display='block';loadEl.style.display='none';return;}
-    USUARIO_LOGADO={nome:nomeUsuario,perfil:perfilKey,usuario:match[0].trim()};
+    _sessionToken=Math.random().toString(36).slice(2)+Date.now().toString(36);
+    USUARIO_LOGADO={nome:nomeUsuario,perfil:perfilKey,usuario:match[0].trim(),_tok:_sessionToken};
     loadEl.textContent='⏳ Carregando dados...';
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('appScreen').style.display='block';
@@ -3582,7 +3563,12 @@ function aplicarPermissoes(){
   });
 }
 function logout(){
-  USUARIO_LOGADO=null;if(_pollingInterval)clearInterval(_pollingInterval);if(_sessionTimeout)clearTimeout(_sessionTimeout);
+  USUARIO_LOGADO=null;
+  _sessionToken=null;
+  IS_EDITING=false;
+  if(_pollingInterval)clearInterval(_pollingInterval);
+  if(_pollingInterval2)clearInterval(_pollingInterval2);
+  if(_sessionTimeout)clearTimeout(_sessionTimeout);
   document.getElementById('appScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginUser').value='';document.getElementById('loginPass').value='';
@@ -3595,131 +3581,6 @@ setStep(0);
 (function(){
   const pbHoje=document.getElementById('pbHoje');if(pbHoje)pbHoje.classList.add('active');
   filtroPeriodo='hoje';
-})();
-</script>
-
-<!-- ===============================================================
-     PWA - Registro do Service Worker e Banner de Instalacao
-     =============================================================== -->
-<script>
-// ─── SERVICE WORKER ──────────────────────────────────────────────────────────
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
-      .then(function(reg) {
-        console.log('[PWA] Service Worker registrado. Scope:', reg.scope);
-
-        // Detecta nova versao disponivel
-        reg.addEventListener('updatefound', function() {
-          const newWorker = reg.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener('statechange', function() {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Nova versao disponivel - exibe toast de atualizacao
-              if (typeof toast === 'function') {
-                toast('Nova versao disponivel. Recarregue a pagina para atualizar.');
-              }
-            }
-          });
-        });
-      })
-      .catch(function(err) {
-        console.warn('[PWA] Falha ao registrar Service Worker:', err);
-      });
-  });
-}
-
-// ─── BANNER DE INSTALACAO PWA ────────────────────────────────────────────────
-(function() {
-  var deferredPrompt = null;
-  var installBanner  = null;
-
-  // Cria o banner de instalacao
-  function criarBanner() {
-    if (installBanner) return;
-    installBanner = document.createElement('div');
-    installBanner.id = 'pwa-install-banner';
-    installBanner.style.cssText = [
-      'position:fixed', 'bottom:16px', 'left:50%', 'transform:translateX(-50%)',
-      'background:#1B5C7A', 'color:#fff', 'border-radius:10px',
-      'padding:12px 18px', 'display:flex', 'align-items:center', 'gap:12px',
-      'box-shadow:0 4px 20px rgba(0,0,0,.25)', 'z-index:99999',
-      'font-family:Segoe UI,system-ui,sans-serif', 'font-size:13px',
-      'max-width:calc(100vw - 32px)', 'animation:pwaSlideUp .3s ease'
-    ].join(';');
-
-    var style = document.createElement('style');
-    style.textContent = '@keyframes pwaSlideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
-    document.head.appendChild(style);
-
-    installBanner.innerHTML = [
-      '<span style="font-size:22px">&#128230;</span>',
-      '<div>',
-        '<div style="font-weight:700;margin-bottom:2px">Instalar Almoxarifado Colafix</div>',
-        '<div style="font-size:11px;opacity:.85">Acesso rapido na tela inicial</div>',
-      '</div>',
-      '<button id="pwa-install-btn" style="',
-        'background:#fff;color:#1B5C7A;border:none;border-radius:6px;',
-        'padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap',
-      '">Instalar</button>',
-      '<button id="pwa-dismiss-btn" style="',
-        'background:transparent;color:#fff;border:none;font-size:18px;',
-        'cursor:pointer;padding:0 4px;line-height:1;opacity:.7',
-      '">&times;</button>'
-    ].join('');
-
-    document.body.appendChild(installBanner);
-
-    document.getElementById('pwa-install-btn').addEventListener('click', function() {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(function(choice) {
-        if (choice.outcome === 'accepted') {
-          console.log('[PWA] Instalacao aceita pelo usuario');
-        }
-        deferredPrompt = null;
-        ocultarBanner();
-      });
-    });
-
-    document.getElementById('pwa-dismiss-btn').addEventListener('click', function() {
-      ocultarBanner();
-      // Nao mostrar novamente por 7 dias
-      try { localStorage.setItem('pwa-dismiss', Date.now()); } catch(e) {}
-    });
-  }
-
-  function ocultarBanner() {
-    if (installBanner) {
-      installBanner.remove();
-      installBanner = null;
-    }
-  }
-
-  // Verifica se ja foi dispensado recentemente (7 dias)
-  function foiDispensado() {
-    try {
-      var ts = parseInt(localStorage.getItem('pwa-dismiss') || '0', 10);
-      return ts && (Date.now() - ts) < 7 * 24 * 60 * 60 * 1000;
-    } catch(e) { return false; }
-  }
-
-  // Evento disparado pelo navegador quando o app pode ser instalado
-  window.addEventListener('beforeinstallprompt', function(e) {
-    e.preventDefault();
-    deferredPrompt = e;
-    if (!foiDispensado()) {
-      // Aguarda 3s apos o carregamento para exibir o banner
-      setTimeout(criarBanner, 3000);
-    }
-  });
-
-  // Oculta banner apos instalacao concluida
-  window.addEventListener('appinstalled', function() {
-    console.log('[PWA] App instalado com sucesso');
-    ocultarBanner();
-    deferredPrompt = null;
-  });
 })();
 </script>
 </body>
