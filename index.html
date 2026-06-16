@@ -3554,24 +3554,39 @@ async function carregarEmailLog(){
   if(loading)loading.style.display='block';
   if(empty)empty.style.display='none';
   if(table)table.style.display='none';
+  EMAIL_LOG_CACHE=[];
   try{
-    // Busca via doGet do GAS com acao=emailLog
-    const url=APPS_SCRIPT_URL+'?acao=emailLog';
-    const res=await fetch(url);
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const data=await res.json();
-    EMAIL_LOG_CACHE=(data.registros||[]);
+    // Lê direto do Sheets via API key (não depende do GAS republicado)
+    console.log('[Expedicao] Buscando EMAIL_LOG no Sheets...');
+    const rows=await fetchRange('EMAIL_LOG!A2:H');
+    console.log('[Expedicao] Linhas recebidas:', rows ? rows.length : 0);
+    if(rows && rows.length>0){
+      EMAIL_LOG_CACHE=rows
+        .filter(r=>r[0])
+        .map(r=>({
+          msgId    :String(r[0]||''),
+          nf       :String(r[1]||''),
+          cliente  :String(r[2]||''),
+          dataEmail:String(r[3]||''),
+          status   :String(r[4]||''),
+          reqId    :String(r[5]||''),
+          itens    :String(r[6]||'[]'),
+          erro     :String(r[7]||'')
+        }))
+        .reverse();
+      console.log('[Expedicao] Registros carregados:', EMAIL_LOG_CACHE.length);
+    }
   }catch(e){
-    // Fallback: tentar ler direto do Sheets se o GAS ainda não foi atualizado
+    console.error('[Expedicao] Erro ao carregar EMAIL_LOG do Sheets:', e);
+    // Tenta via GAS como fallback
     try{
-      const rows=await fetchRange('EMAIL_LOG!A2:H');
-      EMAIL_LOG_CACHE=rows.filter(r=>r[0]).map(r=>({
-        msgId:r[0]||'',nf:r[1]||'',cliente:r[2]||'',dataEmail:r[3]||'',
-        status:r[4]||'',reqId:r[5]||'',itens:r[6]||'[]',erro:r[7]||''
-      })).reverse();
+      const res=await fetch(APPS_SCRIPT_URL+'?acao=emailLog');
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const data=await res.json();
+      EMAIL_LOG_CACHE=(data.registros||[]);
+      console.log('[Expedicao] GAS fallback OK:', EMAIL_LOG_CACHE.length);
     }catch(e2){
-      console.warn('carregarEmailLog fallback:',e2);
-      EMAIL_LOG_CACHE=[];
+      console.error('[Expedicao] GAS fallback falhou:', e2);
     }
   }
   if(loading)loading.style.display='none';
