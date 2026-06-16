@@ -586,10 +586,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <!-- Alteração 3: Filtros rápidos por descrição -->
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <span style="font-size:10px;color:var(--text3);font-weight:600;white-space:nowrap">Filtro rápido:</span>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('COLAFIX')">COLAFIX</button>
       <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('BAUTECH')">BAUTECH</button>
       <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('POZOSUL')">POZOSUL</button>
-      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('PY')" title="Exportação Paraguai">PY</button>
-      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('UY')" title="Exportação Uruguai">UY</button>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('PY')" title="Exportação Paraguai">EXPORTAÇÃO PY</button>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('UY')" title="Exportação Uruguai">EXPORTAÇÃO UY</button>
       <button class="btn" style="height:28px;font-size:10px;padding:0 10px;opacity:.7" onclick="confFiltroRapido('')" title="Limpar filtro rápido">✕ Limpar</button>
     </div>
     <!-- Lista de itens para seleção -->
@@ -1085,10 +1086,18 @@ function toggleModoCego(){
 }
 
 // Renderiza lista de itens no painel de seleção
-// Alteração 3: filtro rápido por descrição (BAUTECH, POZOSUL, PY, UY)
+// Alteração 3: filtro rápido por descrição (COLAFIX, BAUTECH, POZOSUL, EXPORTAÇÃO PY, EXPORTAÇÃO UY)
+let _confFiltroColafix = false; // flag especial para o filtro COLAFIX
 function confFiltroRapido(termo){
   const inp = document.getElementById('confSearch');
-  if(inp){ inp.value = termo; }
+  if(termo === 'COLAFIX'){
+    // COLAFIX: exclui BAUTECH, POZOSUL, PY e UY
+    _confFiltroColafix = true;
+    if(inp){ inp.value = ''; }
+  } else {
+    _confFiltroColafix = false;
+    if(inp){ inp.value = termo; }
+  }
   filtrarItensConf();
 }
 function filtrarItensConf(){
@@ -1120,6 +1129,11 @@ function filtrarItensConf(){
       if(!item.temAlmox30 && !item.temRejunte && !cp.podeContarAlmox3) return;
     }
     if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return;
+    // Filtro COLAFIX: exclui itens que contenham BAUTECH, POZOSUL, PY ou UY na descrição
+    if(_confFiltroColafix){
+      const n = item.name.toLowerCase();
+      if(n.includes('bautech') || n.includes('pozosul') || n.includes(' py') || n.includes(' uy') || n.endsWith(' py') || n.endsWith(' uy') || n.includes('py ') || n.includes('uy ')) return;
+    }
     visiveis++;
     const sel = CONF_ITENS_SEL.has(item.cod);
     const s3 = getSt(item.saldo3, item.min3);
