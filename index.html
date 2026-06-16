@@ -1091,6 +1091,21 @@ function toggleModoCego(){
 }
 
 // Renderiza lista de itens no painel de seleção
+// Melhoria 3: retorna a última contagem do item a partir do histórico de conferências
+function ultimaContagemItem(cod){
+  if(!CONF_HISTORICO || CONF_HISTORICO.length === 0) return null;
+  // Percorrer do mais recente para o mais antigo
+  for(let i = CONF_HISTORICO.length - 1; i >= 0; i--){
+    const conf = CONF_HISTORICO[i];
+    if(conf.itens && conf.itens[cod]){
+      return {
+        data: conf.data || (conf.dataHora ? conf.dataHora.split(' ')[0] : ''),
+        conferente: conf.nomeUsuario || conf.usuario || ''
+      };
+    }
+  }
+  return null;
+}
 // Melhoria 1: renderiza apenas os filtros permitidos pelo perfil logado
 const CONF_FILTROS_CONFIG = [
   { id:'COLAFIX',     label:'COLAFIX',        title:'' },
@@ -1118,17 +1133,47 @@ function renderFiltrosRapidosConf(){
 }
 // Alteração 3: filtro rápido por descrição (COLAFIX, BAUTECH, POZOSUL, EXPORTAÇÃO PY, EXPORTAÇÃO UY)
 let _confFiltroColafix = false; // flag especial para o filtro COLAFIX
+let _confFiltroAtivo = ''; // termo do último filtro rápido ativado
 function confFiltroRapido(termo){
   const inp = document.getElementById('confSearch');
+  // Melhoria 2: desmarcar itens do filtro anterior antes de trocar
+  if(_confFiltroAtivo && termo !== _confFiltroAtivo) {
+    _desselecionarItensFiltro(_confFiltroAtivo);
+  }
   if(termo === 'COLAFIX'){
-    // COLAFIX: exclui BAUTECH, POZOSUL, PY e UY
     _confFiltroColafix = true;
     if(inp){ inp.value = ''; }
   } else {
     _confFiltroColafix = false;
     if(inp){ inp.value = termo; }
   }
+  _confFiltroAtivo = termo;
   filtrarItensConf();
+  // Melhoria 2: selecionar automaticamente todos os itens visíveis do filtro
+  if(termo) { _selecionarItensFiltro(); }
+}
+// Melhoria 2: seleciona todos os itens atualmente visíveis na lista de seleção
+function _selecionarItensFiltro(){
+  const rows = document.querySelectorAll('#confItemSelList > div');
+  rows.forEach(row => {
+    const cod = row.dataset.cod;
+    if(cod) CONF_ITENS_SEL.add(cod);
+  });
+  filtrarItensConf();
+}
+// Melhoria 2: desmarca itens que pertencem ao filtro que está sendo desativado
+function _desselecionarItensFiltro(termoAnterior){
+  const fonte = CONF_ITEMS.length > 0 ? CONF_ITEMS : ITEMS;
+  fonte.forEach(item => {
+    const n = item.name.toLowerCase();
+    let pertence = false;
+    if(termoAnterior === 'COLAFIX'){
+      pertence = !n.includes('bautech') && !n.includes('pozosul') && !n.includes(' py') && !n.includes('py ') && !n.includes(' uy') && !n.includes('uy ');
+    } else {
+      pertence = n.includes(termoAnterior.toLowerCase());
+    }
+    if(pertence) CONF_ITENS_SEL.delete(item.cod);
+  });
 }
 function filtrarItensConf(){
   const q = (document.getElementById('confSearch')||{value:''}).value.toLowerCase();
@@ -1181,14 +1226,21 @@ function filtrarItensConf(){
 
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;' + (sel ? 'background:var(--accent-dim)' : 'background:#fff');
+    row.dataset.cod = item.cod; // Melhoria 2: identificador para seleção automática
     row.onclick = () => confToggleItem(item.cod);
     // Alteração: exibir apenas checkbox + código + descrição (saldos ocultados visualmente)
+    // Melhoria 3: última contagem
+    const uc = ultimaContagemItem(item.cod);
+    const ucHtml = uc
+      ? `<div style="font-size:9px;color:var(--text3);margin-top:2px">\uD83D\uDCC5 Última contagem: <b>${uc.data}</b> – ${uc.conferente}</div>`
+      : `<div style="font-size:9px;color:var(--text3);margin-top:2px">Sem histórico</div>`;
     row.innerHTML = `
       <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s;margin-top:2px">${sel ? '\u2713' : ''}</div>
       <div class="color-bar ${stCB(s3)}" style="width:3px;min-height:28px;align-self:stretch;border-radius:3px;flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em">${escapeHTML(item.cod)}</div>
         <div style="font-size:12px;font-weight:600;word-break:break-word;white-space:normal;line-height:1.4">${escapeHTML(item.name)}</div>
+        ${ucHtml}
       </div>
     `;
     list.appendChild(row);
@@ -1642,8 +1694,8 @@ function renderConfHistorico() {
           <span style="color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.nome || ''}</span>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          ${mostrar3H ? `<span style="color:${cor3H}">📍 ${lblH3}: <b>${it.almox3} ${isRejH?'fardo':'sc'}</b> ${!isRejH ? `<span style="font-size:9px;color:var(--text3)">(${it.pal3||0}pal+${it.sac3||0}sc)</span>` : ''} ${hasDif3?'<span style="color:'+cor3+';margin-left:3px;font-weight:700">'+(it.dif3>0?'+':'')+it.dif3+'</span>':''}</span>` : ''}
-          ${mostrar30H ? `<span style="color:var(--green)">📍 Almox 30: <b>${it.almox30} sc</b> <span style="font-size:9px;color:var(--text3)">(${it.pal30||0}pal+${it.sac30||0}sc)</span>${hasDif30?'<span style="color:'+cor30+';margin-left:3px;font-weight:700">'+(it.dif30>0?'+':'')+it.dif30+'</span>':''}</span>` : ''}
+          ${mostrar3H ? `<span style="color:${cor3H}">📍 ${lblH3}: <b>${it.almox3} ${isRejH?'fardo':'sc'}</b></span>` : ''}
+          ${mostrar30H ? `<span style="color:var(--green)">📍 Almox 30: <b>${it.almox30} sc</b></span>` : ''}
         </div>
       </div>`;
     });
@@ -1652,7 +1704,7 @@ function renderConfHistorico() {
       <div style="display:flex;flex-direction:column;gap:4px">
         <div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
-          ${divCount > 0 ? `<span style="font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid var(--red-mid);border-radius:20px;padding:2px 9px;font-weight:700">⚠ ${divCount} divergência${divCount>1?'s':''}</span>` : `<span style="font-size:10px;background:var(--green-dim);color:var(--green);border:1px solid var(--green-mid);border-radius:20px;padding:2px 9px;font-weight:700">✓ Sem divergências</span>`}
+          <!-- Melhoria 4: badge de divergência removido -->
           <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia(${i})">📄 Gerar PDF</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:flex-end">
