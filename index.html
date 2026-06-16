@@ -583,6 +583,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       <button class="btn" onclick="confSelecionarTodos()" style="height:36px;font-size:11px">☑ Todos</button>
       <button class="btn" onclick="confLimparSelecao()" style="height:36px;font-size:11px">☐ Limpar</button>
     </div>
+    <!-- Alteração 3: Filtros rápidos por descrição -->
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:10px;color:var(--text3);font-weight:600;white-space:nowrap">Filtro rápido:</span>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('BAUTECH')">BAUTECH</button>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('POZOSUL')">POZOSUL</button>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('PY')" title="Exportação Paraguai">PY</button>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px" onclick="confFiltroRapido('UY')" title="Exportação Uruguai">UY</button>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px;opacity:.7" onclick="confFiltroRapido('')" title="Limpar filtro rápido">✕ Limpar</button>
+    </div>
     <!-- Lista de itens para seleção -->
     <div id="confItemSelList" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg3)"></div>
     <div id="confSelVazio" style="display:none;text-align:center;padding:20px;color:var(--text3);font-size:11px">Nenhum item encontrado para a pesquisa.</div>
@@ -821,15 +830,17 @@ const PERFIS={
     verTabOp:true
   },
   'supervisor sistema':{
-    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-divergencias','pg-hist'],
+    // Alteração 1: liberar conferência para Iasmyn (Supervisor Sistema)
+    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist'],
     podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
-    podeConferir:false,podeTransferir:true,podeAudit:false,podeAdmin:false,
+    podeConferir:true,podeTransferir:true,podeAudit:false,podeAdmin:false,
     verTabOp:false
   },
   'supervisorsistema':{
-    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-divergencias','pg-hist'],
+    // Alteração 1: liberar conferência para Iasmyn (Supervisor Sistema)
+    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist'],
     podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
-    podeConferir:false,podeTransferir:true,podeAudit:false,podeAdmin:false,
+    podeConferir:true,podeTransferir:true,podeAudit:false,podeAdmin:false,
     verTabOp:false
   },
   'conferente':{
@@ -1074,6 +1085,12 @@ function toggleModoCego(){
 }
 
 // Renderiza lista de itens no painel de seleção
+// Alteração 3: filtro rápido por descrição (BAUTECH, POZOSUL, PY, UY)
+function confFiltroRapido(termo){
+  const inp = document.getElementById('confSearch');
+  if(inp){ inp.value = termo; }
+  filtrarItensConf();
+}
 function filtrarItensConf(){
   const q = (document.getElementById('confSearch')||{value:''}).value.toLowerCase();
   // Regra central de permissões
@@ -1380,11 +1397,7 @@ function renderConferencia(){
         </div>
       </div>
 
-      <!-- SALDO SISTEMA – destaque visual -->
-      <div style="display:grid;grid-template-columns:${gridCols};gap:8px;margin-bottom:12px">
-        ${blocoSaldoAlmox3}
-        ${blocoSaldoAlmox30}
-      </div>
+      <!-- SALDO SISTEMA – ocultado pela Alteração 2 (cálculos preservados) -->
 
       ${blocoContAlmox3}
       ${blocoContAlmox30}
