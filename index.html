@@ -1356,9 +1356,8 @@ function renderConferencia(){
             <span style="color:var(--text2)">${unidTotal(item)} ${lblLocalCard}:</span>
             <b style="color:${corLocalCard};font-size:13px"><span id="totalFisico3_${item.cod}">${conf.total3 || 0}</span> ${unidSing(item)}</b>
           </div>
-          <div id="divTag3_${item.cod}" style="margin-top:4px;font-size:10px;font-weight:700;display:${(conf.total3>0&&(conf.total3-item.saldo3)!==0)?'block':'none'};color:${(conf.total3-item.saldo3)<0?'var(--red)':'var(--green)'}">
-            Diferença: ${conf.total3 > 0 ? ((conf.total3 - item.saldo3) > 0 ? '+' : '') + (conf.total3 - item.saldo3) + ' ' + unidSing(item) + ' vs sistema' : ''}
-          </div>
+          <!-- diferença vs sistema ocultada -->
+          <div id="divTag3_${item.cod}" style="display:none"></div>
         </div>
       </div>` : '';
 
@@ -1382,9 +1381,8 @@ function renderConferencia(){
             <span style="color:var(--text2)">Total Físico Almox 30:</span>
             <b style="color:var(--green);font-size:13px"><span id="totalFisico30_${item.cod}">${conf.total30 || 0}</span> sc</b>
           </div>
-          <div id="divTag30_${item.cod}" style="margin-top:4px;font-size:10px;font-weight:700;display:${(conf.total30>0&&(conf.total30-item.saldo30)!==0)?'block':'none'};color:${(conf.total30-item.saldo30)<0?'var(--red)':'var(--green)'}">
-            Diferença: ${conf.total30 > 0 ? ((conf.total30 - item.saldo30) > 0 ? '+' : '') + (conf.total30 - item.saldo30) + ' sc vs sistema' : ''}
-          </div>
+          <!-- diferença vs sistema ocultada -->
+          <div id="divTag30_${item.cod}" style="display:none"></div>
         </div>
       </div>` : '';
 
@@ -1395,7 +1393,7 @@ function renderConferencia(){
           <div style="font-size:11px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:normal;line-height:1.4">${escapeHTML(item.name)}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          ${!isRejunte ? `<div style="font-size:10px;color:var(--text3);background:var(--bg3);padding:2px 7px;border-radius:4px">${spp} sc/pal</div>` : ''}
+          <!-- badge sc/pal ocultado -->
           <button onclick="confRemoverItem('${item.cod}')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1" title="Remover item">✕</button>
         </div>
       </div>
@@ -1435,45 +1433,11 @@ function updateConf(cod, val, type) {
   const el30 = document.getElementById('totalFisico30_' + cod);
   if(el30) el30.textContent = CONFERENCIAS[cod].total30;
 
-  // Mostrar/ocultar resumo e diferença
-  const item = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
+    // Mostrar/ocultar resumo (diferença vs sistema ocultada)
   const resumo3 = document.getElementById('resumoFisico3_' + cod);
   const resumo30 = document.getElementById('resumoFisico30_' + cod);
-  const divTag3 = document.getElementById('divTag3_' + cod);
-  const divTag30 = document.getElementById('divTag30_' + cod);
-
   if(resumo3) resumo3.style.display = CONFERENCIAS[cod].total3 > 0 ? 'block' : 'none';
   if(resumo30) resumo30.style.display = CONFERENCIAS[cod].total30 > 0 ? 'block' : 'none';
-
-  if(item && divTag3){
-    const dif3 = CONFERENCIAS[cod].total3 - item.saldo3;
-    const u3 = unidSing(item);
-    if(CONFERENCIAS[cod].total3 > 0 && dif3 !== 0){
-      divTag3.style.display = 'block';
-      divTag3.style.color = dif3 < 0 ? 'var(--red)' : 'var(--green)';
-      divTag3.textContent = 'Diferença: ' + (dif3 > 0 ? '+' : '') + dif3 + ' ' + u3 + ' vs sistema';
-    } else {
-      divTag3.style.display = CONFERENCIAS[cod].total3 > 0 && dif3 === 0 ? 'block' : 'none';
-      if(CONFERENCIAS[cod].total3 > 0 && dif3 === 0){
-        divTag3.style.color = 'var(--green)';
-        divTag3.textContent = '✓ Sem divergência';
-      }
-    }
-  }
-  if(item && divTag30){
-    const dif30 = CONFERENCIAS[cod].total30 - item.saldo30;
-    if(CONFERENCIAS[cod].total30 > 0 && dif30 !== 0){
-      divTag30.style.display = 'block';
-      divTag30.style.color = dif30 < 0 ? 'var(--red)' : 'var(--green)';
-      divTag30.textContent = 'Diferença: ' + (dif30 > 0 ? '+' : '') + dif30 + ' sc vs sistema';
-    } else {
-      divTag30.style.display = CONFERENCIAS[cod].total30 > 0 && dif30 === 0 ? 'block' : 'none';
-      if(CONFERENCIAS[cod].total30 > 0 && dif30 === 0){
-        divTag30.style.color = 'var(--green)';
-        divTag30.textContent = '✓ Sem divergência';
-      }
-    }
-  }
 }
 
 function gerarNumConferencia() {
