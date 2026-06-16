@@ -290,8 +290,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="tab" id="tab-pend" onclick="showPage('pg-pendencias',this)">🔔 Pendências <span id="pendTotalBadge" class="pend-badge" style="display:none">0</span></button>
     <button class="tab" id="tab-conf" onclick="showPage('pg-conferencia',this)">🔍 Conferência</button>
     <button class="tab" id="tab-div" onclick="showPage('pg-divergencias',this)">📊 Divergências</button>
-    <button class="tab" id="tab-hist" onclick="showPage('pg-hist',this)">🗂 Histórico</button>
-
+        <button class="tab" id="tab-hist" onclick="showPage('pg-hist',this)">🗂 Histórico</button>
+    <button class="tab" id="tab-expedicao" onclick="showPage('pg-expedicao',this)">📧 Expedição</button>
   </div>
 </div>
 
@@ -541,7 +541,37 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     </div>
   </div>
 </div></div>
-
+<!-- ═══ EXPEDIÇÃO ═══ -->
+<div id="pg-expedicao" class="page"><div class="wrap">
+  <div class="card">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <span>📧 Emails de Expedição Processados</span>
+      <button class="btn" onclick="carregarEmailLog()" style="height:28px;padding:0 12px;font-size:11px">🔄 Atualizar</button>
+    </div>
+    <div id="expedicaoInfo" style="font-size:11px;color:var(--text3);margin-bottom:10px">Os emails de confirmação de expedição são processados automaticamente pelo Google Apps Script a cada 10 minutos. As pré-transferências geradas aparecem automaticamente em Pendências.</div>
+    <div id="expedicaoLoading" style="text-align:center;padding:20px 0;color:var(--text3);display:none">🔄 Carregando...</div>
+    <div id="expedicaoEmpty" style="text-align:center;padding:40px 0;color:var(--text3);display:none">
+      <div style="font-size:32px;margin-bottom:8px;opacity:.3">📧</div>
+      <div>Nenhum email processado ainda</div>
+      <div style="font-size:11px;margin-top:6px">Configure o trigger no Google Apps Script e aguarde o próximo ciclo</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="hist-table" id="expedicaoTable" style="display:none">
+        <thead><tr>
+          <th>NF</th>
+          <th>Cliente</th>
+          <th>Data Email</th>
+          <th style="text-align:center">Status</th>
+          <th>Transferência Gerada</th>
+          <th>Itens</th>
+          <th>Mensagem</th>
+          <th style="text-align:center">Ação</th>
+        </tr></thead>
+        <tbody id="expedicaoBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div></div>
 <!-- ═══ MINHAS PENDÊNCIAS ═══ -->
 <div id="pg-pendencias" class="page"><div class="wrap">
   <div class="card">
@@ -809,14 +839,14 @@ let _invAtual=null; // divergência em investigação
 // ─── PERFIS ──────────────────────────────────────────────────────
 const PERFIS={
   'supervisor':{
-    label:'Supervisor',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist'],
+    label:'Supervisor',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist','pg-expedicao'],
     podeRequisitar:true,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:true,
     confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
   },
   'administrador':{
-    label:'Administrador',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist'],
+    label:'Administrador',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist','pg-expedicao'],
     podeRequisitar:true,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:true,podeAudit:true,podeAdmin:true,
     verTabOp:true,
@@ -830,7 +860,7 @@ const PERFIS={
   },
   'supervisor sistema':{
     // Alteração 1: liberar conferência para Iasmyn (Supervisor Sistema)
-    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist'],
+    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist','pg-expedicao'],
     podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:true,podeAudit:false,podeAdmin:false,
     verTabOp:false,
@@ -838,7 +868,7 @@ const PERFIS={
   },
   'supervisorsistema':{
     // Alteração 1: liberar conferência para Iasmyn (Supervisor Sistema)
-    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist'],
+    label:'Supervisor Sistema',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist','pg-expedicao'],
     podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:true,podeAudit:false,podeAdmin:false,
     verTabOp:false,
@@ -955,6 +985,7 @@ function showPage(id,btn){
   if(id==='pg-conferencia'){if(CONF_MODO!=='conferencia'){CONF_MODO='selecao';const sc=document.getElementById('confSelCard');const pc=document.getElementById('confPainelConf');if(sc)sc.style.display='block';if(pc)pc.style.display='none';}renderFiltrosRapidosConf();filtrarItensConf();renderConfHistorico();}
   if(id==='pg-divergencias'){renderDivergencias();renderDivHistorico();}
   if(id==='pg-pendencias'){renderPendencias();}
+  if(id==='pg-expedicao'){carregarEmailLog();}
 }
 function getSt(s,m){if(s<=0||s<m)return'red';if(s<m*1.5)return'yellow';return'green';}
 function stColor(s){return s==='red'?'var(--red)':s==='yellow'?'var(--yellow-mid)':'var(--green)';}
@@ -1045,15 +1076,15 @@ function renderItems(){
     r3.className='item-row'+(sel?' selected':'');
     if(podeSel)r3.onclick=()=>toggleItem(idx);
     else r3.style.cursor='default';
+    // Item 7: exibir apenas código, descrição e status (sem saldo sistema nem quantidade disponível)
     r3.innerHTML=`<div class="color-bar ${stCB(s3)}"></div>`
-      +(podeSel?`<div class="chk ${sel?'checked':''}">${sel?'✓':''}</div>`:'')
+      +(podeSel?`<div class="chk ${sel?'checked':''}">${ sel?'✓':''}</div>`:'')
       +`<div class="item-info"><div class="item-cod">${escapeHTML(item.cod)}</div><div class="item-name">${escapeHTML(item.name)}</div></div>`
-      +`<div class="item-saldo"><div class="saldo-num" style="color:${stColor(s3)}">${item.saldo3}</div><div class="saldo-min">mín ${item.min3}</div></div>`
       +`<div class="status-pip ${stPip(s3)}"></div>`
       +(s3!=='green'?'<div class="flag-tag">⚑</div>':'');
     l3.appendChild(r3);
     const r30=document.createElement('div');r30.className='item-row';r30.style.cursor='default';
-    r30.innerHTML=`<div class="color-bar ${stCB(s30)}"></div><div class="item-info"><div class="item-cod">${escapeHTML(item.cod)}</div><div class="item-name">${escapeHTML(item.name)}</div></div><div class="item-saldo"><div class="saldo-num" style="color:${stColor(s30)}">${item.saldo30}</div><div class="saldo-min">mín ${item.min30}</div></div><div class="status-pip ${stPip(s30)}"></div>`;
+    r30.innerHTML=`<div class="color-bar ${stCB(s30)}"></div><div class="item-info"><div class="item-cod">${escapeHTML(item.cod)}</div><div class="item-name">${escapeHTML(item.name)}</div></div><div class="status-pip ${stPip(s30)}"></div>`;
     l30.appendChild(r30);
   });
   if(visiveis===0){l3.innerHTML='<div style="text-align:center;padding:18px 0;font-size:11px;color:var(--text3)">Nenhum item encontrado.</div>';l30.innerHTML='';}
@@ -1065,7 +1096,8 @@ function renderItems(){
     sc.style.display='inline';sc.textContent=selectedItems.size;selCard.style.display='block';
   }else{sc.style.display='none';selCard.style.display='none';}
   if(selectedItems.size===0){sl.innerHTML='<p style="font-size:11px;color:var(--text3);text-align:center;padding:8px 0">Clique nos itens para selecionar</p>';}
-  else{selectedItems.forEach(idx=>{const item=ITEMS[idx],r=calcItem(item);const d=document.createElement('div');d.className='mini-item';d.innerHTML=`<div class="mi-cod">${escapeHTML(item.cod)}</div><div class="mi-name">${escapeHTML(item.name)}</div><div class="mi-qty">${fmtQty(r.sacosEf,item.cod)}</div>`;sl.appendChild(d);});}
+  // Item 7: exibir apenas código e descrição (sem quantidade dependente de saldo)
+  else{selectedItems.forEach(idx=>{const item=ITEMS[idx];const d=document.createElement('div');d.className='mini-item';d.innerHTML=`<div class="mi-cod">${escapeHTML(item.cod)}</div><div class="mi-name">${escapeHTML(item.name)}</div>`;sl.appendChild(d);});}
   renderPendentes();
 }
 function toggleItem(idx){if(selectedItems.has(idx))selectedItems.delete(idx);else selectedItems.add(idx);renderItems();}
@@ -2178,9 +2210,10 @@ function iniciarRequisicao(){
   st.req='REQ-'+Date.now().toString().slice(-6);
   st.tipo = 'Normal';
   st.itens=[];
+  // Item 7: não depender de saldo ERP — iniciar com 0 sacos para o aprovador definir a quantidade
   selectedItems.forEach(idx=>{
-    const item=ITEMS[idx],r=calcItem(item);
-    st.itens.push({cod:item.cod,name:item.name,paletes:r.palEf,sacos:r.sacosEf,sacosValidados:r.sacosEf,ativo:true,itemStatus:'pendente'});
+    const item=ITEMS[idx];
+    st.itens.push({cod:item.cod,name:item.name,paletes:0,sacos:0,sacosValidados:0,ativo:true,itemStatus:'pendente'});
   });
   st.step=1;
   
@@ -3512,6 +3545,94 @@ async function carregarConferenciasSheets(){
     renderDivergencias();
   }catch(e){console.warn('carregarConferencias:',e);}
 }
+// ─── EMAIL DE EXPEDIÇÃO ────────────────────────────────────────────
+let EMAIL_LOG_CACHE = [];
+async function carregarEmailLog(){
+  const loading=document.getElementById('expedicaoLoading');
+  const empty=document.getElementById('expedicaoEmpty');
+  const table=document.getElementById('expedicaoTable');
+  if(loading)loading.style.display='block';
+  if(empty)empty.style.display='none';
+  if(table)table.style.display='none';
+  try{
+    // Busca via doGet do GAS com acao=emailLog
+    const url=APPS_SCRIPT_URL+'?acao=emailLog';
+    const res=await fetch(url);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    EMAIL_LOG_CACHE=(data.registros||[]);
+  }catch(e){
+    // Fallback: tentar ler direto do Sheets se o GAS ainda não foi atualizado
+    try{
+      const rows=await fetchRange('EMAIL_LOG!A2:H');
+      EMAIL_LOG_CACHE=rows.filter(r=>r[0]).map(r=>({
+        msgId:r[0]||'',nf:r[1]||'',cliente:r[2]||'',dataEmail:r[3]||'',
+        status:r[4]||'',reqId:r[5]||'',itens:r[6]||'[]',erro:r[7]||''
+      })).reverse();
+    }catch(e2){
+      console.warn('carregarEmailLog fallback:',e2);
+      EMAIL_LOG_CACHE=[];
+    }
+  }
+  if(loading)loading.style.display='none';
+  renderEmailLog();
+}
+function renderEmailLog(){
+  const empty=document.getElementById('expedicaoEmpty');
+  const table=document.getElementById('expedicaoTable');
+  const tbody=document.getElementById('expedicaoBody');
+  if(!tbody)return;
+  if(EMAIL_LOG_CACHE.length===0){
+    if(empty)empty.style.display='block';
+    if(table)table.style.display='none';
+    return;
+  }
+  if(empty)empty.style.display='none';
+  if(table)table.style.display='table';
+  tbody.innerHTML='';
+  EMAIL_LOG_CACHE.forEach(reg=>{
+    const statusColor=reg.status==='Processado'?'var(--green)':reg.status==='Duplicado'?'var(--yellow)':'var(--red)';
+    const statusBg=reg.status==='Processado'?'var(--green-dim)':reg.status==='Duplicado'?'var(--yellow-dim)':'var(--red-dim)';
+    let itensHtml='';
+    try{
+      const itens=JSON.parse(reg.itens||'[]');
+      itensHtml=itens.map(it=>`<span style="font-size:10px;background:var(--bg3);border-radius:4px;padding:1px 5px;margin:1px;display:inline-block">${escapeHTML(it.cod)}: ${it.qtd||it.sacos||0}</span>`).join('');
+    }catch(e){itensHtml='<span style="color:var(--text3);font-size:10px">—</span>';}
+    // Botão de ação
+    let acaoHtml='';
+    if(reg.status==='Processado'&&reg.reqId){
+      // Verifica se já existe em PENDENTES
+      const jaExiste=PENDENTES.some(p=>p.req===reg.reqId);
+      acaoHtml=jaExiste
+        ?`<span style="font-size:10px;color:var(--green);font-weight:700">✅ Em Pendências</span>`
+        :`<button class="btn" onclick="abrirPendentePorId('${escapeHTML(reg.reqId)}')" style="height:26px;padding:0 8px;font-size:10px">🔍 Ver</button>`;
+    }else if(reg.status==='Erro leitura'||reg.status==='Duplicado'){
+      acaoHtml=`<span style="font-size:10px;color:var(--text3)">—</span>`;
+    }
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td style="font-weight:700">${escapeHTML(reg.nf)}</td>
+      <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(reg.cliente||'—')}</td>
+      <td style="white-space:nowrap;font-size:11px">${escapeHTML(reg.dataEmail)}</td>
+      <td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${statusBg};color:${statusColor}">${escapeHTML(reg.status)}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${reg.reqId?escapeHTML(reg.reqId):'—'}</td>
+      <td style="max-width:180px">${itensHtml}</td>
+      <td style="font-size:10px;color:var(--red);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${reg.erro?escapeHTML(reg.erro):'—'}</td>
+      <td style="text-align:center">${acaoHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+function abrirPendentePorId(reqId){
+  const idx=PENDENTES.findIndex(p=>p.req===reqId);
+  if(idx>=0){
+    carregarPendente(idx);
+    toast('📧 Transferência da NF carregada!');
+  }else{
+    toast('⚠️ Pendência não encontrada. Atualize a página.','',3000);
+  }
+}
+// ─────────────────────────────────────────────────────────────────
 async function carregarRequisicoesPendentes(){
   try{
     const rowsReq=await fetchRange('REQUISICOES!A2:B');
@@ -3633,14 +3754,15 @@ function aplicarPermissoes(){
   const tabConf = document.getElementById('tab-conf');
   const tabDiv = document.getElementById('tab-div');
   const tabHist = document.getElementById('tab-hist');
-  const tabOp = document.getElementById('tab-op');
+    const tabOp = document.getElementById('tab-op');
   const tabPend = document.getElementById('tab-pend');
-
+  const tabExpedicao = document.getElementById('tab-expedicao');
   if(tabEstoque) tabEstoque.style.display = abasVisiveis.includes('pg-estoque') ? 'block' : 'none';
   if(tabPend) tabPend.style.display = abasVisiveis.includes('pg-pendencias') ? 'block' : 'none';
   if(tabConf) tabConf.style.display = abasVisiveis.includes('pg-conferencia') ? 'block' : 'none';
   if(tabDiv) tabDiv.style.display = abasVisiveis.includes('pg-divergencias') ? 'block' : 'none';
   if(tabHist) tabHist.style.display = abasVisiveis.includes('pg-hist') ? 'block' : 'none';
+  if(tabExpedicao) tabExpedicao.style.display = abasVisiveis.includes('pg-expedicao') ? 'block' : 'none';
   if(tabOp) tabOp.style.display = p.verTabOp ? 'block' : 'none';
 
   const btnReq=document.getElementById('btnIniciarReq');
