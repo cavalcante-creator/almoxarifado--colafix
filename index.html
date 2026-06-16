@@ -1558,11 +1558,37 @@ function renderConfHistorico() {
     list.innerHTML = '';
     return;
   }
-  empty.style.display = 'none';
+    empty.style.display = 'none';
   list.innerHTML = '';
-  
-  const visiveis = CONF_HISTORICO.slice(0, _confHistPagina);
-    visiveis.forEach((conf, i) => {
+
+  // Correção 2: filtrar histórico por permissão de almoxarifado do conferente logado
+  const cpHistFiltro = confPerm();
+  const nomeLogado = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '';
+  let confHistFiltrado = CONF_HISTORICO;
+  if(!cpHistFiltro.acessoTotal) {
+    confHistFiltrado = CONF_HISTORICO.filter(conf => {
+      // Sempre exibe conferências realizadas pelo próprio usuário
+      if(conf.nomeUsuario === nomeLogado || conf.usuario === nomeLogado) return true;
+      // Verifica se a conferência contém ao menos um item do almoxarifado autorizado
+      return Object.keys(conf.itens).some(cod => {
+        const invItemF = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
+        const isRejF  = !!(invItemF && invItemF.temRejunte);
+        const is30F   = !!(invItemF && invItemF.temAlmox30 && !invItemF.temAlmox3);
+        if(cpHistFiltro.podeContarRejunte && isRejF) return true;
+        if(cpHistFiltro.podeContarAlmox30 && is30F) return true;
+        if(cpHistFiltro.podeContarAlmox3 && !isRejF && !is30F) return true;
+        return false;
+      });
+    });
+  }
+
+  if(confHistFiltrado.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+
+  const visiveis = confHistFiltrado.slice(0, _confHistPagina);
+  visiveis.forEach((conf, i) => {
     const qtdItens = Object.keys(conf.itens).length;
     // Contar divergências
     let divCount = 0;
@@ -1634,11 +1660,11 @@ function renderConfHistorico() {
     list.appendChild(div);
   });
 
-  if(CONF_HISTORICO.length > _confHistPagina){
+  if(confHistFiltrado.length > _confHistPagina){
     const btnMais = document.createElement('button');
     btnMais.className = 'btn';
     btnMais.style.cssText = 'width:100%;margin-top:8px;font-size:11px';
-    btnMais.textContent = '↓ Ver mais (' + (CONF_HISTORICO.length - _confHistPagina) + ' restantes)';
+    btnMais.textContent = '↓ Ver mais (' + (confHistFiltrado.length - _confHistPagina) + ' restantes)';
     btnMais.onclick = verMaisConfHistorico;
     list.appendChild(btnMais);
   }
@@ -1982,7 +2008,8 @@ function renderPendentes(){
   let pendFiltrados = PENDENTES.filter(p => {
     if(pf.podeAdmin) return true;
     if(pf.label === 'Supervisor') return p.solicitante === nome || p.step === 1 || p.step === 3;
-    if(pf.label === 'Supervisor Sistema') return p.step === 4;
+    // Correção 1: Supervisor Sistema também vê ordens antecipadas no step 3 (confirmação)
+    if(pf.label === 'Supervisor Sistema') return p.step === 4 || (p.tipo === 'Antecipada' && p.step === 3);
     if(pf.label === 'Operador') return p.step === 2 || p.step === 3;
     return true;
   });
@@ -2490,14 +2517,15 @@ function lancarItem(idx, isBulk = false){
     return false;
   }
   
-  it.itemStatus='lancado';
+    it.itemStatus='lancado';
   it.timeLancado=nowFull();
   it.sysUser=user;
   it.sysDoc=doc;
-  
   if(!st.sysUser) st.sysUser=user;
-  if(!st.step || st.step < 4) st.step = 4;
-  
+  // Correção 1: NÃO avançar step aqui — o step só avança em concluirSistema(),
+  // após todos os itens serem lançados. Avançar prematuramente causava inconsistência
+  // na antecipada: o Sheets recebia step=4 mas statusSistemico ainda era 'Pendente',
+  // fazendo restaurarStep(4) mostrar Movimentação Física antes da confirmação concluir.
   if(!isBulk) {
     syncPendente();
     atualizarHistorico('Em andamento');
@@ -2725,7 +2753,8 @@ function restaurarStep(s){
   } else if(s===3){
     // No fluxo normal s=3 é Movimentação. Na Antecipada s=3 é Confirmação.
     if(isAntecipada) {
-      if(pf.podeTransferir || pf.podeAdmin) {
+      // Correção 1: incluir podeAprovar — o Supervisor (Iasmyn) tem podeAprovar mas não podeTransferir
+      if(pf.podeTransferir || pf.podeAdmin || pf.podeAprovar) {
         document.getElementById('rn4').textContent=st.req;
         const sysEl=document.getElementById('sysUser');
         if(sysEl&&USUARIO_LOGADO)sysEl.value=USUARIO_LOGADO.nome;
