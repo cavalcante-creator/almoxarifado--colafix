@@ -3245,18 +3245,24 @@ function gerarPDFConferencia(idx) {
     }
   }).join('');
 
-  // Título dinâmico do PDF (inclui SEPARAÇÃO)
-  const tituloPDF = (!cpPDF.podeContarAlmox3 && !cpPDF.podeContarRejunte && !cpPDF.podeContarSeparacao && cpPDF.podeContarAlmox30)
+  // Título dinâmico do PDF baseado nos itens realmente contados
+  const temItensA3  = Object.values(conf.itens).some(it => (it.almox3  > 0) || (it.pal3  > 0) || (it.sac3  > 0));
+  const temItensA30 = Object.values(conf.itens).some(it => (it.almox30 > 0) || (it.pal30 > 0) || (it.sac30 > 0));
+  // Verificar tipos dos itens contados para o título
+  const itensContados = Object.keys(conf.itens).map(cod => CONF_ITEMS.find(i=>i.cod===cod) || ITEMS.find(i=>i.cod===cod)).filter(Boolean);
+  const temRejNoConf  = itensContados.some(i => i.temRejunte);
+  const temSepNoConf  = itensContados.some(i => i.temSeparacao);
+  const tituloPDF = (temItensA3 && temItensA30)
+    ? 'CONFERÊNCIA FÍSICA - ALMOX 3 E ALMOX 30'
+    : temItensA30
     ? 'CONFERÊNCIA FÍSICA - ALMOX 30'
-    : (cpPDF.podeContarRejunte && cpPDF.podeContarSeparacao && !cpPDF.podeContarAlmox30 && !cpPDF.acessoTotal)
+    : (temRejNoConf && temSepNoConf)
     ? 'CONFERÊNCIA FÍSICA - REJUNTE / SEPARAÇÃO'
-    : (cpPDF.podeContarRejunte && !cpPDF.podeContarSeparacao && !cpPDF.podeContarAlmox30 && !cpPDF.acessoTotal)
+    : temRejNoConf
     ? 'CONFERÊNCIA FÍSICA - REJUNTE'
-    : (cpPDF.podeContarSeparacao && !cpPDF.podeContarRejunte && !cpPDF.podeContarAlmox30 && !cpPDF.acessoTotal)
+    : temSepNoConf
     ? 'CONFERÊNCIA FÍSICA - SEPARAÇÃO'
-    : (cpPDF.podeContarAlmox3 && !cpPDF.podeContarAlmox30 && !cpPDF.podeContarRejunte && !cpPDF.podeContarSeparacao)
-    ? 'CONFERÊNCIA FÍSICA - ALMOX 3'
-    : 'CONFERÊNCIA FÍSICA DE ESTOQUE';
+    : 'CONFERÊNCIA FÍSICA - ALMOX 3';
 
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Conferência ${conf.numero}</title>
   <style>
