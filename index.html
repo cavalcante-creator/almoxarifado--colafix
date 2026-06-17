@@ -601,6 +601,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           <option value="almox3">Almox 3</option>
           <option value="almox30">Almox 30</option>
           <option value="rejunte">Rejunte / Área Líquida</option>
+          <option value="separacao">Separação</option>
         </select>
       </div>
       <div style="position:relative;flex:1;min-width:200px">
@@ -642,6 +643,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           <option value="almox3">Almox 3</option>
           <option value="almox30">Almox 30</option>
           <option value="rejunte">Rejunte / Área Líquida</option>
+          <option value="separacao">Separação</option>
         </select>
       </div>
       <!-- Ajuste 2: campo de pesquisa no painel de conferência -->
@@ -804,7 +806,7 @@ const SHEETS_ID='1Zix9W2G6QuwyfkhsFrtNVcXWYGCbEuc9M-TP37JUk6Q';
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbznsHd6yWHVKYtqDgIowBdRkj6WfE_2V_3dJUQQBpdumhxiYu-0EaoEotxRhZfCMwZO/exec';
 const RANGE_SALDO='SALDO!A2:D';
 const RANGE_CAPACIDADE='CAPACIDADE !A2:E';
-const RANGE_INVENTARIO_ITENS='INVENTARIO_ITENS!A2:E';
+const RANGE_INVENTARIO_ITENS='INVENTARIO_ITENS!A2:F';
 
 // ─── ESTADO GLOBAL ───────────────────────────────────────────────
 let ITEMS=[], CAPACIDADE_MAP={}, INV_ITEMS=[], SALDO_BRUTO=[], USUARIO_LOGADO=null;
@@ -905,8 +907,8 @@ const PERFIS={
     podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
-    // Ajuste 2: visualiza e lança apenas REJUNTE/ÁREA LÍQUIDA (pertence ao ALMOX 3)
-    confAlmox3:true,confAlmox30:false,confRejunte:true,
+    // Acessa REJUNTE/ÁREA LÍQUIDA e SEPARAÇÃO — sem acesso ao Almox 3 e Almox 30
+    confAlmox3:false,confAlmox30:false,confRejunte:true,confSeparacao:true,
     confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
   },
   'conferente3':{
@@ -914,7 +916,8 @@ const PERFIS={
     podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
-    confAlmox3:true,confAlmox30:false,confRejunte:true,
+    // Acessa REJUNTE/ÁREA LÍQUIDA e SEPARAÇÃO — sem acesso ao Almox 3 e Almox 30
+    confAlmox3:false,confAlmox30:false,confRejunte:true,confSeparacao:true,
     confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
   },
   'auditor':{
@@ -939,18 +942,22 @@ function confPerm(){
   const acessoTotal = !!(p.podeAdmin || p.podeAudit || p.podeAprovar);
   return {
     acessoTotal,
-    podeContarAlmox3:  acessoTotal || p.confAlmox3  === true,
-    podeContarAlmox30: acessoTotal || p.confAlmox30 === true,
-    podeContarRejunte: acessoTotal || p.confRejunte === true
+    podeContarAlmox3:    acessoTotal || p.confAlmox3     === true,
+    podeContarAlmox30:   acessoTotal || p.confAlmox30    === true,
+    podeContarRejunte:   acessoTotal || p.confRejunte    === true,
+    podeContarSeparacao: acessoTotal || p.confSeparacao  === true
   };
 }
 
 // Retorna o filtro de almoxarifado obrigatório para o perfil logado.
-// Retorna 'almox3', 'almox30', 'rejunte' ou null (acesso total).
+// Retorna 'almox3', 'almox30', 'rejunte', 'separacao' ou null (acesso total).
 function confPerfilFiltro(){
   const cp = confPerm();
   if(cp.acessoTotal) return null;
-  if(cp.podeContarRejunte && !cp.podeContarAlmox30) return 'rejunte';
+  // Conferente 3: acessa REJUNTE + SEPARAÇÃO — sem filtro forçado (usa 'todos')
+  if(cp.podeContarRejunte && cp.podeContarSeparacao && !cp.podeContarAlmox30) return null;
+  if(cp.podeContarRejunte && !cp.podeContarAlmox30 && !cp.podeContarSeparacao) return 'rejunte';
+  if(cp.podeContarSeparacao && !cp.podeContarRejunte && !cp.podeContarAlmox30) return 'separacao';
   if(cp.podeContarAlmox30 && !cp.podeContarAlmox3) return 'almox30';
   if(cp.podeContarAlmox3 && !cp.podeContarAlmox30) return 'almox3';
   return null;
@@ -960,6 +967,7 @@ function confPerfilFiltro(){
 function localLabel(item){
   if(!item) return 'Almox 3';
   if(item.temRejunte) return 'Rejunte';
+  if(item.temSeparacao) return 'Separação';
   if(item.temAlmox30 && !item.temAlmox3) return 'Almox 30';
   return 'Almox 3';
 }
@@ -971,6 +979,24 @@ function unidSing(item){ return (item && item.temRejunte) ? 'fardo' : 'sc'; }
 function unidPlur(item){ return (item && item.temRejunte) ? 'Fardos' : 'sacos'; }
 function unidAvul(item){ return (item && item.temRejunte) ? 'Fardos Avulsos' : 'Sacos Avulsos'; }
 function unidTotal(item){ return (item && item.temRejunte) ? 'Total de Fardos' : 'Total de Sacos'; }
+
+// ITEM 4: Tipo operacional do item (PALETES / SACOS / FARDOS)
+// Aplica-se apenas na conferência, histórico e impressões.
+function tipoOperacional(item){
+  if(!item) return null;
+  if(item.temRejunte) return 'FARDOS';
+  // Itens de SEPARAÇÃO: usar campo tipoOp se definido, senão SACOS por padrão
+  if(item.temSeparacao) return item.tipoOp || 'SACOS';
+  // Demais itens: PALETES se tiver paletes, SACOS caso contrário
+  return 'SACOS';
+}
+function tipoOpBadge(item){
+  const t = tipoOperacional(item);
+  if(!t) return '';
+  const cor = t==='PALETES' ? 'var(--accent)' : t==='FARDOS' ? 'var(--purple,#7B5EA7)' : 'var(--green)';
+  const bg  = t==='PALETES' ? 'var(--accent-dim)' : t==='FARDOS' ? 'var(--purple-dim,#EEE9FA)' : 'var(--green-dim)';
+  return `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:${bg};color:${cor};border:1px solid ${cor};letter-spacing:.04em">${t}</span>`;
+}
 
 // ─── UTILS ───────────────────────────────────────────────────────
 function now(){const d=new Date();return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
@@ -1226,14 +1252,23 @@ function filtrarItensConf(){
 
   fonte.forEach((item) => {
     // Filtro por almoxarifado + permissão de perfil
-    if(almoxFiltro === 'almox3'   && !item.temAlmox3)   return;
-    if(almoxFiltro === 'almox30'  && !item.temAlmox30)  return;
-    if(almoxFiltro === 'rejunte'  && !item.temRejunte)  return;
+    if(almoxFiltro === 'almox3'     && !item.temAlmox3)     return;
+    if(almoxFiltro === 'almox30'    && !item.temAlmox30)    return;
+    if(almoxFiltro === 'rejunte'    && !item.temRejunte)    return;
+    if(almoxFiltro === 'separacao'  && !item.temSeparacao)  return;
     // Segurança: nunca exibir item de local sem permissão
     if(!cp.acessoTotal){
-      if(item.temRejunte  && !cp.podeContarRejunte)  return;
-      if(item.temAlmox30 && !item.temAlmox3 && !cp.podeContarAlmox30) return;
-      if(!item.temAlmox30 && !item.temRejunte && !cp.podeContarAlmox3) return;
+      // Itens de REJUNTE: só quem pode contar rejunte
+      if(item.temRejunte   && !cp.podeContarRejunte)   return;
+      // Itens de SEPARAÇÃO: só quem pode contar separação
+      if(item.temSeparacao && !cp.podeContarSeparacao) return;
+      // Itens exclusivos do Almox 30: só quem pode contar almox30
+      if(item.temAlmox30 && !item.temAlmox3 && !item.temRejunte && !item.temSeparacao && !cp.podeContarAlmox30) return;
+      // Itens do Almox 3 puro: só quem pode contar almox3
+      if(!item.temAlmox30 && !item.temRejunte && !item.temSeparacao && !cp.podeContarAlmox3) return;
+      // Itens que pertencem ao Almox 3 E Almox 30 (ambos): bloquear se não tem nenhuma das permissões
+      if(item.temAlmox3 && item.temAlmox30 && !item.temRejunte && !item.temSeparacao
+         && !cp.podeContarAlmox3 && !cp.podeContarAlmox30) return;
     }
     if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return;
     // Filtro COLAFIX: exclui itens que contenham BAUTECH, POZOSUL, PY ou UY na descrição
@@ -1260,18 +1295,19 @@ function filtrarItensConf(){
     row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;' + (sel ? 'background:var(--accent-dim)' : 'background:#fff');
     row.dataset.cod = item.cod; // Melhoria 2: identificador para seleção automática
     row.onclick = () => confToggleItem(item.cod);
-    // Alteração: exibir apenas checkbox + código + descrição (saldos ocultados visualmente)
-    // Melhoria 3: última contagem
+    // Exibir checkbox + código + descrição + tipo operacional + última contagem
     const uc = ultimaContagemItem(item.cod);
     const ucHtml = uc
       ? `<div style="font-size:9px;color:var(--text3);margin-top:2px">\uD83D\uDCC5 Última contagem: <b>${uc.data}</b> – ${uc.conferente}</div>`
       : `<div style="font-size:9px;color:var(--text3);margin-top:2px">Sem histórico</div>`;
+    const badgeSel = tipoOpBadge(item);
     row.innerHTML = `
       <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s;margin-top:2px">${sel ? '\u2713' : ''}</div>
       <div class="color-bar ${stCB(s3)}" style="width:3px;min-height:28px;align-self:stretch;border-radius:3px;flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em">${escapeHTML(item.cod)}</div>
         <div style="font-size:12px;font-weight:600;word-break:break-word;white-space:normal;line-height:1.4">${escapeHTML(item.name)}</div>
+        ${badgeSel ? `<div style="margin-top:3px">${badgeSel}</div>` : ''}
         ${ucHtml}
       </div>
     `;
@@ -1394,9 +1430,10 @@ function renderConferencia(){
     if(!CONF_ITENS_SEL.has(item.cod)) return;
 
     // Filtro de Local (usa flags booleanas de INVENTARIO_ITENS quando disponível)
-    if(local === 'almox3' && !item.temAlmox3) return;
-    if(local === 'almox30' && !item.temAlmox30) return;
-    if(local === 'rejunte' && !item.temRejunte) return;
+    if(local === 'almox3'    && !item.temAlmox3)    return;
+    if(local === 'almox30'   && !item.temAlmox30)   return;
+    if(local === 'rejunte'   && !item.temRejunte)   return;
+    if(local === 'separacao' && !item.temSeparacao) return;
 
     // Ajuste 2: filtro de pesquisa no painel de conferência
     const qPainel = (document.getElementById('confPainelSearch')||{value:''}).value.toLowerCase();
@@ -1416,38 +1453,28 @@ function renderConferencia(){
     card.className = 'card';
     card.style.padding = '14px';
 
-    // Calcular diferença para colorir o card
-    const difAlmox3 = conf.total3 > 0 ? (conf.total3 - item.saldo3) : null;
-    const difAlmox30 = conf.total30 > 0 ? (conf.total30 - item.saldo30) : null;
-    const temDivergencia = (difAlmox3 !== null && difAlmox3 !== 0) || (difAlmox30 !== null && difAlmox30 !== 0);
-    if(temDivergencia) card.style.borderColor = 'var(--red-mid)';
-    else if(conf.total3 > 0 || conf.total30 > 0) card.style.borderColor = 'var(--green-mid)';
+    // ITEM 7: coloração de divergência removida do card de conferência
 
     // Regra central: quais blocos este item/perfil pode ver e lançar
-    const isRejunte  = !!item.temRejunte;
-    const isAlmox30Only = !item.temAlmox3 && !!item.temAlmox30;
-    const mostrarBloco3  = (isRejunte ? cp.podeContarRejunte  : !isAlmox30Only && cp.podeContarAlmox3);
-    const mostrarBloco30 = (!isRejunte && isAlmox30Only && cp.podeContarAlmox30) || (!isRejunte && !isAlmox30Only && cp.podeContarAlmox30);
-    // Rótulo dinâmico do local (item 4)
+    const isRejunte     = !!item.temRejunte;
+    const isSeparacao   = !!item.temSeparacao;
+    const isAlmox30Only = !item.temAlmox3 && !!item.temAlmox30 && !isSeparacao && !isRejunte;
+    // Bloco 3 (Almox 3 / Rejunte / Separação): mostrar conforme tipo e permissão
+    const mostrarBloco3 = isRejunte   ? cp.podeContarRejunte
+                        : isSeparacao ? cp.podeContarSeparacao
+                        : !isAlmox30Only && cp.podeContarAlmox3;
+    // Bloco 30 (Almox 30): nunca para Rejunte/Separação
+    const mostrarBloco30 = !isRejunte && !isSeparacao && cp.podeContarAlmox30;
+    // Rótulo dinâmico do local
     const lblLocalCard = localLabel(item);
-    const corLocalCard = isRejunte ? 'var(--purple,#7B5EA7)' : isAlmox30Only ? 'var(--green)' : 'var(--accent)';
+    const corLocalCard = isRejunte ? 'var(--purple,#7B5EA7)' : isSeparacao ? 'var(--orange,#E07B39)' : isAlmox30Only ? 'var(--green)' : 'var(--accent)';
     const saldoCard3 = item.saldo3;
     const saldoCard30 = item.saldo30;
 
-    // Blocos de saldo sistema
+    // Blocos de saldo sistema — ITEM 7: removidos do card de conferência
     const gridCols = (mostrarBloco3 && mostrarBloco30) ? '1fr 1fr' : '1fr';
-    const blocoSaldoAlmox3 = mostrarBloco3 ? `
-      <div style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:8px;padding:8px 10px">
-        <div style="font-size:9px;font-weight:700;color:${corLocalCard};text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">📍 Saldo Sistema – ${lblLocalCard}</div>
-        <div style="font-size:18px;font-weight:800;color:${stColor(s3)};line-height:1">${saldoCard3}<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:3px">${unidPlur(item)}</span></div>
-        ${!isRejunte ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${palSist3} pal + ${sacSist3} ${unidSing(item)}</div>` : ''}
-      </div>` : '';
-    const blocoSaldoAlmox30 = mostrarBloco30 ? `
-      <div style="background:var(--green-dim);border:1px solid var(--green-mid);border-radius:8px;padding:8px 10px">
-        <div style="font-size:9px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">📍 Saldo Sistema – Almox 30</div>
-        <div style="font-size:18px;font-weight:800;color:var(--green);line-height:1">${saldoCard30}<span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:3px">sacos</span></div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">${palSist30} pal + ${sacSist30} sc</div>
-      </div>` : '';
+    const blocoSaldoAlmox3  = ''; // saldo ocultado
+    const blocoSaldoAlmox30 = ''; // saldo ocultado
 
     // Blocos de contagem física com rótulo dinâmico
     const blocoContAlmox3 = mostrarBloco3 ? `
@@ -1500,19 +1527,20 @@ function renderConferencia(){
         </div>
       </div>` : '';
 
+    const badgeTipoOp = tipoOpBadge(item);
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:6px">
         <div style="min-width:0;flex:1">
           <div style="font-weight:700;font-size:12px;color:var(--text)">${escapeHTML(item.cod)}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:normal;line-height:1.4">${escapeHTML(item.name)}</div>
+          ${badgeTipoOp ? `<div style="margin-top:4px">${badgeTipoOp}</div>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <!-- badge sc/pal ocultado -->
           <button onclick="confRemoverItem('${item.cod}')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1" title="Remover item">✕</button>
         </div>
       </div>
 
-      <!-- SALDO SISTEMA – ocultado pela Alteração 2 (cálculos preservados) -->
+      <!-- SALDO SISTEMA – ocultado (cálculos preservados) -->
 
       ${blocoContAlmox3}
       ${blocoContAlmox30}
@@ -1593,13 +1621,20 @@ function salvarConferencia() {
     // Determinar local do item
     const itemIsRejunte   = !!(invItem && invItem.temRejunte);
     const itemIsAlmox30   = !!(invItem && invItem.temAlmox30 && !invItem.temAlmox3);
+    const itemIsSeparacao = !!(invItem && invItem.temSeparacao);
     // Zerar campos não permitidos
-    if(itemIsRejunte  && !cpSave.podeContarRejunte)  { c.pal3=0; c.sac3=0; c.total3=0; c.pal30=0; c.sac30=0; c.total30=0; }
-    if(itemIsAlmox30  && !cpSave.podeContarAlmox30)  { c.pal30=0; c.sac30=0; c.total30=0; }
-    if(!itemIsRejunte && !itemIsAlmox30 && !cpSave.podeContarAlmox3) { c.pal3=0; c.sac3=0; c.total3=0; }
-    // Zerar almox30 se perfil não tem permissão (mesmo para itens que pertencem aos dois)
-    if(!cpSave.podeContarAlmox30 && !itemIsRejunte) { c.pal30=0; c.sac30=0; c.total30=0; }
-    if(!cpSave.podeContarAlmox3  && !itemIsRejunte && !itemIsAlmox30) { c.pal3=0; c.sac3=0; c.total3=0; }
+    // REJUNTE: zerar tudo se sem permissão
+    if(itemIsRejunte   && !cpSave.podeContarRejunte)   { c.pal3=0; c.sac3=0; c.total3=0; c.pal30=0; c.sac30=0; c.total30=0; }
+    // SEPARAÇÃO: zerar tudo se sem permissão
+    if(itemIsSeparacao && !cpSave.podeContarSeparacao) { c.pal3=0; c.sac3=0; c.total3=0; c.pal30=0; c.sac30=0; c.total30=0; }
+    // ALMOX 30 exclusivo: zerar almox30 se sem permissão
+    if(itemIsAlmox30 && !itemIsRejunte && !itemIsSeparacao && !cpSave.podeContarAlmox30) { c.pal30=0; c.sac30=0; c.total30=0; }
+    // ALMOX 3 puro: zerar almox3 se sem permissão
+    if(!itemIsAlmox30 && !itemIsRejunte && !itemIsSeparacao && !cpSave.podeContarAlmox3) { c.pal3=0; c.sac3=0; c.total3=0; }
+    // Zerar almox30 se perfil não tem permissão (para itens que pertencem aos dois almoxs)
+    if(!cpSave.podeContarAlmox30 && !itemIsRejunte && !itemIsSeparacao) { c.pal30=0; c.sac30=0; c.total30=0; }
+    // Zerar almox3 se perfil não tem permissão (para itens que pertencem aos dois almoxs)
+    if(!cpSave.podeContarAlmox3 && !itemIsRejunte && !itemIsAlmox30 && !itemIsSeparacao) { c.pal3=0; c.sac3=0; c.total3=0; }
 
     if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0) {
       const item = invItem;
@@ -1668,9 +1703,11 @@ function renderConfHistorico() {
         const invItemF = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
         const isRejF  = !!(invItemF && invItemF.temRejunte);
         const is30F   = !!(invItemF && invItemF.temAlmox30 && !invItemF.temAlmox3);
-        if(cpHistFiltro.podeContarRejunte && isRejF) return true;
-        if(cpHistFiltro.podeContarAlmox30 && is30F) return true;
-        if(cpHistFiltro.podeContarAlmox3 && !isRejF && !is30F) return true;
+        const isSepF  = !!(invItemF && invItemF.temSeparacao);
+        if(cpHistFiltro.podeContarRejunte   && isRejF) return true;
+        if(cpHistFiltro.podeContarSeparacao && isSepF) return true;
+        if(cpHistFiltro.podeContarAlmox30   && is30F) return true;
+        if(cpHistFiltro.podeContarAlmox3    && !isRejF && !is30F && !isSepF) return true;
         return false;
       });
     });
@@ -1684,11 +1721,7 @@ function renderConfHistorico() {
   const visiveis = confHistFiltrado.slice(0, _confHistPagina);
   visiveis.forEach((conf, i) => {
     const qtdItens = Object.keys(conf.itens).length;
-    // Contar divergências
-    let divCount = 0;
-    Object.values(conf.itens).forEach(it => {
-      if(it.dif3 !== 0 || it.dif30 !== 0) divCount++;
-    });
+    // ITEM 9: contador de divergências removido do histórico
 
     const div = document.createElement('div');
     div.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;cursor:pointer;transition:all 0.2s;';
@@ -1709,17 +1742,15 @@ function renderConfHistorico() {
     Object.entries(conf.itens).forEach(([cod, it]) => {
       const invItemH = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
       const isRejH  = !!(invItemH && invItemH.temRejunte);
+      const isSepH  = !!(invItemH && invItemH.temSeparacao);
       const is30H   = !!(invItemH && invItemH.temAlmox30 && !invItemH.temAlmox3);
-      // Determinar quais locais mostrar para este item
-      const mostrar3H  = cpHist.acessoTotal || (isRejH ? cpHist.podeContarRejunte : !is30H && cpHist.podeContarAlmox3);
-      const mostrar30H = cpHist.acessoTotal || (!isRejH && (is30H ? cpHist.podeContarAlmox30 : cpHist.podeContarAlmox30));
+      // Determinar quais locais mostrar para este item (inclui SEPARAÇÃO)
+      const mostrar3H  = cpHist.acessoTotal || (isRejH ? cpHist.podeContarRejunte : isSepH ? cpHist.podeContarSeparacao : !is30H && cpHist.podeContarAlmox3);
+      const mostrar30H = cpHist.acessoTotal || (!isRejH && !isSepH && (is30H ? cpHist.podeContarAlmox30 : cpHist.podeContarAlmox30));
       if(!mostrar3H && !mostrar30H) return; // ocultar item inteiro se sem permissão
-      const lblH3  = isRejH ? 'Rejunte' : 'Almox 3';
-      const cor3H  = isRejH ? 'var(--purple,#7B5EA7)' : 'var(--accent)';
-      const hasDif3  = it.dif3 !== 0;
-      const hasDif30 = it.dif30 !== 0;
-      const cor3  = it.dif3  < 0 ? 'var(--red)' : it.dif3  > 0 ? 'var(--green)' : 'var(--text3)';
-      const cor30 = it.dif30 < 0 ? 'var(--red)' : it.dif30 > 0 ? 'var(--green)' : 'var(--text3)';
+      const lblH3  = isRejH ? 'Rejunte' : isSepH ? 'Separação' : 'Almox 3';
+      const cor3H  = isRejH ? 'var(--purple,#7B5EA7)' : isSepH ? 'var(--orange,#E07B39)' : 'var(--accent)';
+      // ITEM 9: sem variáveis de divergência no histórico
       itensHtml += `<div style="padding:6px 8px;background:var(--bg3);border-radius:5px;font-size:10px;margin-bottom:3px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
           <span style="font-weight:700;color:var(--text)">${cod}</span>
@@ -3121,23 +3152,26 @@ function gerarPDFConferencia(idx) {
   // Regra central de permissões (itens 10, 13)
   const cpPDF = confPerm();
 
-  // Filtrar e mapear itens respeitando permissões
+  // Filtrar e mapear itens respeitando permissões (inclui SEPARAÇÃO)
   const itens = Object.entries(conf.itens).filter(([cod]) => {
     const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
     if(!invItem) return cpPDF.acessoTotal;
     const isRej = !!invItem.temRejunte;
+    const isSep = !!invItem.temSeparacao;
     const is30  = !invItem.temAlmox3 && !!invItem.temAlmox30;
     if(isRej)  return cpPDF.podeContarRejunte;
+    if(isSep)  return cpPDF.podeContarSeparacao;
     if(is30)   return cpPDF.podeContarAlmox30;
     return cpPDF.podeContarAlmox3;
   }).map(([cod, it]) => {
     const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
     const isRej = !!(invItem && invItem.temRejunte);
+    const isSep = !!(invItem && invItem.temSeparacao);
     const is30  = !!(invItem && !invItem.temAlmox3 && invItem.temAlmox30);
-    const lblLocal3 = isRej ? 'Rejunte' : 'Almox 3';
-    const mostrar3  = isRej ? cpPDF.podeContarRejunte  : !is30 && cpPDF.podeContarAlmox3;
-    const mostrar30 = !isRej && cpPDF.podeContarAlmox30;
-    // Ajuste 1: rótulo de unidade no PDF
+    const lblLocal3 = isRej ? 'Rejunte' : isSep ? 'Separação' : 'Almox 3';
+    const mostrar3  = isRej ? cpPDF.podeContarRejunte : isSep ? cpPDF.podeContarSeparacao : !is30 && cpPDF.podeContarAlmox3;
+    const mostrar30 = !isRej && !isSep && cpPDF.podeContarAlmox30;
+    // rótulo de unidade no PDF
     const uPDF = isRej ? 'fardo' : 'sc';
 
     if(mostrar3 && mostrar30){
@@ -3172,12 +3206,16 @@ function gerarPDFConferencia(idx) {
     }
   }).join('');
 
-  // Título dinâmico do PDF (item 13)
-  const tituloPDF = (!cpPDF.podeContarAlmox3 && !cpPDF.podeContarRejunte && cpPDF.podeContarAlmox30)
+  // Título dinâmico do PDF (inclui SEPARAÇÃO)
+  const tituloPDF = (!cpPDF.podeContarAlmox3 && !cpPDF.podeContarRejunte && !cpPDF.podeContarSeparacao && cpPDF.podeContarAlmox30)
     ? 'CONFERÊNCIA FÍSICA - ALMOX 30'
-    : (cpPDF.podeContarRejunte && !cpPDF.podeContarAlmox30 && !cpPDF.acessoTotal)
+    : (cpPDF.podeContarRejunte && cpPDF.podeContarSeparacao && !cpPDF.podeContarAlmox30 && !cpPDF.acessoTotal)
+    ? 'CONFERÊNCIA FÍSICA - REJUNTE / SEPARAÇÃO'
+    : (cpPDF.podeContarRejunte && !cpPDF.podeContarSeparacao && !cpPDF.podeContarAlmox30 && !cpPDF.acessoTotal)
     ? 'CONFERÊNCIA FÍSICA - REJUNTE'
-    : (cpPDF.podeContarAlmox3 && !cpPDF.podeContarAlmox30 && !cpPDF.podeContarRejunte)
+    : (cpPDF.podeContarSeparacao && !cpPDF.podeContarRejunte && !cpPDF.podeContarAlmox30 && !cpPDF.acessoTotal)
+    ? 'CONFERÊNCIA FÍSICA - SEPARAÇÃO'
+    : (cpPDF.podeContarAlmox3 && !cpPDF.podeContarAlmox30 && !cpPDF.podeContarRejunte && !cpPDF.podeContarSeparacao)
     ? 'CONFERÊNCIA FÍSICA - ALMOX 3'
     : 'CONFERÊNCIA FÍSICA DE ESTOQUE';
 
@@ -3241,14 +3279,16 @@ function gerarPDFListaContagem(){
     // Deve estar selecionado
     if(!CONF_ITENS_SEL.has(item.cod)) return false;
     // Filtro de almoxarifado
-    if(almoxFiltro === 'almox3'  && !item.temAlmox3)  return false;
-    if(almoxFiltro === 'almox30' && !item.temAlmox30) return false;
-    if(almoxFiltro === 'rejunte' && !item.temRejunte) return false;
+    if(almoxFiltro === 'almox3'    && !item.temAlmox3)    return false;
+    if(almoxFiltro === 'almox30'   && !item.temAlmox30)   return false;
+    if(almoxFiltro === 'rejunte'   && !item.temRejunte)   return false;
+    if(almoxFiltro === 'separacao' && !item.temSeparacao) return false;
     // Segurança: nunca imprimir item de local sem permissão
     if(!cpL.acessoTotal){
-      if(item.temRejunte  && !cpL.podeContarRejunte)  return false;
-      if(item.temAlmox30 && !item.temAlmox3 && !cpL.podeContarAlmox30) return false;
-      if(!item.temAlmox30 && !item.temRejunte && !cpL.podeContarAlmox3) return false;
+      if(item.temRejunte   && !item.temSeparacao && !cpL.podeContarRejunte)   return false;
+      if(item.temSeparacao && !cpL.podeContarSeparacao)  return false;
+      if(item.temAlmox30  && !item.temAlmox3 && !item.temSeparacao && !cpL.podeContarAlmox30) return false;
+      if(!item.temAlmox30 && !item.temRejunte && !item.temSeparacao && !cpL.podeContarAlmox3) return false;
     }
     // Filtro de pesquisa
     if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return false;
@@ -3306,16 +3346,21 @@ function gerarPDFListaContagem(){
   const labelPerfil = perfil().label || '';
   const agora = new Date();
   const dataHoraStr = agora.toLocaleDateString('pt-BR') + ' ' + agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  // Título dinâmico da lista (item 13)
-  const almoxLabel = (!cpL.podeContarAlmox3 && !cpL.podeContarRejunte && cpL.podeContarAlmox30)
+  // Título dinâmico da lista (inclui SEPARAÇÃO)
+  const almoxLabel = (!cpL.podeContarAlmox3 && !cpL.podeContarRejunte && !cpL.podeContarSeparacao && cpL.podeContarAlmox30)
     ? 'Almox 30'
-    : (cpL.podeContarRejunte && !cpL.podeContarAlmox30 && !cpL.acessoTotal)
+    : (cpL.podeContarRejunte && cpL.podeContarSeparacao && !cpL.podeContarAlmox30 && !cpL.acessoTotal)
+    ? 'Rejunte / Separação'
+    : (cpL.podeContarRejunte && !cpL.podeContarSeparacao && !cpL.podeContarAlmox30 && !cpL.acessoTotal)
     ? 'Rejunte / Área Líquida'
-    : (cpL.podeContarAlmox3 && !cpL.podeContarAlmox30 && !cpL.podeContarRejunte)
+    : (cpL.podeContarSeparacao && !cpL.podeContarRejunte && !cpL.podeContarAlmox30 && !cpL.acessoTotal)
+    ? 'Separação'
+    : (cpL.podeContarAlmox3 && !cpL.podeContarAlmox30 && !cpL.podeContarRejunte && !cpL.podeContarSeparacao)
     ? 'Almox 3'
     : almoxFiltro === 'almox3' ? 'Almox 3'
     : almoxFiltro === 'almox30' ? 'Almox 30'
     : almoxFiltro === 'rejunte' ? 'Rejunte / Área Líquida'
+    : almoxFiltro === 'separacao' ? 'Separação'
     : 'Todos os Almoxarifados';
 
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Lista de Contagem</title>
@@ -3460,6 +3505,8 @@ async function carregarInventarioItens(){
       const temAlmox30 = String(r[3]||'').trim().toUpperCase()==='TRUE';
       // Coluna E = REJUNTE/ÁREA LÍQUIDA (TRUE/FALSE)
       const temRejunte = String(r[4]||'').trim().toUpperCase()==='TRUE';
+      // Coluna F = SEPARAÇÃO (TRUE/FALSE)
+      const temSeparacao = String(r[5]||'').trim().toUpperCase()==='TRUE';
       // Busca saldos numéricos em SALDO_BRUTO (carregado de SALDO+CAPACIDADE) para exibir
       const itemSaldo = SALDO_BRUTO.find(i=>i.cod===cod) || {};
       return {
@@ -3468,6 +3515,7 @@ async function carregarInventarioItens(){
         temAlmox3,
         temAlmox30,
         temRejunte,
+        temSeparacao,
         saldo3: itemSaldo.saldo3 || 0,
         saldo30: itemSaldo.saldo30 || 0,
         min3: itemSaldo.min3 || 0,
@@ -3490,6 +3538,7 @@ async function carregarInventarioItens(){
         temAlmox3: inv.temAlmox3,
         temAlmox30: inv.temAlmox30,
         temRejunte: inv.temRejunte,
+        temSeparacao: inv.temSeparacao,
         saldo3: existente.saldo3 || inv.saldo3 || 0,
         saldo30: existente.saldo30 || inv.saldo30 || 0,
         min3: existente.min3 || inv.min3 || 0,
