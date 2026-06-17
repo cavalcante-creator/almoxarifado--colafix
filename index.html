@@ -3195,25 +3195,28 @@ function gerarPDFConferencia(idx) {
   // Regra central de permissões (itens 10, 13)
   const cpPDF = confPerm();
 
-  // Filtrar e mapear itens respeitando permissões (inclui SEPARAÇÃO)
+  // Filtrar e mapear itens respeitando permissões
+  // Regra: exibir se o perfil tem permissão para PELO MENOS UM dos locais do item
   const itens = Object.entries(conf.itens).filter(([cod]) => {
     const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
     if(!invItem) return cpPDF.acessoTotal;
-    const isRej = !!invItem.temRejunte;
-    const isSep = !!invItem.temSeparacao;
-    const is30  = !invItem.temAlmox3 && !!invItem.temAlmox30;
-    if(isRej)  return cpPDF.podeContarRejunte;
-    if(isSep)  return cpPDF.podeContarSeparacao;
-    if(is30)   return cpPDF.podeContarAlmox30;
-    return cpPDF.podeContarAlmox3;
+    const pA3  = !!invItem.temAlmox3    && cpPDF.podeContarAlmox3;
+    const pA30 = !!invItem.temAlmox30   && cpPDF.podeContarAlmox30;
+    const pRej = !!invItem.temRejunte   && cpPDF.podeContarRejunte;
+    const pSep = !!invItem.temSeparacao && cpPDF.podeContarSeparacao;
+    return cpPDF.acessoTotal || pA3 || pA30 || pRej || pSep;
   }).map(([cod, it]) => {
     const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
     const isRej = !!(invItem && invItem.temRejunte);
     const isSep = !!(invItem && invItem.temSeparacao);
     const is30  = !!(invItem && !invItem.temAlmox3 && invItem.temAlmox30);
     const lblLocal3 = isRej ? 'Rejunte' : isSep ? 'Separação' : 'Almox 3';
-    const mostrar3  = isRej ? cpPDF.podeContarRejunte : isSep ? cpPDF.podeContarSeparacao : !is30 && cpPDF.podeContarAlmox3;
-    const mostrar30 = !isRej && !isSep && cpPDF.podeContarAlmox30;
+    // Mostrar bloco 3 se pode ver almox3, rejunte ou separacao
+    const mostrar3  = (!!invItem?.temAlmox3 && cpPDF.podeContarAlmox3)
+                   || (!!invItem?.temRejunte && cpPDF.podeContarRejunte)
+                   || (!!invItem?.temSeparacao && cpPDF.podeContarSeparacao);
+    // Mostrar bloco 30 apenas se pode ver almox30
+    const mostrar30 = !!invItem?.temAlmox30 && cpPDF.podeContarAlmox30;
     // rótulo de unidade no PDF
     const uPDF = isRej ? 'fardo' : 'sc';
 
@@ -3327,11 +3330,13 @@ function gerarPDFListaContagem(){
     if(almoxFiltro === 'rejunte'   && !item.temRejunte)   return false;
     if(almoxFiltro === 'separacao' && !item.temSeparacao) return false;
     // Segurança: nunca imprimir item de local sem permissão
+    // Regra: exibir se o perfil tem permissão para PELO MENOS UM dos locais do item
     if(!cpL.acessoTotal){
-      if(item.temRejunte   && !item.temSeparacao && !cpL.podeContarRejunte)   return false;
-      if(item.temSeparacao && !cpL.podeContarSeparacao)  return false;
-      if(item.temAlmox30  && !item.temAlmox3 && !item.temSeparacao && !cpL.podeContarAlmox30) return false;
-      if(!item.temAlmox30 && !item.temRejunte && !item.temSeparacao && !cpL.podeContarAlmox3) return false;
+      const pA3  = !!item.temAlmox3    && cpL.podeContarAlmox3;
+      const pA30 = !!item.temAlmox30   && cpL.podeContarAlmox30;
+      const pRej = !!item.temRejunte   && cpL.podeContarRejunte;
+      const pSep = !!item.temSeparacao && cpL.podeContarSeparacao;
+      if(!pA3 && !pA30 && !pRej && !pSep) return false;
     }
     // Filtro de pesquisa
     if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return false;
