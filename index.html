@@ -1817,7 +1817,7 @@ function renderConfHistorico() {
         <div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
           <!-- Melhoria 4: badge de divergência removido -->
-          <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia(${i})">📄 Gerar PDF</button>
+          <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia('${conf.numero}')">📄 Gerar PDF</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:flex-end">
           <div style="font-size:10px;color:var(--text3);line-height:1.4">
@@ -3194,75 +3194,53 @@ function exportCSV(){
 }
 
 // ─── PDF ─────────────────────────────────────────────────────────
-function gerarPDFConferencia(idx) {
-  const conf = CONF_HISTORICO[idx];
-  if(!conf) return;
+function gerarPDFConferencia(num) {
+  const conf = CONF_HISTORICO.find(c => c.numero === num);
+  if(!conf || !conf.itens) return;
 
-  // PDF mostra exatamente os itens contados nesta conferência, sem filtro de permissão
-  // Os dados já foram validados e zerados no momento do salvamento
-  const itens = Object.entries(conf.itens).map(([cod, it]) => {
+  // PDF é fiel ao registro gravado no Sheets: mostra todos os itens e quantidades da conferência
+  const linhas = Object.entries(conf.itens).map(([cod, it]) => {
     const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
-    const isRej = !!(invItem && invItem.temRejunte);
-    const isSep = !!(invItem && invItem.temSeparacao);
-    const is30  = !!(invItem && !invItem.temAlmox3 && invItem.temAlmox30);
-    const lblLocal3 = isRej ? 'Rejunte' : isSep ? 'Separação' : 'Almox 3';
-    // Mostrar bloco 3 se tem quantidade contada no campo almox3
-    const mostrar3  = (it.almox3 > 0) || (it.pal3 > 0) || (it.sac3 > 0);
-    // Mostrar bloco 30 se tem quantidade contada no campo almox30
-    const mostrar30 = (it.almox30 > 0) || (it.pal30 > 0) || (it.sac30 > 0);
-    // rótulo de unidade no PDF
-    const uPDF = isRej ? 'fardo' : 'sc';
-
-    if(mostrar3 && mostrar30){
+    const isRej   = !!(invItem && invItem.temRejunte);
+    const isSep   = !!(invItem && invItem.temSeparacao);
+    const lblA3   = isRej ? 'Rejunte' : isSep ? 'Separação' : 'Almox 3';
+    const uPDF    = isRej ? 'fardo' : 'sc';
+    const nome    = it.nome || (invItem && invItem.name) || '';
+    const tem3    = (it.pal3 > 0) || (it.sac3 > 0) || (it.almox3 > 0);
+    const tem30   = (it.pal30 > 0) || (it.sac30 > 0) || (it.almox30 > 0);
+    if(tem3 && tem30){
       return `<tr>
-        <td rowspan="2"><b>${cod}</b><br><small>${it.nome || ''}</small></td>
-        <td style="text-align:center;background:#fff">${lblLocal3}</td>
-        <td style="text-align:center;background:#fff">${it.pal3 || 0}</td>
-        <td style="text-align:center;background:#fff">${it.sac3 || 0}</td>
-        <td rowspan="2" style="text-align:center;font-weight:700;font-size:14px">${it.total} ${uPDF}</td>
-      </tr>
-      <tr>
+        <td rowspan="2"><b>${cod}</b><br><small>${nome}</small></td>
+        <td style="text-align:center">${lblA3}</td>
+        <td style="text-align:center">${it.pal3||0}</td>
+        <td style="text-align:center">${it.sac3||0}</td>
+        <td rowspan="2" style="text-align:center;font-weight:700">${it.total||0} ${uPDF}</td>
+      </tr><tr>
         <td style="text-align:center;background:#f9f9f9">Almox 30</td>
-        <td style="text-align:center;background:#f9f9f9">${it.pal30 || 0}</td>
-        <td style="text-align:center;background:#f9f9f9">${it.sac30 || 0}</td>
+        <td style="text-align:center;background:#f9f9f9">${it.pal30||0}</td>
+        <td style="text-align:center;background:#f9f9f9">${it.sac30||0}</td>
       </tr>`;
-    } else if(mostrar3){
+    } else if(tem3){
       return `<tr>
-        <td><b>${cod}</b><br><small>${it.nome || ''}</small></td>
-        <td style="text-align:center;background:#fff">${lblLocal3}</td>
-        <td style="text-align:center;background:#fff">${it.pal3 || 0}</td>
-        <td style="text-align:center;background:#fff">${it.sac3 || 0}</td>
-        <td style="text-align:center;font-weight:700;font-size:14px">${it.almox3 || 0} ${uPDF}</td>
+        <td><b>${cod}</b><br><small>${nome}</small></td>
+        <td style="text-align:center">${lblA3}</td>
+        <td style="text-align:center">${it.pal3||0}</td>
+        <td style="text-align:center">${it.sac3||0}</td>
+        <td style="text-align:center;font-weight:700">${it.almox3||0} ${uPDF}</td>
       </tr>`;
-    } else {
+    } else if(tem30){
       return `<tr>
-        <td><b>${cod}</b><br><small>${it.nome || ''}</small></td>
+        <td><b>${cod}</b><br><small>${nome}</small></td>
         <td style="text-align:center;background:#f9f9f9">Almox 30</td>
-        <td style="text-align:center;background:#f9f9f9">${it.pal30 || 0}</td>
-        <td style="text-align:center;background:#f9f9f9">${it.sac30 || 0}</td>
-        <td style="text-align:center;font-weight:700;font-size:14px">${it.almox30 || 0} sc</td>
+        <td style="text-align:center;background:#f9f9f9">${it.pal30||0}</td>
+        <td style="text-align:center;background:#f9f9f9">${it.sac30||0}</td>
+        <td style="text-align:center;font-weight:700">${it.almox30||0} sc</td>
       </tr>`;
     }
+    return '';
   }).join('');
 
-  // Título dinâmico do PDF baseado nos itens realmente contados
-  const temItensA3  = Object.values(conf.itens).some(it => (it.almox3  > 0) || (it.pal3  > 0) || (it.sac3  > 0));
-  const temItensA30 = Object.values(conf.itens).some(it => (it.almox30 > 0) || (it.pal30 > 0) || (it.sac30 > 0));
-  // Verificar tipos dos itens contados para o título
-  const itensContados = Object.keys(conf.itens).map(cod => CONF_ITEMS.find(i=>i.cod===cod) || ITEMS.find(i=>i.cod===cod)).filter(Boolean);
-  const temRejNoConf  = itensContados.some(i => i.temRejunte);
-  const temSepNoConf  = itensContados.some(i => i.temSeparacao);
-  const tituloPDF = (temItensA3 && temItensA30)
-    ? 'CONFERÊNCIA FÍSICA - ALMOX 3 E ALMOX 30'
-    : temItensA30
-    ? 'CONFERÊNCIA FÍSICA - ALMOX 30'
-    : (temRejNoConf && temSepNoConf)
-    ? 'CONFERÊNCIA FÍSICA - REJUNTE / SEPARAÇÃO'
-    : temRejNoConf
-    ? 'CONFERÊNCIA FÍSICA - REJUNTE'
-    : temSepNoConf
-    ? 'CONFERÊNCIA FÍSICA - SEPARAÇÃO'
-    : 'CONFERÊNCIA FÍSICA - ALMOX 3';
+  const tituloPDF = 'CONFERÊNCIA FÍSICA DE ESTOQUE';
 
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Conferência ${conf.numero}</title>
   <style>
@@ -3300,7 +3278,7 @@ function gerarPDFConferencia(idx) {
           <th>Total</th>
         </tr>
       </thead>
-      <tbody>${itens}</tbody>
+      <tbody>${linhas}</tbody>
     </table>
     <script>window.onload=()=>window.print()<\/script>
   </body></html>`;
