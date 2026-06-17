@@ -1008,7 +1008,7 @@ function showPage(id,btn){
   const pg=document.getElementById(id);if(pg)pg.classList.add('active');btn.classList.add('active');
   if(id==='pg-hist'){renderStats();renderHist();}
   if(id==='pg-op'){renderOpOrders();}
-  if(id==='pg-conferencia'){if(CONF_MODO!=='conferencia'){CONF_MODO='selecao';const sc=document.getElementById('confSelCard');const pc=document.getElementById('confPainelConf');if(sc)sc.style.display='block';if(pc)pc.style.display='none';}renderFiltrosRapidosConf();filtrarItensConf();renderConfHistorico();}
+  if(id==='pg-conferencia'){if(CONF_MODO!=='conferencia'){CONF_MODO='selecao';const sc=document.getElementById('confSelCard');const pc=document.getElementById('confPainelConf');if(sc)sc.style.display='block';if(pc)pc.style.display='none';}atualizarSelectsConferencia();renderFiltrosRapidosConf();filtrarItensConf();renderConfHistorico();}
   if(id==='pg-divergencias'){renderDivergencias();renderDivHistorico();}
   if(id==='pg-pendencias'){renderPendencias();}
   if(id==='pg-expedicao'){carregarEmailLog();}
@@ -1233,6 +1233,32 @@ function _desselecionarItensFiltro(termoAnterior){
     if(pertence) CONF_ITENS_SEL.delete(item.cod);
   });
 }
+// Oculta nos selects de almoxarifado as opções que o perfil logado não pode acessar
+function atualizarSelectsConferencia(){
+  const cp = confPerm();
+  // Mapeamento: valor da option -> flag de permissão
+  const permissoes = {
+    'almox3':    cp.acessoTotal || cp.podeContarAlmox3,
+    'almox30':   cp.acessoTotal || cp.podeContarAlmox30,
+    'rejunte':   cp.acessoTotal || cp.podeContarRejunte,
+    'separacao': cp.acessoTotal || cp.podeContarSeparacao
+  };
+  ['confAlmox','confLocal'].forEach(id => {
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    Array.from(sel.options).forEach(opt => {
+      if(opt.value === 'todos') return; // sempre visível
+      const permitido = permissoes[opt.value];
+      opt.style.display = permitido ? '' : 'none';
+      opt.disabled = !permitido;
+    });
+    // Se o valor atual não está mais permitido, resetar para 'todos'
+    if(sel.value !== 'todos' && !permissoes[sel.value]){
+      sel.value = 'todos';
+    }
+  });
+}
+
 function filtrarItensConf(){
   const q = (document.getElementById('confSearch')||{value:''}).value.toLowerCase();
   // Regra central de permissões
