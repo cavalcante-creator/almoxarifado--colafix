@@ -1152,15 +1152,32 @@ function toggleModoCego(){
 // Melhoria 3: retorna a última contagem do item a partir do histórico de conferências
 function ultimaContagemItem(cod){
   if(!CONF_HISTORICO || CONF_HISTORICO.length === 0) return null;
+  const cp = confPerm();
+  // Buscar o item para saber a quais locais ele pertence
+  const invItem = (CONF_ITEMS.length > 0 ? CONF_ITEMS : ITEMS).find(i => i.cod === cod);
   // Percorrer do mais recente para o mais antigo
   for(let i = CONF_HISTORICO.length - 1; i >= 0; i--){
     const conf = CONF_HISTORICO[i];
-    if(conf.itens && conf.itens[cod]){
-      return {
-        data: conf.data || (conf.dataHora ? conf.dataHora.split(' ')[0] : ''),
-        conferente: conf.nomeUsuario || conf.usuario || ''
-      };
-    }
+    if(!conf.itens || !conf.itens[cod]) continue;
+    const c = conf.itens[cod];
+    // Determinar em qual local esta contagem foi feita
+    // Se tem almox3 > 0: pode ser Almox3, Rejunte ou Separação (todos usam o campo almox3)
+    // Se tem almox30 > 0: foi no Almox 30
+    const foiAlmox3    = (c.almox3 > 0) && invItem && invItem.temAlmox3    && !invItem.temRejunte && !invItem.temSeparacao;
+    const foiAlmox30   = (c.almox30 > 0) && invItem && invItem.temAlmox30;
+    const foiRejunte   = (c.almox3 > 0) && invItem && invItem.temRejunte;
+    const foiSeparacao = (c.almox3 > 0) && invItem && invItem.temSeparacao && !invItem.temRejunte;
+    // Verificar se o perfil atual tem permissão para ver este local
+    const podeVer = cp.acessoTotal
+      || (foiAlmox3    && cp.podeContarAlmox3)
+      || (foiAlmox30   && cp.podeContarAlmox30)
+      || (foiRejunte   && cp.podeContarRejunte)
+      || (foiSeparacao && cp.podeContarSeparacao);
+    if(!podeVer) continue;
+    return {
+      data: conf.data || (conf.dataHora ? conf.dataHora.split(' ')[0] : ''),
+      conferente: conf.nomeUsuario || conf.usuario || ''
+    };
   }
   return null;
 }
@@ -1283,18 +1300,14 @@ function filtrarItensConf(){
     if(almoxFiltro === 'rejunte'    && !item.temRejunte)    return;
     if(almoxFiltro === 'separacao'  && !item.temSeparacao)  return;
     // Segurança: nunca exibir item de local sem permissão
+    // Regra: verificar se o perfil tem permissão para PELO MENOS UM dos locais do item
     if(!cp.acessoTotal){
-      // Itens de REJUNTE: só quem pode contar rejunte
-      if(item.temRejunte   && !cp.podeContarRejunte)   return;
-      // Itens de SEPARAÇÃO: só quem pode contar separação
-      if(item.temSeparacao && !cp.podeContarSeparacao) return;
-      // Itens exclusivos do Almox 30: só quem pode contar almox30
-      if(item.temAlmox30 && !item.temAlmox3 && !item.temRejunte && !item.temSeparacao && !cp.podeContarAlmox30) return;
-      // Itens do Almox 3 puro: só quem pode contar almox3
-      if(!item.temAlmox30 && !item.temRejunte && !item.temSeparacao && !cp.podeContarAlmox3) return;
-      // Itens que pertencem ao Almox 3 E Almox 30 (ambos): bloquear se não tem nenhuma das permissões
-      if(item.temAlmox3 && item.temAlmox30 && !item.temRejunte && !item.temSeparacao
-         && !cp.podeContarAlmox3 && !cp.podeContarAlmox30) return;
+      const temPermAlmox3    = item.temAlmox3    && cp.podeContarAlmox3;
+      const temPermAlmox30   = item.temAlmox30   && cp.podeContarAlmox30;
+      const temPermRejunte   = item.temRejunte   && cp.podeContarRejunte;
+      const temPermSeparacao = item.temSeparacao && cp.podeContarSeparacao;
+      // Se o item não pertence a nenhum local com permissão, ocultar
+      if(!temPermAlmox3 && !temPermAlmox30 && !temPermRejunte && !temPermSeparacao) return;
     }
     if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return;
     // Filtro COLAFIX: exclui itens que contenham BAUTECH, POZOSUL, PY ou UY na descrição
@@ -1482,16 +1495,20 @@ function renderConferencia(){
     // ITEM 7: coloração de divergência removida do card de conferência
 
     // Regra central: quais blocos este item/perfil pode ver e lançar
-    const isRejunte     = !!item.temRejunte;
-    const isSeparacao   = !!item.temSeparacao;
-    const isAlmox30Only = !item.temAlmox3 && !!item.temAlmox30 && !isSeparacao && !isRejunte;
-    // Bloco 3 (Almox 3 / Rejunte / Separação): mostrar conforme tipo e permissão
-    const mostrarBloco3 = isRejunte   ? cp.podeContarRejunte
-                        : isSeparacao ? cp.podeContarSeparacao
-                        : !isAlmox30Only && cp.podeContarAlmox3;
-    // Bloco 30 (Almox 30): nunca para Rejunte/Separação
-    const mostrarBloco30 = !isRejunte && !isSeparacao && cp.podeContarAlmox30;
-    // Rótulo dinâmico do local
+    // Cada bloco é mostrado se o item PERTENCE ao local E o perfil TEM permissão
+    // Bloco 3 = Almox 3 (quando item tem temAlmox3) OU Rejunte (quando tem temRejunte) OU Separação (quando tem temSeparacao)
+    const podeVerAlmox3    = !!item.temAlmox3    && cp.podeContarAlmox3;
+    const podeVerAlmox30   = !!item.temAlmox30   && cp.podeContarAlmox30;
+    const podeVerRejunte   = !!item.temRejunte   && cp.podeContarRejunte;
+    const podeVerSeparacao = !!item.temSeparacao && cp.podeContarSeparacao;
+    // Bloco 3: mostra se pode ver almox3, rejunte ou separacao
+    const mostrarBloco3  = podeVerAlmox3 || podeVerRejunte || podeVerSeparacao;
+    // Bloco 30: mostra apenas se pode ver almox30
+    const mostrarBloco30 = podeVerAlmox30;
+    // Rótulo dinâmico do local (prioridade: rejunte > separacao > almox30 > almox3)
+    const isRejunte   = !!item.temRejunte;
+    const isSeparacao = !!item.temSeparacao;
+    const isAlmox30Only = !!item.temAlmox30 && !item.temAlmox3 && !isRejunte && !isSeparacao;
     const lblLocalCard = localLabel(item);
     const corLocalCard = isRejunte ? 'var(--purple,#7B5EA7)' : isSeparacao ? 'var(--orange,#E07B39)' : isAlmox30Only ? 'var(--green)' : 'var(--accent)';
     const saldoCard3 = item.saldo3;
