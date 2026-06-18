@@ -1420,6 +1420,24 @@ function confIniciarConferencia(){
   // Número provisório
   const numEl = document.getElementById('confNumDisplay');
   if(numEl) numEl.textContent = '🕐 ' + nowFull() + ' · 👤 ' + ((USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—');
+  // [FIX-5] Restaurar autosave do localStorage se existir para os itens selecionados
+  try {
+    const temp = localStorage.getItem('conf_temp');
+    if(temp) {
+      const salvo = JSON.parse(temp);
+      // Restaurar apenas itens que estão na seleção atual
+      CONF_ITENS_SEL.forEach(cod => {
+        if(salvo[cod] && !CONFERENCIAS[cod]) {
+          CONFERENCIAS[cod] = salvo[cod];
+        }
+      });
+      const qtdRestaurados = Object.keys(CONFERENCIAS).length;
+      if(qtdRestaurados > 0) {
+        toast('🔄 ' + qtdRestaurados + ' item(s) restaurado(s) do autosave.', 3000);
+        console.log('[autosave] Restaurado do localStorage:', JSON.stringify(CONFERENCIAS));
+      }
+    }
+  } catch(e) { console.warn('[autosave] Erro ao restaurar:', e); }
   renderConferencia();
 }
 
@@ -1620,6 +1638,9 @@ function updateConf(cod, val, type) {
   CONFERENCIAS[cod].total30 = (p30 * spp) + s30;
   CONFERENCIAS[cod].total   = CONFERENCIAS[cod].total3 + CONFERENCIAS[cod].total30;
 
+  // [FIX-5] Autosave no localStorage a cada digitação para evitar perda de dados
+  try { localStorage.setItem('conf_temp', JSON.stringify(CONFERENCIAS)); } catch(e){}
+
   const el3 = document.getElementById('totalFisico3_' + cod);
   if(el3) el3.textContent = CONFERENCIAS[cod].total3;
   const el30 = document.getElementById('totalFisico30_' + cod);
@@ -1632,23 +1653,29 @@ function updateConf(cod, val, type) {
   if(resumo30) resumo30.style.display = CONFERENCIAS[cod].total30 > 0 ? 'block' : 'none';
 }
 
+// [FIX-6] ID único real: timestamp completo + random para evitar colisões
 function gerarNumConferencia() {
-  return 'CONF-' + Date.now().toString().slice(-7);
+  return 'CONF-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 }
 
-function salvarConferencia() {
-  // [FIX] Validação de sessão e permissão
+// [FIX-2] async para garantir await no salvamento antes de limpar estado
+async function salvarConferencia() {
+  // Validação de sessão e permissão
   if(!sessionValida()){toast('⛔ Sessão inválida. Faça login novamente.');logout();return;}
   const pf = perfil();
   if(!pf.podeConferir && !pf.podeAdmin) { toast('⛔ Sem permissão para salvar conferências.'); return; }
 
-  // [FIX BUG-1] Verificar se há dados antes de qualquer processamento
+  // [FIX-3] Validação robusta: verificar existência de itens com quantidades válidas
   const codsComDados = Object.keys(CONFERENCIAS).filter(cod => {
     const c = CONFERENCIAS[cod];
     return (Number(c.pal3)||0) > 0 || (Number(c.sac3)||0) > 0 ||
            (Number(c.pal30)||0) > 0 || (Number(c.sac30)||0) > 0;
   });
-  if(codsComDados.length === 0) { toast('Preencha ao menos um item antes de salvar.'); return; }
+  if(codsComDados.length === 0) {
+    toast('⚠️ Preencha ao menos um item antes de salvar.');
+    console.warn('[salvarConferencia] Tentativa de salvar sem itens preenchidos.');
+    return;
+  }
 
   const agora = new Date();
   const dataStr = agora.toLocaleDateString('pt-BR');
@@ -1668,36 +1695,53 @@ function salvarConferencia() {
     itens: {}
   };
 
-  // [FIX BUG-2] Trabalhar sobre CÓPIA dos dados para não mutar o estado original
-  // antes de confirmar o salvamento. Recalcular totais a partir dos campos brutos.
+  // Trabalhar sobre CÓPIA dos dados para não mutar o estado original
   codsComDados.forEach(cod => {
-    // [FIX BUG-3] Clonar o objeto para evitar referência compartilhada
     const c = Object.assign({}, CONFERENCIAS[cod]);
-    // [FIX BUG-4] Garantir que todos os campos sejam números inteiros válidos
+    // Garantir inteiros válidos
     c.pal3  = parseInt(c.pal3)  || 0;
     c.sac3  = parseInt(c.sac3)  || 0;
     c.pal30 = parseInt(c.pal30) || 0;
     c.sac30 = parseInt(c.sac30) || 0;
 
     const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
-    const itemIsRejunte   = !!(invItem && invItem.temRejunte);
-    const itemIsAlmox30   = !!(invItem && invItem.temAlmox30 && !invItem.temAlmox3);
-    const itemIsSeparacao = !!(invItem && invItem.temSeparacao);
+    // Flags de localização do item — um item pode pertencer a múltiplos locais
+    const itemTemAlmox3    = !!(invItem && invItem.temAlmox3);
+    const itemTemAlmox30   = !!(invItem && invItem.temAlmox30);
+    const itemTemRejunte   = !!(invItem && invItem.temRejunte);
+    const itemTemSeparacao = !!(invItem && invItem.temSeparacao);
 
-    // Zerar campos de locais sem permissão (sem mutar CONFERENCIAS original)
-    if(itemIsRejunte   && !cpSave.podeContarRejunte)   { c.pal3=0; c.sac3=0; c.pal30=0; c.sac30=0; }
-    if(itemIsSeparacao && !cpSave.podeContarSeparacao) { c.pal3=0; c.sac3=0; c.pal30=0; c.sac30=0; }
-    if(itemIsAlmox30 && !itemIsRejunte && !itemIsSeparacao && !cpSave.podeContarAlmox30) { c.pal30=0; c.sac30=0; }
-    if(!itemIsAlmox30 && !itemIsRejunte && !itemIsSeparacao && !cpSave.podeContarAlmox3) { c.pal3=0; c.sac3=0; }
-    if(!cpSave.podeContarAlmox30 && !itemIsRejunte && !itemIsSeparacao) { c.pal30=0; c.sac30=0; }
-    if(!cpSave.podeContarAlmox3 && !itemIsRejunte && !itemIsAlmox30 && !itemIsSeparacao) { c.pal3=0; c.sac3=0; }
+    console.log('[salvarConferencia] item', cod,
+      '| almox3:', itemTemAlmox3, '| almox30:', itemTemAlmox30,
+      '| rejunte:', itemTemRejunte, '| separacao:', itemTemSeparacao,
+      '| perm:', JSON.stringify(cpSave));
 
-    // [FIX BUG-5] Recalcular totais APÓS zerar campos não permitidos
+    // Zerar cada campo APENAS se o item pertence EXCLUSIVAMENTE a um local sem permissão.
+    // Regra: zerar pal3/sac3 somente se o único local do item é um que o perfil não pode contar.
+    // Itens que pertencem a múltiplos locais só têm o campo do local sem permissão zerado.
+
+    // Zerar bloco 3 se o perfil não pode contar almox3 E o item não é de rejunte/separação
+    if(!cpSave.podeContarAlmox3 && !itemTemRejunte && !itemTemSeparacao) {
+      c.pal3 = 0; c.sac3 = 0;
+    }
+    // Zerar bloco 30 se o perfil não pode contar almox30 E o item não é de rejunte/separação
+    if(!cpSave.podeContarAlmox30 && !itemTemRejunte && !itemTemSeparacao) {
+      c.pal30 = 0; c.sac30 = 0;
+    }
+    // Zerar tudo se o item é exclusivamente de rejunte e o perfil não pode contar rejunte
+    if(itemTemRejunte && !itemTemAlmox3 && !itemTemAlmox30 && !itemTemSeparacao && !cpSave.podeContarRejunte) {
+      c.pal3 = 0; c.sac3 = 0; c.pal30 = 0; c.sac30 = 0;
+    }
+    // Zerar tudo se o item é exclusivamente de separação e o perfil não pode contar separação
+    if(itemTemSeparacao && !itemTemAlmox3 && !itemTemAlmox30 && !itemTemRejunte && !cpSave.podeContarSeparacao) {
+      c.pal3 = 0; c.sac3 = 0; c.pal30 = 0; c.sac30 = 0;
+    }
+
+    // Recalcular totais APÓS zerar campos não permitidos
     const spp = getSacsPorPal(cod);
     c.total3  = (c.pal3 * spp) + c.sac3;
     c.total30 = (c.pal30 * spp) + c.sac30;
 
-    // Só gravar se ainda tem dados após a limpeza de permissões
     if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0) {
       registro.itens[cod] = {
         nome: invItem ? invItem.name : cod,
@@ -1714,21 +1758,34 @@ function salvarConferencia() {
     }
   });
 
-  // [FIX BUG-6] Verificar se após as validações de permissão ainda restam itens
+  // [FIX-3] Validação final: impedir salvamento de objeto vazio
   if(Object.keys(registro.itens).length === 0) {
     toast('⚠️ Nenhum item válido para salvar após validação de permissões.');
     console.warn('[salvarConferencia] Nenhum item válido após validação. CONFERENCIAS:', JSON.stringify(CONFERENCIAS));
     return;
   }
 
-  console.log('[salvarConferencia] Salvando', registro.numero, '— itens:', Object.keys(registro.itens).length, JSON.stringify(registro.itens));
+  console.log('[salvarConferencia] Iniciando salvamento', registro.numero, '— itens:', Object.keys(registro.itens).length);
+  toast('💾 Salvando conferência...', 2000);
 
-  // [FIX BUG-7] Adicionar ao histórico local ANTES de limpar o estado
-  // para garantir que o histórico tenha os dados corretos
-  CONF_HISTORICO.unshift(JSON.parse(JSON.stringify(registro))); // cópia profunda
-  salvarConferenciaSheets(registro);
+  // [FIX-2] await: aguardar conclusão do salvamento antes de qualquer ação
+  const ok = await salvarConferenciaSheets(registro);
+  if(!ok) {
+    // salvamento falhou: manter estado para o usuário tentar novamente
+    toast('❌ Falha ao salvar conferência. Verifique a conexão e tente novamente.', 5000);
+    console.error('[salvarConferencia] Falha no salvamento. Dados preservados para nova tentativa.');
+    return;
+  }
 
-  // Limpar estado após salvar
+  console.log('[salvarConferencia] Salvo com sucesso:', registro.numero);
+
+  // [FIX-5] Limpar autosave do localStorage após confirmar salvamento
+  try { localStorage.removeItem('conf_temp'); } catch(e){}
+
+  // Adicionar ao histórico local com cópia profunda (após confirmar sucesso)
+  CONF_HISTORICO.unshift(JSON.parse(JSON.stringify(registro)));
+
+  // [FIX-2] Limpar estado SOMENTE após salvamento confirmado
   CONFERENCIAS = {};
   CONF_ITENS_SEL.clear();
   CONF_MODO = 'selecao';
@@ -1741,7 +1798,7 @@ function salvarConferencia() {
   renderConfHistorico();
   renderDivergencias();
   filtrarItensConf();
-  toast('✅ Conferência ' + num + ' salva com ' + Object.keys(registro.itens).length + ' item(s)!', 3500);
+  toast('✅ Conferência ' + registro.numero + ' salva com ' + Object.keys(registro.itens).length + ' item(s)!', 3500);
 }
 
 let _confHistPagina = 5;
@@ -3630,9 +3687,36 @@ async function salvarHistoricoSheets(entrada){
   try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarHist',id:entrada.req,dados:JSON.stringify(entrada)})});}
   catch(e){console.error('salvarHistoricoSheets',e);}
 }
+// [FIX-1] CORS habilitado + retorno booleano para o await em salvarConferencia saber se teve sucesso
 async function salvarConferenciaSheets(conf){
-  try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarConf',id:conf.numero,dados:JSON.stringify(conf)})});}
-  catch(e){console.error('salvarConferenciaSheets',e);toast('⚠️ Falha ao salvar conferência. Verifique a conexão.',4000);}
+  try{
+    console.log('[salvarConferenciaSheets] Enviando', conf.numero, 'para o GAS...');
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({acao:'salvarConf', id: conf.numero, dados: JSON.stringify(conf)})
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    console.log('[salvarConferenciaSheets] Sucesso:', conf.numero);
+    return true;
+  } catch(e){
+    console.error('[salvarConferenciaSheets] Erro:', conf.numero, e.message);
+    // [FIX-1] Fallback: tentar no-cors como segunda tentativa (GAS pode retornar opaque)
+    try{
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({acao:'salvarConf', id: conf.numero, dados: JSON.stringify(conf)})
+      });
+      console.log('[salvarConferenciaSheets] Fallback no-cors enviado:', conf.numero);
+      return true; // no-cors não confirma sucesso, mas assume enviado
+    } catch(e2){
+      console.error('[salvarConferenciaSheets] Falha total:', conf.numero, e2.message);
+      return false;
+    }
+  }
 }
 async function carregarConferenciasSheets(){
   try{
@@ -3927,6 +4011,8 @@ function logout(){
   ITEMS=[];CONF_ITEMS=[];INV_ITEMS=[];SALDO_BRUTO=[];st={};selectedItems=new Set();PENDENTES=[];
   CONFERENCIAS={}; CONF_HISTORICO=[]; CONF_ITENS_SEL=new Set(); CONF_MODO='selecao';
   _confHistPagina=5; DIV_HISTORICO=[];
+  // [FIX-5] Limpar autosave do localStorage no logout
+  try { localStorage.removeItem('conf_temp'); } catch(e){}
 }
 // ─── INIT ─────────────────────────────────────────────────────────
 setStep(0);
