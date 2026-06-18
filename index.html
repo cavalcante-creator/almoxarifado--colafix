@@ -671,7 +671,35 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
   <!-- Histórico de Conferências -->
   <div class="card">
-    <div class="card-title">📋 Histórico de Conferências</div>
+    <div class="card-title">📋 Histórico de Conferências
+      <button class="btn" style="margin-left:auto;height:26px;padding:0 10px;font-size:10px" onclick="confHistLimparFiltros()">✕ Limpar filtros</button>
+    </div>
+    <!-- Filtros do histórico de conferências -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end" id="confHistFiltrosBar">
+      <div class="fld" style="flex:1;min-width:140px">
+        <label>Buscar (nº / conferente)</label>
+        <input type="text" id="confHistBusca" placeholder="🔍 Buscar..." oninput="renderConfHistorico()" style="height:30px;font-size:11px">
+      </div>
+      <div class="fld" style="width:140px">
+        <label>Local / Almox</label>
+        <select id="confHistLocal" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+          <option value="">Todos</option>
+          <option value="almox3">Almox 3</option>
+          <option value="almox30">Almox 30</option>
+          <option value="rejunte">Rejunte / Área Líquida</option>
+          <option value="separacao">Separação</option>
+        </select>
+      </div>
+      <div class="fld" style="width:130px">
+        <label>Data inicial</label>
+        <input type="date" id="confHistDtInicio" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+      </div>
+      <div class="fld" style="width:130px">
+        <label>Data final</label>
+        <input type="date" id="confHistDtFim" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+      </div>
+      <div style="font-size:10px;color:var(--text3);padding-bottom:2px" id="confHistContador"></div>
+    </div>
     <div id="confHistEmpty" style="text-align:center;padding:30px 0;color:var(--text3)">
       <div style="font-size:28px;margin-bottom:8px;opacity:.3">📦</div>
       Nenhuma conferência salva ainda
@@ -1685,6 +1713,16 @@ async function salvarConferencia() {
   const idUsuario = (USUARIO_LOGADO && USUARIO_LOGADO.perfil) || '—';
 
   const cpSave = confPerm();
+  // [FIX-PDF-LOCAL] Determinar o local predominante para salvar no registro
+  const localSalvo = (() => {
+    if(!cpSave.acessoTotal){
+      if(cpSave.podeContarRejunte && !cpSave.podeContarAlmox30 && !cpSave.podeContarAlmox3) return 'Rejunte / Área Líquida';
+      if(cpSave.podeContarSeparacao && !cpSave.podeContarAlmox30 && !cpSave.podeContarAlmox3) return 'Separação';
+      if(cpSave.podeContarAlmox30 && !cpSave.podeContarAlmox3) return 'Almox 30';
+      if(cpSave.podeContarAlmox3 && !cpSave.podeContarAlmox30) return 'Almox 3';
+    }
+    return 'Todos';
+  })();
   const registro = {
     numero: num,
     data: dataStr,
@@ -1692,6 +1730,7 @@ async function salvarConferencia() {
     dataHora: dataStr + ' ' + horaStr,
     usuario: idUsuario,
     nomeUsuario: nomeUsuario,
+    local: localSalvo,
     itens: {}
   };
 
@@ -1778,11 +1817,13 @@ async function salvarConferencia() {
   }
 
   console.log('[salvarConferencia] Salvo com sucesso:', registro.numero);
+  console.log('[salvarConferencia] PDF gerado a partir de:', JSON.stringify({numero:registro.numero,itens:Object.keys(registro.itens).length,local:registro.local}));
 
   // [FIX-5] Limpar autosave do localStorage após confirmar salvamento
   try { localStorage.removeItem('conf_temp'); } catch(e){}
 
   // Adicionar ao histórico local com cópia profunda (após confirmar sucesso)
+  console.log('[salvarConferencia] Registro salvo:', JSON.stringify({numero:registro.numero,data:registro.dataHora,itens:Object.keys(registro.itens).length,local:registro.local}));
   CONF_HISTORICO.unshift(JSON.parse(JSON.stringify(registro)));
 
   // [FIX-2] Limpar estado SOMENTE após salvamento confirmado
@@ -1796,6 +1837,7 @@ async function salvarConferencia() {
 
   IS_EDITING = false;
   renderConfHistorico();
+  console.log('[salvarConferencia] Histórico atualizado:', CONF_HISTORICO.length, 'conferências em memória');
   renderDivergencias();
   filtrarItensConf();
   toast('✅ Conferência ' + registro.numero + ' salva com ' + Object.keys(registro.itens).length + ' item(s)!', 3500);
@@ -1806,25 +1848,69 @@ function verMaisConfHistorico(){
   _confHistPagina += 5;
   renderConfHistorico();
 }
+function confHistLimparFiltros(){
+  const b=document.getElementById('confHistBusca'); if(b) b.value='';
+  const l=document.getElementById('confHistLocal'); if(l) l.value='';
+  const di=document.getElementById('confHistDtInicio'); if(di) di.value='';
+  const df=document.getElementById('confHistDtFim'); if(df) df.value='';
+  _confHistPagina=5;
+  renderConfHistorico();
+}
+// [FIX-HIST] Verificar se uma conferência contém item de um determinado local
+function confItemPertenceLocal(conf, local){
+  if(!local) return true;
+  return Object.keys(conf.itens||{}).some(cod=>{
+    const inv = CONF_ITEMS.find(i=>i.cod===cod)||ITEMS.find(i=>i.cod===cod);
+    if(local==='almox3')  return !!(inv&&inv.temAlmox3&&!inv.temRejunte&&!inv.temSeparacao);
+    if(local==='almox30') return !!(inv&&inv.temAlmox30);
+    if(local==='rejunte') return !!(inv&&inv.temRejunte);
+    if(local==='separacao') return !!(inv&&inv.temSeparacao);
+    return true;
+  });
+}
+// [FIX-HIST] Converter data pt-BR "DD/MM/AAAA" para Date para comparação
+function parseDateBR(str){
+  if(!str) return null;
+  const parts = str.split(' ')[0].split('/');
+  if(parts.length===3) return new Date(parts[2],parts[1]-1,parts[0]);
+  return null;
+}
 function renderConfHistorico() {
   const list = document.getElementById('confHistList');
   const empty = document.getElementById('confHistEmpty');
+  const contador = document.getElementById('confHistContador');
   if(!list) return;
   console.log('[renderConfHistorico] Total em memória:', CONF_HISTORICO.length);
-  if(CONF_HISTORICO.length === 0) {
+  // [FIX] Validar registros do histórico antes de renderizar
+  const historicValid = CONF_HISTORICO.filter(c=>{
+    if(!c || !c.numero) return false;
+    if(!c.itens || typeof c.itens !== 'object') { console.warn('[renderConfHistorico] Registro sem itens:', c.numero); return false; }
+    if(Object.keys(c.itens).length === 0) { console.warn('[renderConfHistorico] Registro com itens vazios:', c.numero); return false; }
+    return true;
+  });
+  if(historicValid.length === 0) {
     empty.style.display = 'block';
     list.innerHTML = '';
+    if(contador) contador.textContent='';
     return;
   }
     empty.style.display = 'none';
   list.innerHTML = '';
 
+  // Leitura dos filtros da UI
+  const busca = ((document.getElementById('confHistBusca')||{}).value||'').toLowerCase().trim();
+  const localFiltro = (document.getElementById('confHistLocal')||{}).value||'';
+  const dtInicioStr = (document.getElementById('confHistDtInicio')||{}).value||'';
+  const dtFimStr = (document.getElementById('confHistDtFim')||{}).value||'';
+  const dtInicio = dtInicioStr ? new Date(dtInicioStr) : null;
+  const dtFim   = dtFimStr   ? new Date(dtFimStr+'T23:59:59') : null;
+
   // Correção 2: filtrar histórico por permissão de almoxarifado do conferente logado
   const cpHistFiltro = confPerm();
   const nomeLogado = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '';
-  let confHistFiltrado = CONF_HISTORICO;
+  let confHistFiltrado = historicValid;
   if(!cpHistFiltro.acessoTotal) {
-    confHistFiltrado = CONF_HISTORICO.filter(conf => {
+    confHistFiltrado = historicValid.filter(conf => {
       // Sempre exibe conferências realizadas pelo próprio usuário
       if(conf.nomeUsuario === nomeLogado || conf.usuario === nomeLogado) return true;
       // Verifica se a conferência contém ao menos um item do almoxarifado autorizado
@@ -1843,10 +1929,38 @@ function renderConfHistorico() {
   }
 
   console.log('[renderConfHistorico] Após filtro de permissão:', confHistFiltrado.length, 'de', CONF_HISTORICO.length);
+
+  // [FIX-HIST] Aplicar filtros de busca, local e data
+  if(busca){
+    confHistFiltrado = confHistFiltrado.filter(conf =>
+      (conf.numero||'').toLowerCase().includes(busca) ||
+      (conf.nomeUsuario||'').toLowerCase().includes(busca) ||
+      (conf.usuario||'').toLowerCase().includes(busca) ||
+      Object.keys(conf.itens||{}).some(cod=>cod.toLowerCase().includes(busca)) ||
+      Object.values(conf.itens||{}).some(it=>(it.nome||'').toLowerCase().includes(busca))
+    );
+  }
+  if(localFiltro){
+    confHistFiltrado = confHistFiltrado.filter(conf => confItemPertenceLocal(conf, localFiltro));
+  }
+  if(dtInicio || dtFim){
+    confHistFiltrado = confHistFiltrado.filter(conf => {
+      const dt = parseDateBR(conf.data || conf.dataHora);
+      if(!dt) return true; // sem data: não filtrar
+      if(dtInicio && dt < dtInicio) return false;
+      if(dtFim   && dt > dtFim)    return false;
+      return true;
+    });
+  }
+
+  if(contador) contador.textContent = confHistFiltrado.length + ' conferência(s)' + (busca||localFiltro||dtInicio||dtFim?' (filtrado)':'');
+
   if(confHistFiltrado.length === 0) {
     empty.style.display = 'block';
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:11px">Nenhuma conferência encontrada para os filtros aplicados.</div>';
     return;
   }
+  empty.style.display = 'none';
 
   const visiveis = confHistFiltrado.slice(0, _confHistPagina);
   visiveis.forEach((conf, i) => {
@@ -1897,6 +2011,7 @@ function renderConfHistorico() {
       <div style="display:flex;flex-direction:column;gap:4px">
         <div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
+          ${conf.local ? `<span style="font-size:10px;background:var(--accent-dim);color:var(--accent);border-radius:4px;padding:1px 7px;font-weight:700">📍 ${conf.local}</span>` : ''}
           <!-- Melhoria 4: badge de divergência removido -->
           <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia('${conf.numero}')">📄 Gerar PDF</button>
         </div>
@@ -3334,6 +3449,25 @@ function gerarPDFConferencia(num) {
 
   const tituloPDF = 'CONFERÊNCIA FÍSICA DE ESTOQUE';
 
+  // [FIX-PDF] Determinar o local correto a partir dos itens salvos na conferência
+  const locaisPDF = new Set();
+  Object.keys(conf.itens||{}).forEach(cod=>{
+    const inv = CONF_ITEMS.find(i=>i.cod===cod)||ITEMS.find(i=>i.cod===cod);
+    if(inv){
+      if(inv.temRejunte)   locaisPDF.add('Rejunte / Área Líquida');
+      else if(inv.temSeparacao) locaisPDF.add('Separação');
+      else if(inv.temAlmox30 && !inv.temAlmox3) locaisPDF.add('Almox 30');
+      else if(inv.temAlmox3)  locaisPDF.add('Almox 3');
+    } else {
+      // fallback: verificar dados salvos
+      const it = conf.itens[cod];
+      if((it.pal30>0||it.sac30>0||it.almox30>0) && !(it.pal3>0||it.sac3>0||it.almox3>0)) locaisPDF.add('Almox 30');
+      else locaisPDF.add('Almox 3');
+    }
+  });
+  const localPDFLabel = locaisPDF.size > 0 ? Array.from(locaisPDF).join(' + ') : 'Almoxarifado';
+  console.log('[gerarPDF] Local calculado:', localPDFLabel, '— locais:', Array.from(locaisPDF));
+
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Conferência ${conf.numero}</title>
   <style>
     body{font-family:'Segoe UI',sans-serif;margin:36px;color:#1C1C1A;font-size:12px}
@@ -3355,10 +3489,12 @@ function gerarPDFConferencia(num) {
     <div style="text-align:center;margin-bottom:12px"><div style="font-size:24px">🔍</div></div>
     <h1>${tituloPDF}</h1>
     <h2>Relatório de Contagem Física</h2>
-    <div class="ctr"><div class="rn">${conf.numero}</div></div><hr>
+    <div class="ctr"><div class="rn">${conf.numero} — ${localPDFLabel}</div></div><hr>
     <div class="info">
       <div class="ibox"><div class="l">Data e Hora</div><div class="v">${conf.dataHora}</div></div>
       <div class="ibox"><div class="l">Usuário Responsável</div><div class="v">${conf.nomeUsuario || conf.usuario}</div></div>
+      <div class="ibox"><div class="l">Local</div><div class="v">${localPDFLabel}</div></div>
+      <div class="ibox"><div class="l">Total de Itens</div><div class="v">${Object.keys(conf.itens).length}</div></div>
     </div>
     <table>
       <thead>
@@ -3377,6 +3513,8 @@ function gerarPDFConferencia(num) {
   const blob = new Blob([html], {type:'text/html'});
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
+  console.log('[gerarPDF] PDF de conferência gerado com sucesso:', conf.numero, '— local:', localPDFLabel, '— itens:', Object.keys(conf.itens).length);
+  toast('📄 PDF gerado para ' + conf.numero);
 }
 
 // PDF de lista de contagem em branco (para anotação manual)
@@ -3641,6 +3779,7 @@ async function carregarInventarioItens(){
     });
     // CONF_ITEMS: todos os itens do INVENTARIO_ITENS (Alteração 4)
     CONF_ITEMS = parsed;
+    console.log('[carregarInventarioItens] Itens carregados:', CONF_ITEMS.length);
     // INV_ITEMS: todos os itens do INVENTARIO_ITENS para uso em requisições/transferências
     INV_ITEMS = parsed;
     // Alteração 2: ITEMS (Estoque) = apenas itens com ALMOX3=TRUE E ALMOX30=TRUE
@@ -3731,7 +3870,25 @@ async function carregarConferenciasSheets(){
     // [FIX BUG-8] Merge inteligente: dados do Sheets têm prioridade sobre dados locais
     // Atualiza registros existentes e adiciona novos
     loaded.forEach(conf=>{
-      if(!conf.numero || !conf.itens) return; // ignorar registros inválidos
+      // [FIX-INTEG] Validação completa antes de aceitar no histórico
+      if(!conf || !conf.numero) { console.warn('[carregarConferencias] Ignorando registro sem número'); return; }
+      if(!conf.itens || typeof conf.itens !== 'object') { console.warn('[carregarConferencias] Ignorando registro sem itens:', conf.numero); return; }
+      // Garantir que os valores dos itens sejam numéricos (evitar NaN/undefined)
+      Object.keys(conf.itens).forEach(cod=>{
+        const it = conf.itens[cod];
+        it.pal3  = parseInt(it.pal3)  || 0;
+        it.sac3  = parseInt(it.sac3)  || 0;
+        it.pal30 = parseInt(it.pal30) || 0;
+        it.sac30 = parseInt(it.sac30) || 0;
+        it.almox3  = parseInt(it.almox3)  || 0;
+        it.almox30 = parseInt(it.almox30) || 0;
+        it.total   = parseInt(it.total)   || (it.almox3 + it.almox30);
+        it.saldoSistema3  = parseInt(it.saldoSistema3)  || 0;
+        it.saldoSistema30 = parseInt(it.saldoSistema30) || 0;
+        it.dif3  = parseInt(it.dif3)  || 0;
+        it.dif30 = parseInt(it.dif30) || 0;
+        if(!it.nome) it.nome = cod;
+      });
       const idx = CONF_HISTORICO.findIndex(c=>c.numero===conf.numero);
       if(idx >= 0){
         // [FIX] Substituir registro local pelo do Sheets (fonte de verdade)
@@ -3740,13 +3897,19 @@ async function carregarConferenciasSheets(){
         CONF_HISTORICO.push(conf);
       }
     });
-    // Ordenar por data/hora desc
+    // [FIX-SORT] Ordenar por data/hora desc — suporta formato pt-BR "DD/MM/AAAA HH:MM:SS"
     CONF_HISTORICO.sort((a,b)=>{
-      const da=new Date((a.dataHora||'').split(' ').reverse().join('T')||0);
-      const db=new Date((b.dataHora||'').split(' ').reverse().join('T')||0);
-      return db-da;
+      const parsePtBR = s => {
+        if(!s) return 0;
+        // Tenta formato "DD/MM/AAAA HH:MM:SS"
+        const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+        if(m) return new Date(m[3],m[2]-1,m[1],m[4],m[5]).getTime();
+        return new Date(s).getTime() || 0;
+      };
+      return parsePtBR(b.dataHora||b.data) - parsePtBR(a.dataHora||a.data);
     });
     console.log('[carregarConferencias] Total em memória após merge:', CONF_HISTORICO.length);
+    console.log('[carregarConferencias] Histórico atualizado:', CONF_HISTORICO.map(c=>c.numero+' ('+c.dataHora+')').join(' | '));
     renderConfHistorico();
     renderDivergencias();
   }catch(e){console.warn('[carregarConferencias] Erro:',e);}
