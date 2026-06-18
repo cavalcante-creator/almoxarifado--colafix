@@ -1605,13 +1605,20 @@ function confRemoverItem(cod){
 
 function updateConf(cod, val, type) {
   IS_EDITING=true; // Melhoria 5: bloqueia polling enquanto edita
-  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3: 0, sac3: 0, total3: 0, pal30: 0, sac30: 0, total30: 0 };
-  CONFERENCIAS[cod][type] = parseInt(val) || 0;
+  // [FIX BUG-10] Garantir inicialização completa do objeto com todos os campos necessários
+  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3: 0, sac3: 0, total3: 0, pal30: 0, sac30: 0, total30: 0, total: 0 };
+  // [FIX] Garantir que o valor seja sempre um inteiro válido (não NaN, não string)
+  const valInt = Math.max(0, parseInt(val) || 0);
+  CONFERENCIAS[cod][type] = valInt;
   const spp = getSacsPorPal(cod);
-  
-  CONFERENCIAS[cod].total3 = (CONFERENCIAS[cod].pal3 * spp) + CONFERENCIAS[cod].sac3;
-  CONFERENCIAS[cod].total30 = (CONFERENCIAS[cod].pal30 * spp) + CONFERENCIAS[cod].sac30;
-  CONFERENCIAS[cod].total = CONFERENCIAS[cod].total3;
+  // [FIX] Recalcular totais garantindo que todos os campos sejam números
+  const p3  = parseInt(CONFERENCIAS[cod].pal3)  || 0;
+  const s3  = parseInt(CONFERENCIAS[cod].sac3)  || 0;
+  const p30 = parseInt(CONFERENCIAS[cod].pal30) || 0;
+  const s30 = parseInt(CONFERENCIAS[cod].sac30) || 0;
+  CONFERENCIAS[cod].total3  = (p3 * spp) + s3;
+  CONFERENCIAS[cod].total30 = (p30 * spp) + s30;
+  CONFERENCIAS[cod].total   = CONFERENCIAS[cod].total3 + CONFERENCIAS[cod].total30;
 
   const el3 = document.getElementById('totalFisico3_' + cod);
   if(el3) el3.textContent = CONFERENCIAS[cod].total3;
@@ -1630,15 +1637,19 @@ function gerarNumConferencia() {
 }
 
 function salvarConferencia() {
+  // [FIX] Validação de sessão e permissão
   if(!sessionValida()){toast('⛔ Sessão inválida. Faça login novamente.');logout();return;}
   const pf = perfil();
   if(!pf.podeConferir && !pf.podeAdmin) { toast('⛔ Sem permissão para salvar conferências.'); return; }
-  const temDados = Object.keys(CONFERENCIAS).some(cod => {
+
+  // [FIX BUG-1] Verificar se há dados antes de qualquer processamento
+  const codsComDados = Object.keys(CONFERENCIAS).filter(cod => {
     const c = CONFERENCIAS[cod];
-    return (c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0);
+    return (Number(c.pal3)||0) > 0 || (Number(c.sac3)||0) > 0 ||
+           (Number(c.pal30)||0) > 0 || (Number(c.sac30)||0) > 0;
   });
-  if(!temDados) { toast('Preencha ao menos um item antes de salvar.'); return; }
-  
+  if(codsComDados.length === 0) { toast('Preencha ao menos um item antes de salvar.'); return; }
+
   const agora = new Date();
   const dataStr = agora.toLocaleDateString('pt-BR');
   const horaStr = agora.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -1646,7 +1657,7 @@ function salvarConferencia() {
   const nomeUsuario = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
   const idUsuario = (USUARIO_LOGADO && USUARIO_LOGADO.perfil) || '—';
 
-  const cpSaveReg = confPerm();
+  const cpSave = confPerm();
   const registro = {
     numero: num,
     data: dataStr,
@@ -1654,55 +1665,67 @@ function salvarConferencia() {
     dataHora: dataStr + ' ' + horaStr,
     usuario: idUsuario,
     nomeUsuario: nomeUsuario,
-    // Permissões de local gravadas para filtrar corretamente o PDF
-    permAlmox3:    cpSaveReg.acessoTotal || cpSaveReg.podeContarAlmox3,
-    permAlmox30:   cpSaveReg.acessoTotal || cpSaveReg.podeContarAlmox30,
-    permRejunte:   cpSaveReg.acessoTotal || cpSaveReg.podeContarRejunte,
-    permSeparacao: cpSaveReg.acessoTotal || cpSaveReg.podeContarSeparacao,
     itens: {}
   };
-  
-  // Item 5: validar permissões antes de salvar — zerar dados de locais não autorizados
-  const cpSave = confPerm();
-  Object.keys(CONFERENCIAS).forEach(cod => {
-    const c = CONFERENCIAS[cod];
+
+  // [FIX BUG-2] Trabalhar sobre CÓPIA dos dados para não mutar o estado original
+  // antes de confirmar o salvamento. Recalcular totais a partir dos campos brutos.
+  codsComDados.forEach(cod => {
+    // [FIX BUG-3] Clonar o objeto para evitar referência compartilhada
+    const c = Object.assign({}, CONFERENCIAS[cod]);
+    // [FIX BUG-4] Garantir que todos os campos sejam números inteiros válidos
+    c.pal3  = parseInt(c.pal3)  || 0;
+    c.sac3  = parseInt(c.sac3)  || 0;
+    c.pal30 = parseInt(c.pal30) || 0;
+    c.sac30 = parseInt(c.sac30) || 0;
+
     const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
-    // Determinar local do item
     const itemIsRejunte   = !!(invItem && invItem.temRejunte);
     const itemIsAlmox30   = !!(invItem && invItem.temAlmox30 && !invItem.temAlmox3);
     const itemIsSeparacao = !!(invItem && invItem.temSeparacao);
-    // Zerar campos não permitidos
-    // REJUNTE: zerar tudo se sem permissão
-    if(itemIsRejunte   && !cpSave.podeContarRejunte)   { c.pal3=0; c.sac3=0; c.total3=0; c.pal30=0; c.sac30=0; c.total30=0; }
-    // SEPARAÇÃO: zerar tudo se sem permissão
-    if(itemIsSeparacao && !cpSave.podeContarSeparacao) { c.pal3=0; c.sac3=0; c.total3=0; c.pal30=0; c.sac30=0; c.total30=0; }
-    // ALMOX 30 exclusivo: zerar almox30 se sem permissão
-    if(itemIsAlmox30 && !itemIsRejunte && !itemIsSeparacao && !cpSave.podeContarAlmox30) { c.pal30=0; c.sac30=0; c.total30=0; }
-    // ALMOX 3 puro: zerar almox3 se sem permissão
-    if(!itemIsAlmox30 && !itemIsRejunte && !itemIsSeparacao && !cpSave.podeContarAlmox3) { c.pal3=0; c.sac3=0; c.total3=0; }
-    // Zerar almox30 se perfil não tem permissão (para itens que pertencem aos dois almoxs)
-    if(!cpSave.podeContarAlmox30 && !itemIsRejunte && !itemIsSeparacao) { c.pal30=0; c.sac30=0; c.total30=0; }
-    // Zerar almox3 se perfil não tem permissão (para itens que pertencem aos dois almoxs)
-    if(!cpSave.podeContarAlmox3 && !itemIsRejunte && !itemIsAlmox30 && !itemIsSeparacao) { c.pal3=0; c.sac3=0; c.total3=0; }
 
+    // Zerar campos de locais sem permissão (sem mutar CONFERENCIAS original)
+    if(itemIsRejunte   && !cpSave.podeContarRejunte)   { c.pal3=0; c.sac3=0; c.pal30=0; c.sac30=0; }
+    if(itemIsSeparacao && !cpSave.podeContarSeparacao) { c.pal3=0; c.sac3=0; c.pal30=0; c.sac30=0; }
+    if(itemIsAlmox30 && !itemIsRejunte && !itemIsSeparacao && !cpSave.podeContarAlmox30) { c.pal30=0; c.sac30=0; }
+    if(!itemIsAlmox30 && !itemIsRejunte && !itemIsSeparacao && !cpSave.podeContarAlmox3) { c.pal3=0; c.sac3=0; }
+    if(!cpSave.podeContarAlmox30 && !itemIsRejunte && !itemIsSeparacao) { c.pal30=0; c.sac30=0; }
+    if(!cpSave.podeContarAlmox3 && !itemIsRejunte && !itemIsAlmox30 && !itemIsSeparacao) { c.pal3=0; c.sac3=0; }
+
+    // [FIX BUG-5] Recalcular totais APÓS zerar campos não permitidos
+    const spp = getSacsPorPal(cod);
+    c.total3  = (c.pal3 * spp) + c.sac3;
+    c.total30 = (c.pal30 * spp) + c.sac30;
+
+    // Só gravar se ainda tem dados após a limpeza de permissões
     if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0) {
-      const item = invItem;
       registro.itens[cod] = {
-        nome: item ? item.name : cod,
-        almox3: c.total3,
+        nome: invItem ? invItem.name : cod,
+        almox3:  c.total3,
         almox30: c.total30,
-        total: c.total3 + c.total30,
-        pal3: c.pal3, sac3: c.sac3,
+        total:   c.total3 + c.total30,
+        pal3:  c.pal3,  sac3:  c.sac3,
         pal30: c.pal30, sac30: c.sac30,
-        saldoSistema3: item ? item.saldo3 : 0,
-        saldoSistema30: item ? item.saldo30 : 0,
-        dif3: c.total3 - (item ? item.saldo3 : 0),
-        dif30: c.total30 - (item ? item.saldo30 : 0)
+        saldoSistema3:  invItem ? (invItem.saldo3  || 0) : 0,
+        saldoSistema30: invItem ? (invItem.saldo30 || 0) : 0,
+        dif3:  c.total3  - (invItem ? (invItem.saldo3  || 0) : 0),
+        dif30: c.total30 - (invItem ? (invItem.saldo30 || 0) : 0)
       };
     }
   });
-  
-  CONF_HISTORICO.unshift(registro);
+
+  // [FIX BUG-6] Verificar se após as validações de permissão ainda restam itens
+  if(Object.keys(registro.itens).length === 0) {
+    toast('⚠️ Nenhum item válido para salvar após validação de permissões.');
+    console.warn('[salvarConferencia] Nenhum item válido após validação. CONFERENCIAS:', JSON.stringify(CONFERENCIAS));
+    return;
+  }
+
+  console.log('[salvarConferencia] Salvando', registro.numero, '— itens:', Object.keys(registro.itens).length, JSON.stringify(registro.itens));
+
+  // [FIX BUG-7] Adicionar ao histórico local ANTES de limpar o estado
+  // para garantir que o histórico tenha os dados corretos
+  CONF_HISTORICO.unshift(JSON.parse(JSON.stringify(registro))); // cópia profunda
   salvarConferenciaSheets(registro);
 
   // Limpar estado após salvar
@@ -1714,11 +1737,11 @@ function salvarConferencia() {
   if(selCard) selCard.style.display = 'block';
   if(painelConf) painelConf.style.display = 'none';
 
-  IS_EDITING=false; // Melhoria 5: libera polling após salvar
+  IS_EDITING = false;
   renderConfHistorico();
   renderDivergencias();
   filtrarItensConf();
-  toast('✅ Conferência ' + num + ' salva! Itens e contagens limpos.', 3500);
+  toast('✅ Conferência ' + num + ' salva com ' + Object.keys(registro.itens).length + ' item(s)!', 3500);
 }
 
 let _confHistPagina = 5;
@@ -1730,7 +1753,7 @@ function renderConfHistorico() {
   const list = document.getElementById('confHistList');
   const empty = document.getElementById('confHistEmpty');
   if(!list) return;
-  
+  console.log('[renderConfHistorico] Total em memória:', CONF_HISTORICO.length);
   if(CONF_HISTORICO.length === 0) {
     empty.style.display = 'block';
     list.innerHTML = '';
@@ -1762,6 +1785,7 @@ function renderConfHistorico() {
     });
   }
 
+  console.log('[renderConfHistorico] Após filtro de permissão:', confHistFiltrado.length, 'de', CONF_HISTORICO.length);
   if(confHistFiltrado.length === 0) {
     empty.style.display = 'block';
     return;
@@ -3195,8 +3219,19 @@ function exportCSV(){
 
 // ─── PDF ─────────────────────────────────────────────────────────
 function gerarPDFConferencia(num) {
+  // [FIX BUG-11] Buscar por número (não por índice) para garantir correspondência correta
   const conf = CONF_HISTORICO.find(c => c.numero === num);
-  if(!conf || !conf.itens) return;
+  if(!conf){
+    console.error('[gerarPDF] Conferência não encontrada em memória:', num, 'Total em memória:', CONF_HISTORICO.length);
+    toast('⚠️ Conferência não encontrada. Tente atualizar a página.');
+    return;
+  }
+  if(!conf.itens || Object.keys(conf.itens).length === 0){
+    console.error('[gerarPDF] Conferência sem itens:', num, JSON.stringify(conf));
+    toast('⚠️ Esta conferência não possui itens registrados.');
+    return;
+  }
+  console.log('[gerarPDF] Gerando PDF para', num, '— itens:', Object.keys(conf.itens).length, JSON.stringify(conf.itens));
 
   // PDF é fiel ao registro gravado no Sheets: mostra todos os itens e quantidades da conferência
   const linhas = Object.entries(conf.itens).map(([cod, it]) => {
@@ -3601,11 +3636,23 @@ async function salvarConferenciaSheets(conf){
 }
 async function carregarConferenciasSheets(){
   try{
+    console.log('[carregarConferencias] Carregando do Sheets...');
     const rows=await fetchRange('CONFERENCIAS!A2:B');
-    const loaded=rows.filter(r=>r[0]&&r[1]).map(r=>{try{return JSON.parse(r[1]);}catch(e){return null;}}).filter(Boolean);
-    // Merge: loaded registros que não existem localmente
+    const loaded=rows.filter(r=>r[0]&&r[1]).map(r=>{
+      try{return JSON.parse(r[1]);}
+      catch(e){console.warn('[carregarConferencias] Erro ao parsear linha:',r[0],e);return null;}
+    }).filter(Boolean);
+    console.log('[carregarConferencias] Registros carregados do Sheets:', loaded.length);
+
+    // [FIX BUG-8] Merge inteligente: dados do Sheets têm prioridade sobre dados locais
+    // Atualiza registros existentes e adiciona novos
     loaded.forEach(conf=>{
-      if(!CONF_HISTORICO.find(c=>c.numero===conf.numero)){
+      if(!conf.numero || !conf.itens) return; // ignorar registros inválidos
+      const idx = CONF_HISTORICO.findIndex(c=>c.numero===conf.numero);
+      if(idx >= 0){
+        // [FIX] Substituir registro local pelo do Sheets (fonte de verdade)
+        CONF_HISTORICO[idx] = conf;
+      } else {
         CONF_HISTORICO.push(conf);
       }
     });
@@ -3615,9 +3662,10 @@ async function carregarConferenciasSheets(){
       const db=new Date((b.dataHora||'').split(' ').reverse().join('T')||0);
       return db-da;
     });
+    console.log('[carregarConferencias] Total em memória após merge:', CONF_HISTORICO.length);
     renderConfHistorico();
     renderDivergencias();
-  }catch(e){console.warn('carregarConferencias:',e);}
+  }catch(e){console.warn('[carregarConferencias] Erro:',e);}
 }
 // ─── EMAIL DE EXPEDIÇÃO ────────────────────────────────────────────
 let EMAIL_LOG_CACHE = [];
@@ -3875,7 +3923,10 @@ function logout(){
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginUser').value='';document.getElementById('loginPass').value='';
   document.getElementById('loginError').style.display='none';
+  // [FIX BUG-9] Limpar TODO o estado da conferência no logout para evitar dados stale entre sessões
   ITEMS=[];CONF_ITEMS=[];INV_ITEMS=[];SALDO_BRUTO=[];st={};selectedItems=new Set();PENDENTES=[];
+  CONFERENCIAS={}; CONF_HISTORICO=[]; CONF_ITENS_SEL=new Set(); CONF_MODO='selecao';
+  _confHistPagina=5; DIV_HISTORICO=[];
 }
 // ─── INIT ─────────────────────────────────────────────────────────
 setStep(0);
