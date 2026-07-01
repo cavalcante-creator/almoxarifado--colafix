@@ -78,6 +78,12 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .pip-red{background:var(--red);animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(184,50,50,.15)}50%{box-shadow:0 0 0 5px rgba(184,50,50,.3)}}
 .flag-tag{font-size:9px;padding:2px 6px;border-radius:20px;background:var(--red-dim);color:var(--red);border:1px solid var(--red-mid);font-weight:700;flex-shrink:0}
+/* MATERIAL RASGADO (NOVA FUNCIONALIDADE) */
+.rasgo-check{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;font-weight:700;user-select:none}
+.rasgo-check input{width:15px;height:15px;cursor:pointer;accent-color:var(--red);flex-shrink:0}
+.rasgo-tag{font-size:9px;font-weight:800;padding:2px 8px;border-radius:20px;background:var(--red-dim);color:var(--red);border:1px solid var(--red-mid);display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.rasgo-obs{width:100%;min-height:44px;border:1px solid var(--red-mid);border-radius:6px;padding:6px 8px;font-size:11px;font-family:inherit;resize:vertical;margin-top:6px;background:#fff;color:var(--text);outline:none}
+.rasgo-obs:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-dim)}
 .legend{display:flex;gap:10px;margin-bottom:8px}
 .leg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3)}
 .leg-dot{width:7px;height:7px;border-radius:50%}
@@ -510,6 +516,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <option value="Rejeitado">Rejeitado</option>
         <option value="Pendente Físico">Apenas pendentes físicos</option>
         <option value="Concluído Físico">Apenas concluídos físicos</option>
+        <option value="Rasgados">⚠️ Com avaria</option>
+        <option value="SemAvaria">Sem avaria</option>
       </select>
       <button class="btn" onclick="exportCSV()">⬇ CSV</button>
     </div>
@@ -697,6 +705,14 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       <div class="fld" style="width:130px">
         <label>Data final</label>
         <input type="date" id="confHistDtFim" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+      </div>
+      <div class="fld" style="width:130px">
+        <label>Material</label>
+        <select id="confHistRasgo" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+          <option value="">Todos</option>
+          <option value="normais">Sem avaria</option>
+          <option value="rasgados">⚠️ Com avaria</option>
+        </select>
       </div>
       <div style="padding-bottom:2px">
         <button class="btn" style="height:30px;padding:0 12px;font-size:11px;font-weight:700" onclick="confHistFiltroHoje()" title="Mostrar apenas conferências de hoje">📅 Hoje</button>
@@ -1536,10 +1552,14 @@ function renderConferencia(){
     const s3 = getSt(item.saldo3, item.min3);
 
     const conf = CONFERENCIAS[item.cod] || { pal3: 0, sac3: 0, total3: 0, pal30: 0, sac30: 0, total30: 0 };
+    const qtdRasgadaAtual = Number(conf.qtdRasgada)||0;
+    const itemRasgado = qtdRasgadaAtual > 0;
 
     const card = document.createElement('div');
     card.className = 'card';
+    card.id = 'confCard_' + item.cod;
     card.style.padding = '14px';
+    if(itemRasgado){ card.style.borderColor = 'var(--red)'; card.style.background = 'var(--red-dim)'; }
 
     // ITEM 7: coloração de divergência removida do card de conferência
 
@@ -1620,12 +1640,16 @@ function renderConferencia(){
       </div>` : '';
 
     const badgeTipoOp = tipoOpBadge(item);
+    const maxRasgoConf = (Number(conf.total3)||0) + (Number(conf.total30)||0);
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:6px">
         <div style="min-width:0;flex:1">
           <div style="font-weight:700;font-size:12px;color:var(--text)">${escapeHTML(item.cod)}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:normal;line-height:1.4">${escapeHTML(item.name)}</div>
-          ${badgeTipoOp ? `<div style="margin-top:4px">${badgeTipoOp}</div>` : ''}
+          <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+            ${badgeTipoOp ? badgeTipoOp : ''}
+            <span id="confRasgoBadge_${item.cod}">${itemRasgado ? rasgoTagHTML(qtdRasgadaAtual) : ''}</span>
+          </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <button onclick="confRemoverItem('${item.cod}')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 2px;line-height:1" title="Remover item">✕</button>
@@ -1636,6 +1660,23 @@ function renderConferencia(){
 
       ${blocoContAlmox3}
       ${blocoContAlmox30}
+
+      <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+          <div class="fld" style="width:120px">
+            <label>⚠️ Qtd. Rasgada</label>
+            <input type="number" inputmode="numeric" min="0" max="${maxRasgoConf || ''}" value="${qtdRasgadaAtual || ''}" placeholder="0"
+              id="confQtdRasgada_${item.cod}"
+              oninput="setQtdRasgadaConf('${item.cod}', this.value)"
+              style="text-align:center;font-weight:700;height:34px">
+          </div>
+          <div style="font-size:10px;color:var(--text3);padding-bottom:8px">${maxRasgoConf>0 ? 'de ' + maxRasgoConf + ' contado(s)' : 'informe a contagem física acima'}</div>
+        </div>
+        <div id="confRasgoResumo_${item.cod}" style="margin-top:6px;font-size:11px;font-weight:700">${rasgoResumoHTML(qtdRasgadaAtual, maxRasgoConf)}</div>
+        <div id="confRasgoObsWrap_${item.cod}" style="display:${itemRasgado?'block':'none'};margin-top:6px">
+          <textarea class="rasgo-obs" placeholder="Motivo/Avaria (opcional)" oninput="updateMotivoRasgoConf('${item.cod}', this.value)">${escapeHTML(conf.motivoRasgo||'')}</textarea>
+        </div>
+      </div>
     `;
     grid.appendChild(card);
   });
@@ -1682,11 +1723,170 @@ function updateConf(cod, val, type) {
   const resumo30 = document.getElementById('resumoFisico30_' + cod);
   if(resumo3) resumo3.style.display = CONFERENCIAS[cod].total3 > 0 ? 'block' : 'none';
   if(resumo30) resumo30.style.display = CONFERENCIAS[cod].total30 > 0 ? 'block' : 'none';
+
+  // Sincronizar limite da Qtd. Rasgada com o novo total contado
+  const novoMax = CONFERENCIAS[cod].total;
+  if((Number(CONFERENCIAS[cod].qtdRasgada)||0) > novoMax){
+    CONFERENCIAS[cod].qtdRasgada = novoMax;
+  }
+  atualizarUIRasgoConf(cod);
 }
 
 // [FIX-6] ID único real: timestamp completo + random para evitar colisões
 function gerarNumConferencia() {
   return 'CONF-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+}
+
+// ─── MATERIAL RASGADO (QUANTIDADE) — NOVA FUNCIONALIDADE ───────────
+// Tag/badge visual reutilizável para indicar quantidade rasgada em qualquer tela
+function rasgoTagHTML(qtd){
+  const n = Number(qtd)||0;
+  return '<span class="rasgo-tag">⚠️ ' + n + ' Rasgado' + (n===1?'':'s') + '</span>';
+}
+// Monta HTML do resumo "✔ X OK  ⚠ Y Rasgados"
+function rasgoResumoHTML(qtd, max){
+  const n = Number(qtd)||0;
+  if(n<=0) return '';
+  const boa = Math.max(0, (Number(max)||0) - n);
+  return '<span style="color:var(--green)">✔ ' + boa + ' OK</span> '
+       + '<span style="color:var(--red);margin-left:8px">⚠ ' + n + ' Rasgado' + (n===1?'':'s') + '</span>';
+}
+
+// ── Conferência: apontamento vinculado ao item dentro de CONFERENCIAS[cod] ──
+function setQtdRasgadaConf(cod, val){
+  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3:0,sac3:0,total3:0,pal30:0,sac30:0,total30:0,total:0 };
+  const c = CONFERENCIAS[cod];
+  const max = (Number(c.total3)||0) + (Number(c.total30)||0);
+  let n = Math.max(0, parseInt(val)||0);
+  if(max>0 && n>max){ n = max; toast('⚠️ Qtd. rasgada não pode ser maior que a quantidade contada ('+max+').'); }
+  c.qtdRasgada = n;
+  if(n>0){
+    c.rasgoApontadoPor = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+    c.rasgoDataHora = nowFull();
+  } else {
+    c.motivoRasgo = '';
+  }
+  try { localStorage.setItem('conf_temp', JSON.stringify(CONFERENCIAS)); } catch(e){}
+  atualizarUIRasgoConf(cod);
+}
+function updateMotivoRasgoConf(cod, val){
+  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3:0,sac3:0,total3:0,pal30:0,sac30:0,total30:0,total:0 };
+  CONFERENCIAS[cod].motivoRasgo = val;
+  try { localStorage.setItem('conf_temp', JSON.stringify(CONFERENCIAS)); } catch(e){}
+}
+// Atualiza apenas os elementos do item (sem recriar a lista inteira) para preservar o foco do campo
+function atualizarUIRasgoConf(cod){
+  const c = CONFERENCIAS[cod] || {};
+  const n = c.qtdRasgada || 0;
+  const max = (Number(c.total3)||0) + (Number(c.total30)||0);
+  const inputEl = document.getElementById('confQtdRasgada_'+cod);
+  if(inputEl){
+    if(Number(inputEl.value||0) !== n) inputEl.value = n || '';
+    inputEl.max = max || '';
+  }
+  const card = document.getElementById('confCard_'+cod);
+  if(card){
+    card.style.borderColor = n>0 ? 'var(--red)' : 'var(--border)';
+    card.style.background  = n>0 ? 'var(--red-dim)' : 'var(--bg2)';
+  }
+  const badge = document.getElementById('confRasgoBadge_'+cod);
+  if(badge) badge.innerHTML = n>0 ? rasgoTagHTML(n) : '';
+  const resumo = document.getElementById('confRasgoResumo_'+cod);
+  if(resumo) resumo.innerHTML = rasgoResumoHTML(n, max);
+  const obsWrap = document.getElementById('confRasgoObsWrap_'+cod);
+  if(obsWrap) obsWrap.style.display = n>0 ? 'block' : 'none';
+}
+
+// ── Movimentação (fluxo de requisição — st.itens) ──
+function setQtdRasgadaMov(i, val){
+  const it = st.itens && st.itens[i]; if(!it) return;
+  const max = Number(it.sacos)||0;
+  let n = Math.max(0, parseInt(val)||0);
+  if(max>0 && n>max){ n = max; toast('⚠️ Qtd. rasgada não pode ser maior que a quantidade movimentada ('+max+').'); }
+  it.qtdRasgada = n;
+  if(n>0){
+    it.rasgoApontadoPor = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+    it.rasgoDataHora = nowFull();
+  } else {
+    it.motivoRasgo = '';
+  }
+  syncPendente();
+  atualizarUIRasgoMov(i);
+}
+function updateMotivoRasgoMov(i, val){
+  const it = st.itens && st.itens[i]; if(!it) return;
+  it.motivoRasgo = val;
+  syncPendente();
+}
+function atualizarUIRasgoMov(i){
+  const it = st.itens && st.itens[i]; if(!it) return;
+  const n = it.qtdRasgada || 0;
+  const max = Number(it.sacos)||0;
+  const movido = it.itemStatus==='movido'||it.itemStatus==='validado'||it.itemStatus==='lancado';
+  const inputEl = document.getElementById('movQtdRasgada_'+i);
+  if(inputEl){
+    if(Number(inputEl.value||0) !== n) inputEl.value = n || '';
+    inputEl.max = max || '';
+  }
+  const card = document.getElementById('movCard_'+i);
+  if(card){
+    card.style.borderColor = n>0 ? 'var(--red)' : (movido ? 'var(--green)' : 'var(--border)');
+    card.style.background  = n>0 ? 'var(--red-dim)' : (movido ? 'var(--green-dim)' : '#fff');
+  }
+  const badge = document.getElementById('movRasgoBadge_'+i);
+  if(badge) badge.innerHTML = n>0 ? rasgoTagHTML(n) : '';
+  const resumo = document.getElementById('movRasgoResumo_'+i);
+  if(resumo) resumo.innerHTML = rasgoResumoHTML(n, max);
+  const obsWrap = document.getElementById('movRasgoObsWrap_'+i);
+  if(obsWrap) obsWrap.style.display = n>0 ? 'block' : 'none';
+}
+
+// ── Painel do Operador (PENDENTES) ──
+function opRasgoId(reqId, itemIdx){
+  return (reqId+'_'+itemIdx).replace(/[^a-zA-Z0-9_-]/g,'_');
+}
+function setQtdRasgadaOp(reqId, itemIdx, val){
+  const p = PENDENTES.find(x=>x.req===reqId); if(!p) return;
+  const it = p.itens[itemIdx]; if(!it) return;
+  const max = Number(it.sacos)||0;
+  let n = Math.max(0, parseInt(val)||0);
+  if(max>0 && n>max){ n = max; toast('⚠️ Qtd. rasgada não pode ser maior que a quantidade movimentada ('+max+').'); }
+  it.qtdRasgada = n;
+  if(n>0){
+    it.rasgoApontadoPor = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || 'Operador';
+    it.rasgoDataHora = nowFull();
+  } else {
+    it.motivoRasgo = '';
+  }
+  salvarRequisicaoSheets(p);
+  atualizarUIRasgoOp(reqId, itemIdx);
+}
+function updateMotivoRasgoOp(reqId, itemIdx, val){
+  const p = PENDENTES.find(x=>x.req===reqId); if(!p) return;
+  const it = p.itens[itemIdx]; if(!it) return;
+  it.motivoRasgo = val;
+  salvarRequisicaoSheets(p);
+}
+function atualizarUIRasgoOp(reqId, itemIdx){
+  const p = PENDENTES.find(x=>x.req===reqId); if(!p) return;
+  const it = p.itens[itemIdx]; if(!it) return;
+  const idKey = opRasgoId(reqId, itemIdx);
+  const n = it.qtdRasgada || 0;
+  const max = Number(it.sacos)||0;
+  const movido = it.itemStatus==='movido'||it.itemStatus==='lancado';
+  const inputEl = document.getElementById('opQtdRasgada_'+idKey);
+  if(inputEl){
+    if(Number(inputEl.value||0) !== n) inputEl.value = n || '';
+    inputEl.max = max || '';
+  }
+  const row = document.getElementById('opRow_'+idKey);
+  if(row) row.style.borderLeft = '4px solid ' + (n>0 ? 'var(--red)' : (movido ? 'var(--green)' : 'var(--accent)'));
+  const badge = document.getElementById('opRasgoBadge_'+idKey);
+  if(badge) badge.innerHTML = n>0 ? rasgoTagHTML(n) : '';
+  const resumo = document.getElementById('opRasgoResumo_'+idKey);
+  if(resumo) resumo.innerHTML = rasgoResumoHTML(n, max);
+  const obsWrap = document.getElementById('opRasgoObsWrap_'+idKey);
+  if(obsWrap) obsWrap.style.display = n>0 ? 'block' : 'none';
 }
 
 // [FIX-2] async para garantir await no salvamento antes de limpar estado
@@ -1700,7 +1900,8 @@ async function salvarConferencia() {
   const codsComDados = Object.keys(CONFERENCIAS).filter(cod => {
     const c = CONFERENCIAS[cod];
     return (Number(c.pal3)||0) > 0 || (Number(c.sac3)||0) > 0 ||
-           (Number(c.pal30)||0) > 0 || (Number(c.sac30)||0) > 0;
+           (Number(c.pal30)||0) > 0 || (Number(c.sac30)||0) > 0 ||
+           (Number(c.qtdRasgada)||0) > 0;
   });
   if(codsComDados.length === 0) {
     toast('⚠️ Preencha ao menos um item antes de salvar.');
@@ -1783,19 +1984,27 @@ async function salvarConferencia() {
     const spp = getSacsPorPal(cod);
     c.total3  = (c.pal3 * spp) + c.sac3;
     c.total30 = (c.pal30 * spp) + c.sac30;
+    const totalGeral = c.total3 + c.total30;
+    // Garantir que a qtd. rasgada nunca ultrapasse o total contado permitido para este perfil
+    const qtdRasgadaSalva = Math.min(Number(c.qtdRasgada)||0, totalGeral);
 
-    if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0) {
+    if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0 || qtdRasgadaSalva > 0) {
       registro.itens[cod] = {
         nome: invItem ? invItem.name : cod,
         almox3:  c.total3,
         almox30: c.total30,
-        total:   c.total3 + c.total30,
+        total:   totalGeral,
         pal3:  c.pal3,  sac3:  c.sac3,
         pal30: c.pal30, sac30: c.sac30,
         saldoSistema3:  invItem ? (invItem.saldo3  || 0) : 0,
         saldoSistema30: invItem ? (invItem.saldo30 || 0) : 0,
         dif3:  c.total3  - (invItem ? (invItem.saldo3  || 0) : 0),
-        dif30: c.total30 - (invItem ? (invItem.saldo30 || 0) : 0)
+        dif30: c.total30 - (invItem ? (invItem.saldo30 || 0) : 0),
+        qtdRasgada: qtdRasgadaSalva,
+        qtdBoa: Math.max(0, totalGeral - qtdRasgadaSalva),
+        motivoRasgo: c.motivoRasgo || '',
+        rasgoApontadoPor: qtdRasgadaSalva > 0 ? (c.rasgoApontadoPor || nomeUsuario) : '',
+        rasgoDataHora: qtdRasgadaSalva > 0 ? (c.rasgoDataHora || (dataStr+' '+horaStr)) : ''
       };
     }
   });
@@ -1863,6 +2072,7 @@ function confHistFiltroHoje(){
 function confHistLimparFiltros(){
   const b=document.getElementById('confHistBusca'); if(b) b.value='';
   const l=document.getElementById('confHistLocal'); if(l) l.value='';
+  const r=document.getElementById('confHistRasgo'); if(r) r.value='';
   const di=document.getElementById('confHistDtInicio'); if(di) di.value='';
   const df=document.getElementById('confHistDtFim'); if(df) df.value='';
   _confHistPagina=5;
@@ -1916,6 +2126,7 @@ function renderConfHistorico() {
   const dtFimStr = (document.getElementById('confHistDtFim')||{}).value||'';
   const dtInicio = dtInicioStr ? new Date(dtInicioStr) : null;
   const dtFim   = dtFimStr   ? new Date(dtFimStr+'T23:59:59') : null;
+  const rasgoFiltro = (document.getElementById('confHistRasgo')||{}).value||'';
 
   // Correção 2: filtrar histórico por permissão de almoxarifado do conferente logado
   const cpHistFiltro = confPerm();
@@ -1964,8 +2175,14 @@ function renderConfHistorico() {
       return true;
     });
   }
+  if(rasgoFiltro){
+    confHistFiltrado = confHistFiltrado.filter(conf => {
+      const temRasgado = Object.values(conf.itens||{}).some(it=>(Number(it.qtdRasgada)||0)>0);
+      return rasgoFiltro === 'rasgados' ? temRasgado : !temRasgado;
+    });
+  }
 
-  if(contador) contador.textContent = confHistFiltrado.length + ' conferência(s)' + (busca||localFiltro||dtInicio||dtFim?' (filtrado)':'');
+  if(contador) contador.textContent = confHistFiltrado.length + ' conferência(s)' + (busca||localFiltro||dtInicio||dtFim||rasgoFiltro?' (filtrado)':'');
 
   if(confHistFiltrado.length === 0) {
     empty.style.display = 'block';
@@ -2007,15 +2224,20 @@ function renderConfHistorico() {
       const lblH3  = isRejH ? 'Rejunte' : isSepH ? 'Separação' : 'Almox 3';
       const cor3H  = isRejH ? 'var(--purple,#7B5EA7)' : isSepH ? 'var(--orange,#E07B39)' : 'var(--accent)';
       // ITEM 9: sem variáveis de divergência no histórico
-      itensHtml += `<div style="padding:6px 8px;background:var(--bg3);border-radius:5px;font-size:10px;margin-bottom:3px">
+      const qtdRasgH = Number(it.qtdRasgada)||0;
+      itensHtml += `<div style="padding:6px 8px;background:${qtdRasgH>0?'var(--red-dim)':'var(--bg3)'};border:${qtdRasgH>0?'1px solid var(--red-mid)':'none'};border-radius:5px;font-size:10px;margin-bottom:3px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
           <span style="font-weight:700;color:var(--text)">${cod}</span>
           <span style="color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.nome || ''}</span>
+          ${qtdRasgH>0 ? rasgoTagHTML(qtdRasgH) : ''}
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           ${mostrar3H ? `<span style="color:${cor3H}">📍 ${lblH3}: <b>${it.almox3} ${isRejH?'fardo':'sc'}</b></span>` : ''}
           ${mostrar30H ? `<span style="color:var(--green)">📍 Almox 30: <b>${it.almox30} sc</b></span>` : ''}
         </div>
+        ${qtdRasgH>0 ? `<div style="margin-top:4px;font-size:10px;font-weight:700">${rasgoResumoHTML(qtdRasgH, it.total)}</div>` : ''}
+        ${qtdRasgH>0 ? `<div style="margin-top:2px;color:var(--text3);font-size:9px">👤 ${escapeHTML(it.rasgoApontadoPor||'—')} · 🕐 ${it.rasgoDataHora||'—'}</div>` : ''}
+        ${qtdRasgH>0 && it.motivoRasgo ? `<div style="margin-top:2px;color:var(--red);font-size:10px">📝 ${escapeHTML(it.motivoRasgo)}</div>` : ''}
       </div>`;
     });
 
@@ -2024,6 +2246,7 @@ function renderConfHistorico() {
         <div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
           ${conf.local ? `<span style="font-size:10px;background:var(--accent-dim);color:var(--accent);border-radius:4px;padding:1px 7px;font-weight:700">📍 ${conf.local}</span>` : ''}
+          ${(()=>{const tot=Object.values(conf.itens||{}).reduce((a,it)=>a+(Number(it.qtdRasgada)||0),0);return tot>0?rasgoTagHTML(tot):'';})()}
           <!-- Melhoria 4: badge de divergência removido -->
           <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia('${conf.numero}')">📄 Gerar PDF</button>
         </div>
@@ -2712,11 +2935,14 @@ function renderMovChecklist(){
 
   (st.itens||[]).forEach((it,i)=>{
     const movido=it.itemStatus==='movido'||it.itemStatus==='validado'||it.itemStatus==='lancado';
+    const qtdRasgadaAtual=Number(it.qtdRasgada)||0;
+    const rasgado=qtdRasgadaAtual>0;
     const spp=getSacsPorPal(it.cod),pal=calcPaletes(it.sacos,spp);
     const d=document.createElement('div');
-    d.style.cssText='display:flex;align-items:center;gap:10px;padding:12px 13px;margin-bottom:8px;'
-      +'background:'+(movido?'var(--green-dim)':'#fff')+';'
-      +'border:2px solid '+(movido?'var(--green)':'var(--border)')+';'
+    d.id='movCard_'+i;
+    d.style.cssText='display:flex;flex-direction:column;padding:12px 13px;margin-bottom:8px;'
+      +'background:'+(rasgado?'var(--red-dim)':movido?'var(--green-dim)':'#fff')+';'
+      +'border:2px solid '+(rasgado?'var(--red)':movido?'var(--green)':'var(--border)')+';'
       +'border-radius:var(--radius-sm);transition:all .18s';
     
     let btnHtml = '';
@@ -2728,11 +2954,26 @@ function renderMovChecklist(){
       btnHtml = '<span style="font-size:10px;color:var(--text3);font-style:italic">Aguard. Operador</span>';
     }
 
-    d.innerHTML='<div style="flex:1;min-width:0">'
-      +`<div style="font-size:11px;font-weight:800;color:var(--text)">${it.cod}</div>`
+    d.innerHTML='<div style="display:flex;align-items:center;gap:10px">'
+      +'<div style="flex:1;min-width:0">'
+      +`<div style="font-size:11px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px;flex-wrap:wrap">${it.cod} <span id="movRasgoBadge_${i}">${rasgado?rasgoTagHTML(qtdRasgadaAtual):''}</span></div>`
       +`<div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</div>`
       +`<div style="font-size:12px;font-weight:700;color:${movido?'var(--green)':'var(--accent)'};margin-top:3px">${pal>0?pal+' pal · ':''}${it.sacos} sc</div>`
-    +'</div>'+btnHtml;
+      +'</div>'+btnHtml+'</div>'
+      +`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+          <div class="fld" style="width:110px">
+            <label>⚠️ Qtd. Rasgada</label>
+            <input type="number" inputmode="numeric" min="0" max="${it.sacos||0}" value="${qtdRasgadaAtual||''}" placeholder="0"
+              id="movQtdRasgada_${i}" oninput="setQtdRasgadaMov(${i}, this.value)" style="text-align:center;font-weight:700;height:34px">
+          </div>
+          <div style="font-size:10px;color:var(--text3);padding-bottom:8px">de ${it.sacos||0} movimentado(s)</div>
+        </div>
+        <div id="movRasgoResumo_${i}" style="margin-top:6px;font-size:11px;font-weight:700">${rasgoResumoHTML(qtdRasgadaAtual, it.sacos)}</div>
+        <div id="movRasgoObsWrap_${i}" style="display:${rasgado?'block':'none'};margin-top:6px">
+          <textarea class="rasgo-obs" placeholder="Motivo/Avaria (opcional)" oninput="updateMotivoRasgoMov(${i}, this.value)">${escapeHTML(it.motivoRasgo||'')}</textarea>
+        </div>
+      </div>`;
     c.appendChild(d);
   });
   
@@ -3033,9 +3274,27 @@ function renderOpOrders(){
       const movido=it.itemStatus==='movido'||it.itemStatus==='lancado';
       const spp=getSacsPorPal(it.cod),pal=calcPaletes(it.sacos,spp);
       const row=document.createElement('div');row.className='op-item-row';
-      row.style.borderLeft=`4px solid ${movido?'var(--green)':'var(--accent)'}`;
-      row.innerHTML=`<div class="op-item-name">${it.cod} — ${it.name}</div>
+      const qtdRasgadaAtual=Number(it.qtdRasgada)||0;
+      const rasgado=qtdRasgadaAtual>0;
+      const idKey=opRasgoId(p.req, idx);
+      row.id='opRow_'+idKey;
+      row.style.borderLeft=`4px solid ${rasgado?'var(--red)':movido?'var(--green)':'var(--accent)'}`;
+      row.innerHTML=`<div class="op-item-name">${it.cod} — ${it.name} <span id="opRasgoBadge_${idKey}">${rasgado?rasgoTagHTML(qtdRasgadaAtual):''}</span></div>
         <div class="op-item-qty">${pal>0?pal+' pal · ':''}${it.sacos} sc</div>
+        <div style="margin:8px 0;padding:8px;border-radius:8px;background:${rasgado?'var(--red-dim)':'var(--bg2)'};border:1px solid ${rasgado?'var(--red-mid)':'var(--border)'}">
+          <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+            <div class="fld" style="width:120px">
+              <label>⚠️ Qtd. Rasgada</label>
+              <input type="number" inputmode="numeric" min="0" max="${it.sacos||0}" value="${qtdRasgadaAtual||''}" placeholder="0"
+                id="opQtdRasgada_${idKey}" oninput="setQtdRasgadaOp('${p.req}',${idx}, this.value)" style="text-align:center;font-weight:700;height:38px">
+            </div>
+            <div style="font-size:10px;color:var(--text3);padding-bottom:8px">de ${it.sacos||0} movimentado(s)</div>
+          </div>
+          <div id="opRasgoResumo_${idKey}" style="margin-top:6px;font-size:11px;font-weight:700">${rasgoResumoHTML(qtdRasgadaAtual, it.sacos)}</div>
+          <div id="opRasgoObsWrap_${idKey}" style="display:${rasgado?'block':'none'};margin-top:6px">
+            <textarea class="rasgo-obs" placeholder="Motivo/Avaria (opcional)" oninput="updateMotivoRasgoOp('${p.req}',${idx}, this.value)">${escapeHTML(it.motivoRasgo||'')}</textarea>
+          </div>
+        </div>
         ${movido
           ?`<div class="op-moved">✅ Movido — ${it.timeMovido||''}</div>`
           :`<button class="op-move-btn btn-primary" onclick="opMarcarMovido('${p.req}',${idx})" style="height:48px;border-radius:10px;border:none;font-size:15px;font-weight:800;cursor:pointer;background:var(--accent);color:#fff">📦 Marcar como Movido</button>`
@@ -3283,6 +3542,8 @@ function renderHist(){
   if(f){
     if(f==='Pendente Físico') data=data.filter(h=>h.statusFisico==='Pendente');
     else if(f==='Concluído Físico') data=data.filter(h=>h.statusFisico==='Concluída');
+    else if(f==='Rasgados') data=data.filter(h=>(h.itens||[]).some(it=>(Number(it.qtdRasgada)||0)>0));
+    else if(f==='SemAvaria') data=data.filter(h=>!(h.itens||[]).some(it=>(Number(it.qtdRasgada)||0)>0));
     else data=data.filter(h=>h.status===f);
   }
   data.sort((a,b)=>{
@@ -3300,11 +3561,12 @@ function renderHist(){
     const sp=h.status==='Concluído'?'sp-done':h.status==='Rejeitado'?'sp-rej':'sp-pend';
     const aguardFis = h.statusSistemico === 'Confirmado' && h.statusFisico === 'Pendente';
     const names=(h.itens||[]).map(i=>i.cod).join(', ');
+    const temRasgadoReq=(h.itens||[]).reduce((a,it)=>a+(Number(it.qtdRasgada)||0),0);
     const tr=document.createElement('tr');tr.className=selectedReq===h.req?'sel-row':'';tr.style.cursor='pointer';
     const stSist = h.statusSistemico === 'Confirmado' ? 'sb-done' : 'sb-pending';
     const stFis = h.statusFisico === 'Concluída' ? 'sb-done' : 'sb-pending';
     tr.innerHTML=`<td>
-        <strong style="color:var(--accent)">${h.req}</strong>
+        <strong style="color:var(--accent)">${h.req}</strong> ${temRasgadoReq>0?rasgoTagHTML(temRasgadoReq):''}
         <div style="font-size:9px;color:var(--text3);margin-top:2px;font-weight:700">${h.tipo === 'Antecipada' ? '🚀 ANTECIPADA' : '📦 NORMAL'}</div>
         ${aguardFis ? `<div style="margin-top:4px;font-size:9px;font-weight:700;background:var(--orange-dim);color:var(--orange);border:1px solid var(--orange-mid);border-radius:4px;padding:2px 6px;display:inline-block">🟠 Aguard. Mov. Física</div>` : `<div style="display:flex;gap:4px;margin-top:4px">
           <span class="status-badge ${stSist}" title="Sistêmica">S: ${h.statusSistemico||'Pendente'}</span>
@@ -3335,8 +3597,13 @@ function showDetail(h){
   const iR=(h.itens||[]).map(it=>{
     const spp=getSacsPorPal(it.cod),sc=it.sacosValidados||it.sacos||0,pal=calcPaletes(sc,spp);
     const ist=it.itemStatus||'aprovado',cor=stColor2[ist]||'var(--text3)',bg=stBg[ist]||'var(--bg3)';
+    const qtdRasgD=Number(it.qtdRasgada)||0;
     return`<tr><td><span style="font-weight:700;color:var(--accent)">${it.cod}</span></td>
-      <td style="color:var(--text2);font-size:11px">${it.name}</td>
+      <td style="color:var(--text2);font-size:11px">${it.name}${qtdRasgD>0?`<div style="margin-top:4px">${rasgoTagHTML(qtdRasgD)}
+          <div style="margin-top:3px;font-size:9px;font-weight:700">${rasgoResumoHTML(qtdRasgD, sc)}</div>
+          <div style="color:var(--text3);font-size:9px;margin-top:2px">👤 ${escapeHTML(it.rasgoApontadoPor||'—')} · 🕐 ${it.rasgoDataHora||'—'}</div>
+          ${it.motivoRasgo?`<div style="color:var(--text3);font-size:9px;margin-top:2px">📝 ${escapeHTML(it.motivoRasgo)}</div>`:''}
+        </div>`:''}</td>
       <td style="text-align:center;font-weight:700">${pal>0?pal:'—'}</td>
       <td style="text-align:center">${sc}</td>
       <td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${bg};color:${cor}">${stLabel[ist]||ist}</span></td></tr>`;
@@ -3344,6 +3611,7 @@ function showDetail(h){
   const tlHtml=(h.itens||[]).map(it=>{
     const ist=it.itemStatus||'aprovado',cor=stColor2[ist]||'var(--text3)';
     const spp=getSacsPorPal(it.cod),sc=it.sacosValidados||it.sacos||0,pal=calcPaletes(sc,spp);
+    const qtdRasgTl=Number(it.qtdRasgada)||0;
     const etapas=[
       {label:'Aprovação',ico:'✅',done:true,resp:h.aprovador,time:it.timeAprovado||h.data},
       {label:'Movimentação',ico:'📦',done:ist==='movido'||ist==='validado'||ist==='lancado',resp:it.operador,time:it.timeMovido},
@@ -3353,6 +3621,7 @@ function showDetail(h){
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <span style="font-size:11px;font-weight:800;color:var(--text);background:var(--bg3);border:1px solid var(--border2);border-radius:5px;padding:2px 9px">${it.cod}</span>
         <span style="font-size:11px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</span>
+        ${qtdRasgTl>0?rasgoTagHTML(qtdRasgTl):''}
         <span style="font-size:12px;font-weight:800;color:${cor};flex-shrink:0">${pal>0?pal+' pal · ':''}${sc} sc</span>
       </div>
       ${etapas.map(e=>`<div class="tl-item"><div class="tl-dot ${e.done?'done':''}"></div>
@@ -3363,7 +3632,7 @@ function showDetail(h){
     </div>`;
   }).join('');
   el.innerHTML=`<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
-    <div><div style="font-size:20px;font-weight:700;color:var(--accent)">${h.req}</div>
+    <div><div style="font-size:20px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${h.req} ${(()=>{const tot=(h.itens||[]).reduce((a,it)=>a+(Number(it.qtdRasgada)||0),0);return tot>0?rasgoTagHTML(tot):'';})()}</div>
     <div style="font-size:11px;font-weight:800;color:var(--text2);margin-top:2px">${h.tipo === 'Antecipada' ? '🚀 TRANSFERÊNCIA ANTECIPADA' : '📦 TRANSFERÊNCIA NORMAL'}</div>
     <div style="font-size:11px;color:var(--text3);margin-top:2px">${h.data}${h.obs?' · '+h.obs:''}</div>
     ${aguardFisDet ? `<div style="margin-top:6px;font-size:11px;font-weight:700;background:var(--orange-dim);color:var(--orange);border:1px solid var(--orange-mid);border-radius:6px;padding:4px 10px;display:inline-block">🟠 Aguardando Movimentação Física</div>` : ''}
