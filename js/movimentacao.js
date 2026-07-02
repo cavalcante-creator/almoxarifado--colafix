@@ -59,10 +59,10 @@ function renderMovChecklist(){
         <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
           <div class="fld" style="width:110px">
             <label>⚠️ Qtd. Rasgada</label>
-            <input type="number" inputmode="numeric" min="0" max="${it.sacos||0}" value="${qtdRasgadaAtual||''}" placeholder="0"
+            <input type="number" inputmode="numeric" min="0" value="${qtdRasgadaAtual||''}" placeholder="0"
               id="movQtdRasgada_${i}" oninput="setQtdRasgadaMov(${i}, this.value)" style="text-align:center;font-weight:700;height:34px">
           </div>
-          <div id="movMaxHint_${i}" style="font-size:10px;color:var(--text3);padding-bottom:8px">de ${it.sacos||0} movimentado(s)</div>
+          <div id="movMaxHint_${i}" style="font-size:10px;color:var(--text3);padding-bottom:8px">separado do movimentado — não desconta o total</div>
         </div>
         <div id="movRasgoResumo_${i}" style="margin-top:6px;font-size:11px;font-weight:700">${rasgoResumoHTML(qtdRasgadaAtual, it.sacos)}</div>
         <div id="movRasgoObsWrap_${i}" style="display:${rasgado?'block':'none'};margin-top:6px">
@@ -97,14 +97,11 @@ function setQtdRealMov(i, val){
   const spp=getSacsPorPal(it.cod);
   it.paletes = calcPaletes(n, spp);
   it.sacosValidados = n;
-  // Se a qtd. rasgada já registrada ficou maior que a nova quantidade real, ajustar
-  if((Number(it.qtdRasgada)||0) > n) it.qtdRasgada = n;
+  // Qtd. rasgada é separada/independente da quantidade real movimentada — não é mais ajustada aqui
   syncPendente();
   const spp2=getSacsPorPal(it.cod), pal2=calcPaletes(it.sacos,spp2);
   const qtyDisplay=document.getElementById('movQtyDisplay_'+i);
   if(qtyDisplay) qtyDisplay.textContent = (pal2>0?pal2+' pal · ':'')+it.sacos+' sc';
-  const maxHint=document.getElementById('movMaxHint_'+i);
-  if(maxHint) maxHint.textContent = 'de '+it.sacos+' movimentado(s)';
   atualizarUIRasgoMov(i);
 }
 

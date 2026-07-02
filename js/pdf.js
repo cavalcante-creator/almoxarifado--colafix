@@ -16,6 +16,7 @@ function gerarPDFConferencia(num) {
   console.log('[gerarPDF] Gerando PDF para', num, '— itens:', Object.keys(conf.itens).length, JSON.stringify(conf.itens));
 
   // PDF é fiel ao registro gravado no Sheets: mostra todos os itens e quantidades da conferência
+  let totalRasgadosPDF = 0;
   const linhas = Object.entries(conf.itens).map(([cod, it]) => {
     const invItem = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
     const isRej   = !!(invItem && invItem.temRejunte);
@@ -25,6 +26,11 @@ function gerarPDFConferencia(num) {
     const nome    = it.nome || (invItem && invItem.name) || '';
     const tem3    = (it.pal3 > 0) || (it.sac3 > 0) || (it.almox3 > 0);
     const tem30   = (it.pal30 > 0) || (it.sac30 > 0) || (it.almox30 > 0);
+    const qtdRasgPDF = Number(it.qtdRasgada)||0;
+    totalRasgadosPDF += qtdRasgPDF;
+    const celRasgado = qtdRasgPDF > 0
+      ? `<span style="color:#B83232;font-weight:700">⚠️ ${qtdRasgPDF} ${uPDF}</span>${it.motivoRasgo ? `<br><small style="color:#5A574F">${it.motivoRasgo}</small>` : ''}`
+      : '<span style="color:#9C9888">—</span>';
     if(tem3 && tem30){
       return `<tr>
         <td rowspan="2"><b>${cod}</b><br><small>${nome}</small></td>
@@ -32,6 +38,7 @@ function gerarPDFConferencia(num) {
         <td style="text-align:center">${it.pal3||0}</td>
         <td style="text-align:center">${it.sac3||0}</td>
         <td rowspan="2" style="text-align:center;font-weight:700">${it.total||0} ${uPDF}</td>
+        <td rowspan="2" style="text-align:center">${celRasgado}</td>
       </tr><tr>
         <td style="text-align:center;background:#f9f9f9">Almox 30</td>
         <td style="text-align:center;background:#f9f9f9">${it.pal30||0}</td>
@@ -44,6 +51,7 @@ function gerarPDFConferencia(num) {
         <td style="text-align:center">${it.pal3||0}</td>
         <td style="text-align:center">${it.sac3||0}</td>
         <td style="text-align:center;font-weight:700">${it.almox3||0} ${uPDF}</td>
+        <td style="text-align:center">${celRasgado}</td>
       </tr>`;
     } else if(tem30){
       return `<tr>
@@ -52,6 +60,7 @@ function gerarPDFConferencia(num) {
         <td style="text-align:center;background:#f9f9f9">${it.pal30||0}</td>
         <td style="text-align:center;background:#f9f9f9">${it.sac30||0}</td>
         <td style="text-align:center;font-weight:700">${it.almox30||0} sc</td>
+        <td style="text-align:center">${celRasgado}</td>
       </tr>`;
     }
     return '';
@@ -105,6 +114,7 @@ function gerarPDFConferencia(num) {
       <div class="ibox"><div class="l">Usuário Responsável</div><div class="v">${conf.nomeUsuario || conf.usuario}</div></div>
       <div class="ibox"><div class="l">Local</div><div class="v">${localPDFLabel}</div></div>
       <div class="ibox"><div class="l">Total de Itens</div><div class="v">${Object.keys(conf.itens).length}</div></div>
+      <div class="ibox"><div class="l">Sacos Rasgados</div><div class="v" style="${totalRasgadosPDF>0?'color:#B83232':''}">${totalRasgadosPDF>0?'⚠️ '+totalRasgadosPDF:'—'}</div></div>
     </div>
     <table>
       <thead>
@@ -114,10 +124,12 @@ function gerarPDFConferencia(num) {
           <th>Paletes</th>
           <th>Sacos</th>
           <th>Total</th>
+          <th>Rasgado(s)</th>
         </tr>
       </thead>
       <tbody>${linhas}</tbody>
     </table>
+    ${totalRasgadosPDF>0 ? '<div style="font-size:10px;color:#5A574F;margin-top:-6px;margin-bottom:14px">⚠️ Os sacos/fardos rasgados ficam separados fisicamente do estoque bom e não foram descontados da coluna "Total" acima.</div>' : ''}
     <script>window.onload=()=>window.print()<\/script>
   </body></html>`;
   const blob = new Blob([html], {type:'text/html'});

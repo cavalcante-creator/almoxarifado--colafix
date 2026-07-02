@@ -51,10 +51,10 @@ function renderOpOrders(){
           <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
             <div class="fld" style="width:120px">
               <label>⚠️ Qtd. Rasgada</label>
-              <input type="number" inputmode="numeric" min="0" max="${it.sacos||0}" value="${qtdRasgadaAtual||''}" placeholder="0"
+              <input type="number" inputmode="numeric" min="0" value="${qtdRasgadaAtual||''}" placeholder="0"
                 id="opQtdRasgada_${idKey}" oninput="setQtdRasgadaOp('${p.req}',${idx}, this.value)" style="text-align:center;font-weight:700;height:38px">
             </div>
-            <div id="opMaxHint_${idKey}" style="font-size:10px;color:var(--text3);padding-bottom:8px">de ${it.sacos||0} movimentado(s)</div>
+            <div id="opMaxHint_${idKey}" style="font-size:10px;color:var(--text3);padding-bottom:8px">separado do movimentado — não desconta o total</div>
           </div>
           <div id="opRasgoResumo_${idKey}" style="margin-top:6px;font-size:11px;font-weight:700">${rasgoResumoHTML(qtdRasgadaAtual, it.sacos)}</div>
           <div id="opRasgoObsWrap_${idKey}" style="display:${rasgado?'block':'none'};margin-top:6px">
@@ -81,14 +81,11 @@ function setQtdRealOp(reqId, itemIdx, val){
   const spp=getSacsPorPal(it.cod);
   it.paletes = calcPaletes(n, spp);
   it.sacosValidados = n;
-  if((Number(it.qtdRasgada)||0) > n) it.qtdRasgada = n;
   salvarRequisicaoSheets(p);
   const idKey=opRasgoId(reqId, itemIdx);
   const pal2=calcPaletes(it.sacos,spp);
   const qtyDisplay=document.getElementById('opQtyDisplay_'+idKey);
   if(qtyDisplay) qtyDisplay.textContent = (pal2>0?pal2+' pal · ':'')+it.sacos+' sc';
-  const maxHint=document.getElementById('opMaxHint_'+idKey);
-  if(maxHint) maxHint.textContent = 'de '+it.sacos+' movimentado(s)';
   atualizarUIRasgoOp(reqId, itemIdx);
 }
 function desfazerMovOp(reqId,itemIdx){

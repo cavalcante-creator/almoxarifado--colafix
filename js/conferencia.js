@@ -489,12 +489,12 @@ function renderConferencia(){
         <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
           <div class="fld" style="width:120px">
             <label>⚠️ Qtd. Rasgada</label>
-            <input type="number" inputmode="numeric" min="0" max="${maxRasgoConf || ''}" value="${qtdRasgadaAtual || ''}" placeholder="0"
+            <input type="number" inputmode="numeric" min="0" value="${qtdRasgadaAtual || ''}" placeholder="0"
               id="confQtdRasgada_${item.cod}"
               oninput="setQtdRasgadaConf('${item.cod}', this.value)"
               style="text-align:center;font-weight:700;height:34px">
           </div>
-          <div style="font-size:10px;color:var(--text3);padding-bottom:8px">${maxRasgoConf>0 ? 'de ' + maxRasgoConf + ' contado(s)' : 'informe a contagem física acima'}</div>
+          <div style="font-size:10px;color:var(--text3);padding-bottom:8px">separado da contagem acima — não desconta o total</div>
         </div>
         <div id="confRasgoResumo_${item.cod}" style="margin-top:6px;font-size:11px;font-weight:700">${rasgoResumoHTML(qtdRasgadaAtual, maxRasgoConf)}</div>
         <div id="confRasgoObsWrap_${item.cod}" style="display:${itemRasgado?'block':'none'};margin-top:6px">
@@ -548,11 +548,7 @@ function updateConf(cod, val, type) {
   if(resumo3) resumo3.style.display = CONFERENCIAS[cod].total3 > 0 ? 'block' : 'none';
   if(resumo30) resumo30.style.display = CONFERENCIAS[cod].total30 > 0 ? 'block' : 'none';
 
-  // Sincronizar limite da Qtd. Rasgada com o novo total contado
-  const novoMax = CONFERENCIAS[cod].total;
-  if((Number(CONFERENCIAS[cod].qtdRasgada)||0) > novoMax){
-    CONFERENCIAS[cod].qtdRasgada = novoMax;
-  }
+  // Atualizar resumo da Qtd. Rasgada (independente da contagem — ficam separados)
   atualizarUIRasgoConf(cod);
 }
 
@@ -567,22 +563,22 @@ function rasgoTagHTML(qtd){
   const n = Number(qtd)||0;
   return '<span class="rasgo-tag">⚠️ ' + n + ' Rasgado' + (n===1?'':'s') + '</span>';
 }
-// Monta HTML do resumo "✔ X OK  ⚠ Y Rasgados"
+// Monta HTML do resumo — rasgados ficam SEPARADOS fisicamente do estoque bom,
+// então a quantidade rasgada não é descontada da contagem, é informativa/adicional
 function rasgoResumoHTML(qtd, max){
   const n = Number(qtd)||0;
   if(n<=0) return '';
-  const boa = Math.max(0, (Number(max)||0) - n);
-  return '<span style="color:var(--green)">✔ ' + boa + ' OK</span> '
-       + '<span style="color:var(--red);margin-left:8px">⚠ ' + n + ' Rasgado' + (n===1?'':'s') + '</span>';
+  const boa = Number(max)||0;
+  return '<span style="color:var(--green)">✔ ' + boa + ' contado(s)</span> '
+       + '<span style="color:var(--red);margin-left:8px">⚠ +' + n + ' Rasgado' + (n===1?'':'s') + ' (separado, não desconta da contagem)</span>';
 }
 
 // ── Conferência: apontamento vinculado ao item dentro de CONFERENCIAS[cod] ──
+// Rasgados ficam separados fisicamente da contagem, então não há teto ligado ao total contado
 function setQtdRasgadaConf(cod, val){
   if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3:0,sac3:0,total3:0,pal30:0,sac30:0,total30:0,total:0 };
   const c = CONFERENCIAS[cod];
-  const max = (Number(c.total3)||0) + (Number(c.total30)||0);
   let n = Math.max(0, parseInt(val)||0);
-  if(max>0 && n>max){ n = max; toast('⚠️ Qtd. rasgada não pode ser maior que a quantidade contada ('+max+').'); }
   c.qtdRasgada = n;
   if(n>0){
     c.rasgoApontadoPor = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
@@ -606,7 +602,6 @@ function atualizarUIRasgoConf(cod){
   const inputEl = document.getElementById('confQtdRasgada_'+cod);
   if(inputEl){
     if(Number(inputEl.value||0) !== n) inputEl.value = n || '';
-    inputEl.max = max || '';
   }
   const card = document.getElementById('confCard_'+cod);
   if(card){
@@ -622,11 +617,10 @@ function atualizarUIRasgoConf(cod){
 }
 
 // ── Movimentação (fluxo de requisição — st.itens) ──
+// Rasgados ficam separados fisicamente do que foi movimentado — não desconta nem tem teto ligado a isso
 function setQtdRasgadaMov(i, val){
   const it = st.itens && st.itens[i]; if(!it) return;
-  const max = Number(it.sacos)||0;
   let n = Math.max(0, parseInt(val)||0);
-  if(max>0 && n>max){ n = max; toast('⚠️ Qtd. rasgada não pode ser maior que a quantidade movimentada ('+max+').'); }
   it.qtdRasgada = n;
   if(n>0){
     it.rasgoApontadoPor = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
@@ -650,7 +644,6 @@ function atualizarUIRasgoMov(i){
   const inputEl = document.getElementById('movQtdRasgada_'+i);
   if(inputEl){
     if(Number(inputEl.value||0) !== n) inputEl.value = n || '';
-    inputEl.max = max || '';
   }
   const card = document.getElementById('movCard_'+i);
   if(card){
@@ -672,9 +665,7 @@ function opRasgoId(reqId, itemIdx){
 function setQtdRasgadaOp(reqId, itemIdx, val){
   const p = PENDENTES.find(x=>x.req===reqId); if(!p) return;
   const it = p.itens[itemIdx]; if(!it) return;
-  const max = Number(it.sacos)||0;
   let n = Math.max(0, parseInt(val)||0);
-  if(max>0 && n>max){ n = max; toast('⚠️ Qtd. rasgada não pode ser maior que a quantidade movimentada ('+max+').'); }
   it.qtdRasgada = n;
   if(n>0){
     it.rasgoApontadoPor = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || 'Operador';
@@ -701,7 +692,6 @@ function atualizarUIRasgoOp(reqId, itemIdx){
   const inputEl = document.getElementById('opQtdRasgada_'+idKey);
   if(inputEl){
     if(Number(inputEl.value||0) !== n) inputEl.value = n || '';
-    inputEl.max = max || '';
   }
   const row = document.getElementById('opRow_'+idKey);
   if(row) row.style.borderLeft = '4px solid ' + (n>0 ? 'var(--red)' : (movido ? 'var(--green)' : 'var(--accent)'));
@@ -815,8 +805,9 @@ async function salvarConferencia() {
     c.total3  = (c.pal3 * spp) + c.sac3;
     c.total30 = (c.pal30 * spp) + c.sac30;
     const totalGeral = c.total3 + c.total30;
-    // Garantir que a qtd. rasgada nunca ultrapasse o total contado permitido para este perfil
-    const qtdRasgadaSalva = Math.min(Number(c.qtdRasgada)||0, totalGeral);
+    // Rasgados ficam separados fisicamente da contagem — não tem teto ligado ao total contado
+    // e não é descontado dele (qtdBoa = total contado, sem subtrair)
+    const qtdRasgadaSalva = Math.max(0, Number(c.qtdRasgada)||0);
 
     if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0 || qtdRasgadaSalva > 0) {
       registro.itens[cod] = {
@@ -831,7 +822,7 @@ async function salvarConferencia() {
         dif3:  c.total3  - (invItem ? (invItem.saldo3  || 0) : 0),
         dif30: c.total30 - (invItem ? (invItem.saldo30 || 0) : 0),
         qtdRasgada: qtdRasgadaSalva,
-        qtdBoa: Math.max(0, totalGeral - qtdRasgadaSalva),
+        qtdBoa: totalGeral,
         motivoRasgo: c.motivoRasgo || '',
         rasgoApontadoPor: qtdRasgadaSalva > 0 ? (c.rasgoApontadoPor || nomeUsuario) : '',
         rasgoDataHora: qtdRasgadaSalva > 0 ? (c.rasgoDataHora || (dataStr+' '+horaStr)) : ''
