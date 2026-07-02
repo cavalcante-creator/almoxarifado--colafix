@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Almoxarifado Colafix</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/responsive.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1B5C7A">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Almox Colafix">
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══ -->
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg2);padding:16px">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:32px 28px;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.08)">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="margin-bottom:14px"><img src="icons/logo.png" style="height:40px;width:auto;object-fit:contain" alt="Colafix"></div>
+      <div style="font-size:18px;font-weight:700;color:var(--text)">Gestão de Almoxarifado</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">Almox 30 → Almox 3</div>
+    </div>
+    <div id="loginError" style="display:none;background:var(--red-dim);border:1px solid var(--red-mid);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--red);margin-bottom:16px;text-align:center"></div>
+    <div class="fld" style="margin-bottom:14px">
+      <label>Usuário</label>
+      <input type="text" id="loginUser" placeholder="Seu usuário" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
+    </div>
+    <div class="fld" style="margin-bottom:20px">
+      <label>Senha</label>
+      <input type="password" id="loginPass" placeholder="Sua senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin()">
+    </div>
+    <button class="btn btn-primary btn-lg" style="width:100%;font-weight:700" onclick="fazerLogin()">Entrar →</button>
+    <div id="loginLoading" style="display:none;text-align:center;font-size:11px;color:var(--text3);margin-top:12px">⏳ Verificando...</div>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="appScreen" style="display:none">
+<div id="appLoading" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px"><div style="font-size:28px">⏳</div><div style="font-size:13px;color:var(--text2);font-weight:600">Carregando dados...</div></div>
+<div class="wrap">
+  <div class="topbar">
+    <div style="flex-shrink:0;display:flex;align-items:center;padding:0 8px 0 4px;border-right:1px solid var(--border);margin-right:4px"><img src="icons/logo.png" style="height:22px;width:auto;object-fit:contain" alt="Colafix"></div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Gestão de Almoxarifado</div>
+      <div style="font-size:10px;color:var(--text3)">Almox 30 → Almox 3</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span id="sheetsTimestamp" style="font-size:10px;color:var(--text3)">⏳ Carregando...</span>
+      <button class="btn" style="height:28px;padding:0 10px;font-size:10px;font-weight:700" onclick="carregarSheetsData()">🔄</button>
+      <span id="userBadge" style="display:none;font-size:10px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px 10px"></span>
+      <button class="btn" style="height:28px;padding:0 10px;font-size:10px;margin-left:6px;color:var(--red);border-color:var(--red-mid)" onclick="logout()" title="Encerrar sessão">⏻ Sair</button>
+    </div>
+  </div>
+  <div class="tabs" id="mainTabs">
+    <button class="tab active" id="tab-estoque" onclick="showPage('pg-estoque',this)">📦 Estoque</button>
+    <button class="tab" id="tab-pend" onclick="showPage('pg-pendencias',this)">🔔 Pendências <span id="pendTotalBadge" class="pend-badge" style="display:none">0</span></button>
+    <button class="tab" id="tab-conf" onclick="showPage('pg-conferencia',this)">🔍 Conferência</button>
+    <button class="tab" id="tab-div" onclick="showPage('pg-divergencias',this)">📊 Divergências</button>
+        <button class="tab" id="tab-hist" onclick="showPage('pg-hist',this)">🗂 Histórico</button>
+    <button class="tab" id="tab-expedicao" onclick="showPage('pg-expedicao',this)">📧 Expedição</button>
+  </div>
+</div>
+
+<!-- ═══ ESTOQUE & REQUISIÇÃO ═══ -->
+<div id="pg-estoque" class="page active"><div class="wrap">
+  <div class="search-box">
+    <input type="text" id="mainSearch" placeholder="Pesquisa Global (Código ou Descrição)..." oninput="debouncedGlobalSearch()">
+    <span class="search-icon">🔍</span>
+  </div>
+  <div class="estoque-layout">
+    <!-- COL ESQUERDA: saldos -->
+    <div class="estoque-col">
+      <div class="card">
+        <div class="card-title">
+          Almox 3 — Saída Cliente
+          <span id="alertCount" class="badge-count" style="background:var(--red-dim);color:var(--red);display:none">0 críticos</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+          <div class="legend" style="margin-bottom:0">
+            <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>OK</div>
+            <div class="leg-item"><div class="leg-dot" style="background:var(--yellow-mid)"></div>Atenção</div>
+            <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Crítico</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+            <select id="itemSortMode" onchange="renderItems()" style="height:26px;font-size:10px;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:0 6px;background:#fff;color:var(--text);outline:none;cursor:pointer">
+              <option value="status">Status ↕</option>
+              <option value="az">Código A → Z</option>
+              <option value="za">Código Z → A</option>
+              <option value="name">Descrição A → Z</option>
+            </select>
+            <select id="itemFilterStatus" onchange="renderItems()" style="height:26px;font-size:10px;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:0 6px;background:#fff;color:var(--text);outline:none;cursor:pointer">
+              <option value="">Todos</option>
+              <option value="red">🔴 Crítico</option>
+              <option value="yellow">🟡 Atenção</option>
+              <option value="green">🟢 OK</option>
+            </select>
+          </div>
+        </div>
+        <div id="itemList3" style="max-height:300px;overflow-y:auto"></div>
+        <!-- ITENS SELECIONADOS -->
+        <div id="selCard" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">Itens selecionados</span>
+            <span id="selCount" class="badge-count" style="background:var(--accent-dim);color:var(--accent);display:none">0</span>
+          </div>
+          <div id="selList" style="margin-bottom:8px"></div>
+          <div class="brow">
+            <button class="btn btn-primary" id="btnIniciarReq" onclick="iniciarRequisicao()">Criar requisição →</button>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:var(--text3);font-weight:500">Almox 30 abastece ↓ Almox 3</div>
+      <div class="card">
+        <div class="card-title">Almox 30 — Reserva / Origem</div>
+        <div id="itemList30" style="max-height:280px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <!-- COL DIREITA: fluxo -->
+    <div class="req-panel">
+      <div class="card">
+        <div class="flowbar">
+          <div class="fstep active" id="fs1"><div class="step-ico">✅</div><div class="step-lbl">Aprovação</div><div class="step-sub">Supervisor</div></div>
+          <div class="farr">›</div>
+          <div class="fstep pending" id="fs2"><div class="step-ico">📄</div><div class="step-lbl">PDF</div><div class="step-sub">Operador</div></div>
+          <div class="farr">›</div>
+          <div class="fstep pending" id="fs3"><div class="step-ico">📦</div><div class="step-lbl">Movimentação</div><div class="step-sub">Operador</div></div>
+          <div class="farr">›</div>
+          <div class="fstep pending" id="fs4"><div class="step-ico">💻</div><div class="step-lbl">Confirmação</div><div class="step-sub">Iasmyn</div></div>
+          <div class="farr">›</div>
+          <div class="fstep pending" id="fs5"><div class="step-ico">🏁</div><div class="step-lbl">Concluído</div></div>
+        </div>
+      </div>
+
+      <!-- REQUISIÇÕES PENDENTES -->
+      <div class="card" id="pendentesCard" style="display:none">
+        <div class="card-title">
+          Requisições pendentes
+          <span id="pendCount" class="badge-count" style="background:var(--red-dim);color:var(--red)">0</span>
+        </div>
+        <div id="pendentesList" class="pend-list"></div>
+      </div>
+
+      <div class="card">
+        <!-- S1 APROVAÇÃO SUPERVISOR -->
+        <div id="s1">
+          <div class="card-title">✅ Aprovação — Supervisor</div>
+          <div class="aarea">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+              <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn1" style="color:var(--accent)"></span></div>
+              <div style="font-size:10px;color:var(--text3)" id="fData"></div>
+            </div>
+            <div id="apItemList"></div>
+            <div style="background:var(--bg3);border:1px dashed var(--border2);border-radius:var(--radius-sm);padding:10px 12px">
+              <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">+ Acrescentar item</div>
+              <div class="add-item-grid">
+                <div class="fld"><label>Código</label>
+                  <select id="addCod" onchange="onAddCodChange()" style="height:34px;font-size:11px"><option value="">Selecione...</option></select>
+                </div>
+                <div class="fld"><label>Material</label><input type="text" id="addName" readonly></div>
+                <div class="fld"><label>Paletes</label><input type="number" id="addPal" min="1" placeholder="0" oninput="syncAddSac()" style="text-align:center;font-weight:700"></div>
+                <div class="fld"><label>Sacos</label><input type="number" id="addSac" min="1" placeholder="0" style="text-align:center;font-weight:700"></div>
+                <button class="btn btn-primary" style="height:34px;padding:0 14px;font-weight:700;margin-top:18px" onclick="acrescentarItem()">+</button>
+              </div>
+            </div>
+            <div class="r2">
+              <div class="fld">
+                <label>Tipo de Transferência</label>
+                <select id="fTipo">
+                  <option value="Normal">Normal</option>
+                  <option value="Antecipada">Antecipada</option>
+                </select>
+              </div>
+              <div class="fld"><label>Observação</label><input type="text" id="fObs" placeholder="Urgência, referência..."></div>
+            </div>
+            <div class="r2">
+              <div class="fld"><label>Nome do Supervisor</label><input type="text" id="apName" placeholder="Nome completo"></div>
+            </div>
+            <div class="rrow"><span style="font-size:16px">👤</span><div style="flex:1"><div style="font-size:13px;font-weight:700">Supervisor</div><div style="font-size:11px;color:var(--text3)">Revise e assine</div></div><span class="rst rst-wait">Pendente</span></div>
+            <div class="brow">
+              <button class="btn" onclick="voltarSelecao()">← Cancelar</button>
+              <button class="btn" style="border-color:var(--red-mid);color:var(--red)" onclick="reprovar()">❌ Reprovar</button>
+              <button class="btn btn-primary" id="btnAprovar" onclick="aprovar()">✅ Aprovar e emitir →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- S2 PDF -->
+        <div id="s2" style="display:none">
+          <div class="card-title">📄 PDF Emitido — Aguardando Operador</div>
+          <div class="aarea">
+            <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn2" style="color:var(--accent)"></span> — <span style="color:var(--green)">Aprovada ✓</span></div>
+            <div class="banner bnok">✅ Requisição aprovada por <strong id="aprovadorNome2"></strong>. PDF disponível abaixo.</div>
+            <!-- Timeline visual -->
+            <div id="timelineBar2" style="margin:8px 0"></div>
+            <div id="s2ItemList" style="margin:4px 0"></div>
+            <div class="brow">
+              <button class="btn btn-purple" onclick="gerarPDF()">⬇ Baixar PDF</button>
+              <button class="btn btn-primary" onclick="avancarAposPDF()">Próxima etapa →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- S3 MOVIMENTAÇÃO FÍSICA -->
+        <div id="s3" style="display:none">
+          <div class="card-title">📦 Movimentação Física — Por Item</div>
+          <div class="aarea">
+            <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn3" style="color:var(--accent)"></span></div>
+            <div id="bannerMovFisica" class="banner bnwarn" style="font-size:11px">Marque cada item conforme mover fisicamente do Almox 30 para o Almox 3.</div>
+            <div id="bannerAguardFisica" style="display:none;background:var(--orange-dim);border:1px solid var(--orange-mid);border-radius:var(--radius-sm);padding:9px 13px;font-size:12px;font-weight:700;color:var(--orange)">🟠 Aguardando Movimentação Física — Confirmação no sistema já realizada. Realize agora a movimentação física dos itens.</div>
+            <div class="fld"><label>Operador responsável</label><input type="text" id="opName" placeholder="Nome do operador"></div>
+            <div id="s3CheckList" style="margin-top:8px"></div>
+            <div style="font-size:11px;color:var(--text3);margin:8px 0" id="s3Status"></div>
+            <div class="brow">
+              <button class="btn btn-purple" onclick="gerarPDF()">⬇ PDF</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- S4 CONFIRMAÇÃO IASMYN -->
+        <div id="s4" style="display:none">
+          <div class="card-title">💻 Confirmação no Sistema — Iasmyn</div>
+          <div class="aarea">
+            <div style="font-size:13px;font-weight:700;color:var(--text2)">Req. <span id="rn4" style="color:var(--accent)"></span></div>
+            <div class="banner bninfo" style="font-size:11px">Confirme os itens movimentados e finalize a transferência no sistema.</div>
+            <div class="r2" style="margin-bottom:10px">
+              <div class="fld"><label>Usuário sistema</label><input type="text" id="sysUser" placeholder="Login"></div>
+              <div class="fld"><label>Nº doc. (RM/NF)</label><input type="text" id="sysDoc" placeholder="Ex: RM-2025-001"></div>
+            </div>
+            <div id="sysChecklist"></div>
+          </div>
+        </div>
+
+        <!-- S5 CONCLUÍDO -->
+        <div id="s5" style="display:none;text-align:center;padding:32px 0">
+          <div style="font-size:40px;margin-bottom:12px">🏁</div>
+          <div style="font-size:16px;font-weight:700;margin-bottom:6px;color:var(--green)">Transferência concluída!</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.9" id="doneT"></div>
+          <div class="brow" style="justify-content:center;gap:10px">
+            <button class="btn btn-purple" onclick="gerarPDF()">⬇ PDF</button>
+            <button class="btn btn-primary" onclick="resetar()">Nova requisição</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══ HISTÓRICO ═══ -->
+<div id="pg-hist" class="page"><div class="wrap">
+  <div class="stat-grid" id="statGrid"></div>
+  <div class="card">
+    <div class="card-title">Histórico de requisições</div>
+    <!-- Filtros período -->
+    <div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Período</div>
+      <div class="periodo-btns">
+        <button class="periodo-btn active" id="pbHoje" onclick="setPeriodo('hoje',this)">Hoje</button>
+        <button class="periodo-btn" id="pb7" onclick="setPeriodo('7d',this)">7 dias</button>
+        <button class="periodo-btn" id="pb30" onclick="setPeriodo('30d',this)">30 dias</button>
+        <button class="periodo-btn" id="pbTodos" onclick="setPeriodo('todos',this)">Todos</button>
+        <button class="periodo-btn" id="pbCustom" onclick="setPeriodo('custom',this)">📅 Personalizado</button>
+      </div>
+      <div id="customPeriodo" style="display:none;margin-top:8px" class="periodo-custom">
+        <label style="font-size:10px;color:var(--text3);font-weight:700">De:</label>
+        <input type="date" id="dtInicio" onchange="renderHist()">
+        <label style="font-size:10px;color:var(--text3);font-weight:700">Até:</label>
+        <input type="date" id="dtFim" onchange="renderHist()">
+      </div>
+    </div>
+    <div class="hist-toolbar">
+      <input type="text" id="histSearch" placeholder="🔍  Buscar req., material, pessoa..." oninput="renderHist()">
+      <select id="histFilter" onchange="renderHist()">
+        <option value="">Todos os status</option>
+        <option value="Concluído">Concluído</option>
+        <option value="Em andamento">Em andamento</option>
+        <option value="Rejeitado">Rejeitado</option>
+        <option value="Excluído">Excluído</option>
+        <option value="Pendente Físico">Apenas pendentes físicos</option>
+        <option value="Concluído Físico">Apenas concluídos físicos</option>
+        <option value="Rasgados">⚠️ Com avaria</option>
+        <option value="SemAvaria">Sem avaria</option>
+      </select>
+      <button class="btn" onclick="exportCSV()">⬇ CSV</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="hist-table">
+        <thead><tr>
+          <th onclick="sortHist('req')">Req. ↕</th>
+          <th onclick="sortHist('data')">Data/Hora ↕</th>
+          <th>Materiais</th>
+          <th style="text-align:center" onclick="sortHist('paletes')">Pal.</th>
+          <th style="text-align:center" onclick="sortHist('sacos')">Sacos</th>
+          <th>Aprovador</th>
+          <th>Operador</th>
+          <th onclick="sortHist('status')">Status ↕</th>
+        </tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <div id="histEmpty" style="text-align:center;padding:40px 0;color:var(--text3);display:none"><div style="font-size:32px;margin-bottom:8px;opacity:.3">🗂</div>Nenhuma requisição encontrada</div>
+    <div id="histCount" style="font-size:10px;color:var(--text3);margin-top:8px;text-align:right"></div>
+  </div>
+  <div id="detailPanel" style="display:none">
+    <div class="detail-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">Detalhes da Requisição</div>
+        <button class="btn" onclick="closeDetail()" style="height:28px;padding:0 10px;font-size:11px">✕</button>
+      </div>
+      <div id="detailContent"></div>
+    </div>
+  </div>
+</div></div>
+<!-- ═══ EXPEDIÇÃO ═══ -->
+<div id="pg-expedicao" class="page"><div class="wrap">
+  <div class="card">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <span>📧 Emails de Expedição Processados</span>
+      <button class="btn" onclick="carregarEmailLog()" style="height:28px;padding:0 12px;font-size:11px">🔄 Atualizar</button>
+    </div>
+    <div id="expedicaoInfo" style="font-size:11px;color:var(--text3);margin-bottom:10px">Os emails de confirmação de expedição são processados automaticamente pelo Google Apps Script a cada 10 minutos. As pré-transferências geradas aparecem automaticamente em Pendências.</div>
+    <div id="expedicaoLoading" style="text-align:center;padding:20px 0;color:var(--text3);display:none">🔄 Carregando...</div>
+    <div id="expedicaoEmpty" style="text-align:center;padding:40px 0;color:var(--text3);display:none">
+      <div style="font-size:32px;margin-bottom:8px;opacity:.3">📧</div>
+      <div>Nenhum email processado ainda</div>
+      <div style="font-size:11px;margin-top:6px">Configure o trigger no Google Apps Script e aguarde o próximo ciclo</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="hist-table" id="expedicaoTable" style="display:none">
+        <thead><tr>
+          <th>NF</th>
+          <th>Cliente</th>
+          <th>Data Email</th>
+          <th style="text-align:center">Status</th>
+          <th>Transferência Gerada</th>
+          <th>Itens</th>
+          <th>Mensagem</th>
+          <th style="text-align:center">Ação</th>
+        </tr></thead>
+        <tbody id="expedicaoBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div></div>
+<!-- ═══ MINHAS PENDÊNCIAS ═══ -->
+<div id="pg-pendencias" class="page"><div class="wrap">
+  <div class="card">
+    <div class="card-title">🔔 Minhas Pendências</div>
+    <div id="pendListContent" class="pend-list"></div>
+    <div id="pendEmpty" style="text-align:center;padding:40px 0;color:var(--text3);display:none">
+      <div style="font-size:32px;margin-bottom:8px">✅</div>
+      <div>Você não possui pendências no momento</div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══ CONFERÊNCIA FÍSICA ═══ -->
+<div id="pg-conferencia" class="page"><div class="wrap">
+
+  <!-- Painel de seleção de itens -->
+  <div class="card" style="margin-bottom:14px" id="confSelCard">
+    <div class="card-title">🔍 Selecionar Itens para Conferência
+      <span id="confSelBadge" style="display:none;margin-left:6px;background:var(--accent);color:#fff;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700">0 selecionados</span>
+    </div>
+    <!-- Barra de pesquisa e filtro de almox -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <div class="fld" style="width:150px;flex-shrink:0">
+        <label>Almoxarifado</label>
+        <select id="confAlmox" onchange="filtrarItensConf()">
+          <option value="todos">Todos</option>
+          <option value="almox3">Almox 3</option>
+          <option value="almox30">Almox 30</option>
+          <option value="rejunte">Rejunte / Área Líquida</option>
+          <option value="separacao">Separação</option>
+        </select>
+      </div>
+      <div style="position:relative;flex:1;min-width:200px">
+        <input type="text" id="confSearch" placeholder="🔍 Código ou descrição do produto..." oninput="debouncedFiltrarItensConf()"
+          style="width:100%;height:36px;padding:0 36px 0 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s"
+          onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--accent-dim)'"
+          onblur="this.style.borderColor='var(--border2)';this.style.boxShadow='none'">
+        <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none">🔍</span>
+      </div>
+      <button class="btn" onclick="confSelecionarTodos()" style="height:36px;font-size:11px">☑ Todos</button>
+      <button class="btn" onclick="confLimparSelecao()" style="height:36px;font-size:11px">☐ Limpar</button>
+    </div>
+    <!-- Alteração 3: Filtros rápidos por descrição -->
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:10px;color:var(--text3);font-weight:600;white-space:nowrap">Filtro rápido:</span>
+      <span id="confFiltrosRapidosContainer"></span>
+      <button class="btn" style="height:28px;font-size:10px;padding:0 10px;opacity:.7" onclick="confFiltroRapido('')" title="Limpar filtro rápido">✕ Limpar</button>
+    </div>
+    <!-- Lista de itens para seleção -->
+    <div id="confItemSelList" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg3)"></div>
+    <div id="confSelVazio" style="display:none;text-align:center;padding:20px;color:var(--text3);font-size:11px">Nenhum item encontrado para a pesquisa.</div>
+    <!-- Botões: PDF lista em branco + iniciar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-purple" onclick="gerarPDFListaContagem()" style="height:38px;font-size:12px;padding:0 16px;font-weight:700">🖨️ Imprimir Lista de Contagem</button>
+      <button id="btnIniciarConf" class="btn btn-primary" onclick="confIniciarConferencia()" style="height:38px;font-size:13px;padding:0 22px;font-weight:700">▶ Iniciar Conferência →</button>
+    </div>
+  </div>
+
+  <!-- Painel de conferência -->
+  <div class="card" style="margin-bottom:14px;display:none" id="confPainelConf">
+    <div class="card-title">📋 Conferência Física de Estoque
+      <span id="confNumDisplay" style="margin-left:auto;font-size:10px;color:var(--text3);font-weight:400"></span>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <div class="fld" style="width:150px">
+        <label>Filtrar Local</label>
+        <select id="confLocal" onchange="renderConferencia()">
+          <option value="todos">Todos</option>
+          <option value="almox3">Almox 3</option>
+          <option value="almox30">Almox 30</option>
+          <option value="rejunte">Rejunte / Área Líquida</option>
+          <option value="separacao">Separação</option>
+        </select>
+      </div>
+      <!-- Ajuste 2: campo de pesquisa no painel de conferência -->
+      <div class="fld" style="flex:1;min-width:160px">
+        <label>Pesquisar Item</label>
+        <input type="text" id="confPainelSearch" placeholder="🔍 Código ou descrição..."
+          oninput="debouncedRenderConferencia()"
+          style="width:100%;box-sizing:border-box">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+        <input type="checkbox" id="modoCego" onchange="toggleModoCego()">
+        <label for="modoCego" style="font-size:12px;font-weight:700;cursor:pointer">Modo Contagem Cega</label>
+      </div>
+      <div style="margin-top:14px;margin-left:auto;display:flex;gap:8px">
+        <button class="btn" onclick="confVoltarSelecao()" style="font-size:11px">← Itens</button>
+        <button class="btn btn-success" id="btnSalvarConf" onclick="salvarConferencia()">&#128190; Salvar Conferência</button>
+      </div>
+    </div>
+    <div id="confGrid" class="conf-grid"></div>
+    <div id="confGridVazio" style="display:none;text-align:center;padding:30px 0;color:var(--text3)">
+      <div style="font-size:28px;margin-bottom:8px;opacity:.3">📦</div>
+      Selecione itens para conferir.
+    </div>
+  </div>
+
+  <!-- Histórico de Conferências -->
+  <div class="card">
+    <div class="card-title">📋 Histórico de Conferências
+      <button class="btn" style="margin-left:auto;height:26px;padding:0 10px;font-size:10px" onclick="confHistLimparFiltros()">✕ Limpar filtros</button>
+    </div>
+    <!-- Filtros do histórico de conferências -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end" id="confHistFiltrosBar">
+      <div class="fld" style="flex:1;min-width:140px">
+        <label>Buscar (nº / conferente)</label>
+        <input type="text" id="confHistBusca" placeholder="🔍 Buscar..." oninput="renderConfHistorico()" style="height:30px;font-size:11px">
+      </div>
+      <div class="fld" style="width:140px">
+        <label>Local / Almox</label>
+        <select id="confHistLocal" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+          <option value="">Todos</option>
+          <option value="almox3">Almox 3</option>
+          <option value="almox30">Almox 30</option>
+          <option value="rejunte">Rejunte / Área Líquida</option>
+          <option value="separacao">Separação</option>
+        </select>
+      </div>
+      <div class="fld" style="width:130px">
+        <label>Data inicial</label>
+        <input type="date" id="confHistDtInicio" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+      </div>
+      <div class="fld" style="width:130px">
+        <label>Data final</label>
+        <input type="date" id="confHistDtFim" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+      </div>
+      <div class="fld" style="width:130px">
+        <label>Material</label>
+        <select id="confHistRasgo" onchange="renderConfHistorico()" style="height:30px;font-size:11px">
+          <option value="">Todos</option>
+          <option value="normais">Sem avaria</option>
+          <option value="rasgados">⚠️ Com avaria</option>
+        </select>
+      </div>
+      <div style="padding-bottom:2px">
+        <button class="btn" style="height:30px;padding:0 12px;font-size:11px;font-weight:700" onclick="confHistFiltroHoje()" title="Mostrar apenas conferências de hoje">📅 Hoje</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);padding-bottom:2px" id="confHistContador"></div>
+    </div>
+    <div id="confHistEmpty" style="text-align:center;padding:30px 0;color:var(--text3)">
+      <div style="font-size:28px;margin-bottom:8px;opacity:.3">📦</div>
+      Nenhuma conferência salva ainda
+    </div>
+    <div id="confHistList" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</div></div>
+
+<!-- ═══ DIVERGÊNCIAS ═══ -->
+<div id="pg-divergencias" class="page"><div class="wrap">
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">📊 Divergências de Estoque
+      <button class="btn btn-primary" style="margin-left:auto;height:28px;padding:0 12px;font-size:11px" onclick="atualizarSaldosDivergencias()">🔄 Atualizar Saldos</button>
+    </div>
+    <div id="divInfoConf" style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:var(--radius-sm);padding:9px 13px;font-size:11px;color:var(--accent);margin-bottom:12px;display:none"></div>
+    
+    <!-- Filtros de Divergências -->
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fld" style="flex:1;min-width:200px">
+        <label>Buscar Código</label>
+        <input type="text" id="divFiltroCod" placeholder="Pesquisar código do item..." oninput="renderDivergencias()">
+      </div>
+      <div class="fld" style="width:200px">
+        <label>Tipo de Divergência</label>
+        <select id="divFiltroTipo" onchange="renderDivergencias()">
+          <option value="todas">Todas</option>
+          <option value="positiva">Divergência positiva</option>
+          <option value="negativa">Divergência negativa</option>
+          <option value="zerada">Divergência zerada</option>
+          <option value="pendentes">Somente pendentes de justificativa</option>
+          <option value="justificadas">Justificadas</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="divGroupContainer" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div id="divEmpty" style="text-align:center;padding:40px 0;color:var(--text3)">
+      <div style="font-size:32px;margin-bottom:8px;opacity:.3">✅</div>
+      Nenhuma divergência encontrada. Salve uma conferência primeiro.
+    </div>
+  </div>
+  <!-- Histórico de Divergências -->
+  <div class="card">
+    <div class="card-title">📋 Histórico de Divergências</div>
+    <div id="divHistEmpty" style="text-align:center;padding:30px 0;color:var(--text3)">
+      <div style="font-size:28px;margin-bottom:8px;opacity:.3">🗂</div>
+      Nenhuma divergência investigada ainda
+    </div>
+    <div style="overflow-x:auto">
+      <table class="hist-table" id="divHistTable" style="display:none">
+        <thead><tr>
+          <th>Nº Conf.</th><th>Data/Hora</th><th>Usuário</th><th>Produto</th>
+          <th style="text-align:center">Almox</th><th style="text-align:center">Diferença</th>
+          <th>Justificativas</th><th style="text-align:center">Residual</th><th style="text-align:center">Status</th>
+        </tr></thead>
+        <tbody id="divHistBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div></div>
+
+<!-- Modal Investigação de Divergência -->
+<div id="modalInvestigacao" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:540px">
+    <div class="modal-head">
+      <div style="font-size:13px;font-weight:700" id="modalInvTitle">Investigação de Divergência</div>
+      <button class="btn" style="height:28px;padding:0 10px;font-size:11px" onclick="fecharModalInvestigacao()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modalInvInfo" style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:11px"></div>
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Justificativas da Divergência</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="fld">
+          <label>Faturado e não expedido</label>
+          <input type="number" id="invFaturado" value="0" min="0" oninput="calcResidual()">
+        </div>
+        <div class="fld">
+          <label>Transferência pendente</label>
+          <input type="number" id="invTransferencia" value="0" min="0" oninput="calcResidual()">
+        </div>
+        <div class="fld">
+          <label>Falta apontamento produção</label>
+          <input type="number" id="invApontamento" value="0" min="0" oninput="calcResidual()">
+        </div>
+	        <div class="fld">
+	          <label>Avaria / Perda</label>
+	          <input type="number" id="invAvaria" value="0" min="0" oninput="calcResidual()">
+	        </div>
+	        <div class="fld">
+	          <label>Empresa 9</label>
+	          <input type="number" id="invEmpresa9" value="0" min="0" oninput="calcResidual()">
+	        </div>
+
+      </div>
+      <div class="fld" style="margin-bottom:12px">
+        <label>Observações</label>
+        <textarea id="invObs" style="height:64px;padding:8px 10px;resize:none;width:100%;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;outline:none" placeholder="Descreva detalhes adicionais..."></textarea>
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;font-weight:700;color:var(--text2)">Diferença residual após justificativas:</span>
+          <span id="invResidual" style="font-size:16px;font-weight:800;color:var(--red)">0</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px" id="invStatusAuto"></div>
+      </div>
+      <div class="fld" style="margin-bottom:14px">
+        <label>Status da Divergência</label>
+        <select id="invStatus">
+          <option value="Aberta">Aberta</option>
+          <option value="Em investigação">Em investigação</option>
+          <option value="Resolvida">Resolvida</option>
+        </select>
+      </div>
+      <div class="brow">
+        <button class="btn" onclick="fecharModalInvestigacao()">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarInvestigacao()">💾 Salvar Investigação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+</div><!-- /appScreen -->
+
+<div id="toast" class="toast"></div>
+
+<script src="js/config-sheets.js"></script>
+<script src="js/state.js"></script>
+<script src="js/permissions.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/estoque.js"></script>
+<script src="js/conferencia.js"></script>
+<script src="js/divergencias.js"></script>
+<script src="js/pendentes.js"></script>
+<script src="js/requisicao.js"></script>
+<script src="js/movimentacao.js"></script>
+<script src="js/confirmacao-sistema.js"></script>
+<script src="js/operador.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/historico.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/sheets-api.js"></script>
+<script src="js/expedicao.js"></script>
+<script src="js/polling.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/init.js"></script>
+<script src="js/sw-register.js"></script>
+</body>
+</html>
