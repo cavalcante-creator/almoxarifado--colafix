@@ -1,5 +1,6 @@
 # Gestão de Almoxarifado Colafix
 
+
 Sistema estático (HTML + CSS + JavaScript puro) de gestão de almoxarifado.
 Sem build, sem bundler, sem npm, sem framework — funciona abrindo o
 `index.html` diretamente (`file://`) ou hospedado em qualquer servidor
