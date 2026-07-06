@@ -1,0 +1,26 @@
+/* ===== BASE: variáveis, reset, tipografia, ajustes globais mobile ===== */
+:root{
+  --bg:#F7F5F0;--bg2:#FFFFFF;--bg3:#F2EFE9;--bg4:#EAE6DF;
+  --border:#DDD9D0;--border2:#C8C3B8;
+  --text:#1C1C1A;--text2:#5A574F;--text3:#9C9888;
+  --accent:#1B5C7A;--accent2:#236E93;--accent-dim:#E8F2F7;--accent-mid:#B8D6E5;
+  --green:#2D7D46;--green-dim:#E8F5ED;--green-mid:#A8D5B5;
+  --yellow:#8A6A00;--yellow-dim:#FFF8E1;--yellow-mid:#FFD966;
+  --red:#B83232;--red-dim:#FDEAEA;--red-mid:#F0A8A8;
+  --purple:#5B3FA6;--purple-dim:#EEE9FA;
+  --radius:10px;--radius-sm:6px;
+  --indigo:#4F46E5;--indigo-dim:#EEF2FF;
+  --orange:#B85C00;--orange-dim:#FFF3E0;--orange-mid:#FFCC80;
+  --shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:16px;font-size:13px}
+@media(max-width:768px){body{padding:8px}}
+/* U2: evita zoom automático do iOS Safari ao focar campos — não altera o layout desktop */
+@media(max-width:768px){input,select,textarea{font-size:16px !important}}
+/* U23: aumenta a área de toque de ícones pequenos (✕/🗑) no mobile sem mudar o tamanho visual */
+@media(max-width:768px){
+  .tap-target-sm{position:relative}
+  .tap-target-sm::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px}
+}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--bg3)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
