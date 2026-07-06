@@ -92,3 +92,4 @@ comportamento foi alterado nesta modularização — o código de cada função
 foi apenas **movido** para o arquivo correspondente, sem reescrita de
 lógica. A aparência e o funcionamento são idênticos à versão em arquivo
 único anterior.
+
