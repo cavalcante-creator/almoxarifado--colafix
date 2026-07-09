@@ -580,6 +580,7 @@
       <button class="btn" style="height:28px;padding:0 10px;font-size:11px" onclick="fecharModalValidarSaldo()">✕</button>
     </div>
     <div class="modal-body">
+      <div id="vsAlertaHistorico" style="display:none;margin-bottom:12px"></div>
       <div id="vsInfo" style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:11px;line-height:1.7"></div>
 
       <div id="vsSaldoInputsContainer" style="margin-bottom:12px"></div>
@@ -597,6 +598,7 @@
             <option>Falta de apontamento da produção</option>
             <option>Avaria</option>
             <option>Erro de contagem</option>
+            <option>Erro no sistema (ERP) — saldo ajustado</option>
             <option>Outro</option>
           </select>
         </div>

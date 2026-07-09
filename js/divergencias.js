@@ -28,10 +28,12 @@ async function atualizarSaldosDivergencias() {
   toast('✅ Saldos e auditorias atualizados!');
 }
 
-// Regra especial: o Almox 3 físico tem o saldo dividido no ERP entre
-// Empresa 1 e Empresa 9. Todos os demais locais pedem um único saldo.
+// Regra especial: Rejunte, Separação e Almox 3 são, fisicamente, o MESMO
+// almoxarifado (só categorias diferentes de item dentro dele) — então o
+// saldo do ERP é dividido entre Empresa 1 e Empresa 9 para todos eles.
+// Só o Almox 30 é um local realmente separado, com saldo único.
 function ehAlmox3Fisico(local){
-  return local === 'Almox 3';
+  return local === 'Almox 3' || local === 'Rejunte' || local === 'Separação';
 }
 
 // ── Painel gerencial: indicadores no topo ───────────────────────────
@@ -214,28 +216,50 @@ function abrirValidarSaldo(numConf, cod, local){
 
   _auditAtual = { numConf, cod, nome: it.nome, local, saldoFisico, data: conf.data || conf.dataHora, auditKey, ehAlmox3 };
 
+  // Alerta: este item já teve divergência em alguma OUTRA conferência antes?
+  // Ajuda o Supervisor a reconhecer de cara um item que já deu problema antes.
+  const alertaEl = document.getElementById('vsAlertaHistorico');
+  const historicoItem = buscarHistoricoDivergenciasItem(cod, auditKey);
+  if(historicoItem.length > 0){
+    const ultima = historicoItem[0];
+    const statusUltima = ultima.investigacao && ultima.investigacao.status==='Resolvido' ? 'resolvida' : 'em investigação';
+    alertaEl.style.display = 'block';
+    alertaEl.innerHTML = `
+      <div style="background:var(--yellow-dim);border:1px solid var(--yellow-mid,var(--yellow));border-radius:6px;padding:10px 12px">
+        <div style="font-weight:700;color:var(--yellow);font-size:11px">⚠️ Este item já teve divergência antes (${historicoItem.length}x)</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:4px">
+          Última: <b>${ultima.dataHora}</b> · Conf. ${ultima.numConf} · ${ultima.almoxarifado} · por <b>${ultima.supervisor}</b> — ${statusUltima}
+          ${ultima.investigacao && ultima.investigacao.motivo ? `<br>Motivo: ${escapeHTML(ultima.investigacao.motivo)}` : ''}
+          ${ultima.investigacao && ultima.investigacao.status==='Resolvido' && ultima.investigacao.obsFinal ? `<br>Ajuste registrado: ${escapeHTML(ultima.investigacao.obsFinal)}` : ''}
+        </div>
+      </div>`;
+  } else {
+    alertaEl.style.display = 'none';
+    alertaEl.innerHTML = '';
+  }
+
   document.getElementById('vsInfo').innerHTML = `
-    <div><b>Almoxarifado:</b> ${local}${ehAlmox3 ? ' <span style="color:var(--text3)">(único fisicamente — saldo dividido no ERP entre Empresa 1 e Empresa 9)</span>' : ''}</div>
+    <div><b>Almoxarifado:</b> ${local}${ehAlmox3 ? ' <span style="color:var(--text3)">(mesmo prédio físico do Almox 3 — saldo dividido no ERP entre Empresa 1 e Empresa 9)</span>' : ''}</div>
     <div><b>Data da conferência:</b> ${_auditAtual.data}</div>
     <div><b>Produto:</b> ${escapeHTML(cod)} — ${escapeHTML(it.nome||'')}</div>
     <div><b>Saldo físico contado:</b> ${saldoFisico}</div>
   `;
 
-  // Monta os campos de saldo dinamicamente: 2 campos pro Almox 3 (Empresa 1 + Empresa 9), 1 campo pros demais
+  // Monta os campos de saldo dinamicamente: 2 campos pro Almox 3/Rejunte/Separação (Empresa 1 + Empresa 9), 1 campo pro Almox 30
   const container = document.getElementById('vsSaldoInputsContainer');
   if(ehAlmox3){
     container.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="fld">
-          <label>Saldo Almox 3 — Empresa 1</label>
+          <label>Saldo ${local} — Empresa 1</label>
           <input type="number" id="vsSaldoEmpresa1" min="0" oninput="compararSaldoAuditoria()" placeholder="0">
         </div>
         <div class="fld">
-          <label>Saldo Almox 3 — Empresa 9</label>
+          <label>Saldo ${local} — Empresa 9</label>
           <input type="number" id="vsSaldoEmpresa9" min="0" oninput="compararSaldoAuditoria()" placeholder="0">
         </div>
       </div>
-      <div style="font-size:9px;color:var(--text3);margin-top:4px">A soma dos dois valores será comparada ao saldo físico contado (Almox 3 é um único almoxarifado físico).</div>
+      <div style="font-size:9px;color:var(--text3);margin-top:4px">A soma dos dois valores será comparada ao saldo físico contado (é um único almoxarifado físico).</div>
     `;
     document.getElementById('vsSaldoEmpresa1').value = existente && existente.saldoInformadoEmpresa1 != null ? existente.saldoInformadoEmpresa1 : '';
     document.getElementById('vsSaldoEmpresa9').value = existente && existente.saldoInformadoEmpresa9 != null ? existente.saldoInformadoEmpresa9 : '';
@@ -279,6 +303,15 @@ function abrirValidarSaldo(numConf, cod, local){
 function fecharModalValidarSaldo(){
   document.getElementById('modalValidarSaldo').style.display = 'none';
   _auditAtual = null;
+}
+
+// Busca todas as auditorias anteriores (de QUALQUER conferência) desse mesmo
+// item que resultaram em divergência — usado pra avisar o Supervisor que
+// "esse item já deu problema antes", mesmo numa conferência diferente da atual.
+function buscarHistoricoDivergenciasItem(cod, auditKeyAtual){
+  return AUDITORIA_HISTORICO
+    .filter(a => a.cod === cod && a.resultado === 'Divergência' && a.auditKey !== auditKeyAtual)
+    .sort((a,b) => (b.dataHora||'').localeCompare(a.dataHora||''));
 }
 
 // Lê os campos de saldo informado (1 ou 2, dependendo do local) e retorna
@@ -356,7 +389,7 @@ function salvarValidacaoSaldo(){
   const leitura = _lerSaldoInformadoAtual();
   if(!leitura){
     toast(_auditAtual.ehAlmox3
-      ? '⚠️ Informe os dois saldos (Empresa 1 e Empresa 9) — os dois são obrigatórios no Almox 3.'
+      ? '⚠️ Informe os dois saldos (Empresa 1 e Empresa 9) — os dois são obrigatórios.'
       : '⚠️ Informe o saldo do sistema/ERP.');
     return;
   }
