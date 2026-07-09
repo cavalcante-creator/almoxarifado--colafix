@@ -208,3 +208,70 @@ async function carregarConferenciasSheets(){
     renderDivergencias();
   }catch(e){console.warn('[carregarConferencias] Erro:',e);}
 }
+
+// ─── AUDITORIA DE ESTOQUE (NOVA FUNCIONALIDADE) ─────────────────────
+// Mesmo padrão de salvarConferenciaSheets/carregarConferenciasSheets,
+// usando a aba "AUDITORIAS" (rota 'salvarAuditoria' no Apps Script) —
+// assim o histórico de auditoria passa a ser compartilhado entre todos
+// os computadores/usuários, e não só salvo no navegador de quem audita.
+async function salvarAuditoriaSheets(registro){
+  try{
+    console.log('[salvarAuditoriaSheets] Enviando', registro.auditKey, 'para o GAS...');
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({acao:'salvarAuditoria', id: registro.auditKey, dados: JSON.stringify(registro)})
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    console.log('[salvarAuditoriaSheets] Sucesso:', registro.auditKey);
+    return true;
+  } catch(e){
+    console.error('[salvarAuditoriaSheets] Erro:', registro.auditKey, e.message);
+    try{
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({acao:'salvarAuditoria', id: registro.auditKey, dados: JSON.stringify(registro)})
+      });
+      console.log('[salvarAuditoriaSheets] Fallback no-cors enviado:', registro.auditKey);
+      return true;
+    } catch(e2){
+      console.error('[salvarAuditoriaSheets] Falha total:', registro.auditKey, e2.message);
+      return false;
+    }
+  }
+}
+async function carregarAuditoriasSheets(){
+  try{
+    console.log('[carregarAuditorias] Carregando do Sheets...');
+    const rows = await fetchRange('AUDITORIAS!A2:B');
+    const loaded = rows.filter(r=>r[0]&&r[1]).map(r=>{
+      try{ return JSON.parse(r[1]); }
+      catch(e){ console.warn('[carregarAuditorias] Erro ao parsear linha:', r[0], e); return null; }
+    }).filter(Boolean);
+    console.log('[carregarAuditorias] Registros carregados do Sheets:', loaded.length);
+
+    loaded.forEach(reg=>{
+      if(!reg || !reg.auditKey) { console.warn('[carregarAuditorias] Ignorando registro sem auditKey'); return; }
+      const idx = AUDITORIA_HISTORICO.findIndex(a=>a.auditKey===reg.auditKey);
+      if(idx >= 0) AUDITORIA_HISTORICO[idx] = reg;
+      else AUDITORIA_HISTORICO.push(reg);
+    });
+    AUDITORIA_HISTORICO.sort((a,b)=>{
+      const parsePtBR = s => {
+        if(!s) return 0;
+        const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+        if(m) return new Date(m[3],m[2]-1,m[1],m[4],m[5]).getTime();
+        return new Date(s).getTime() || 0;
+      };
+      return parsePtBR(b.dataHora) - parsePtBR(a.dataHora);
+    });
+    salvarAuditoriaLocal(); // mantém o cache local sincronizado com o que veio do Sheets
+    console.log('[carregarAuditorias] Total em memória após merge:', AUDITORIA_HISTORICO.length);
+    renderConfHistorico();
+    renderDivergencias();
+    renderDivHistorico();
+  }catch(e){ console.warn('[carregarAuditorias] Erro:', e); }
+}

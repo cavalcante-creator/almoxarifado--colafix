@@ -1,6 +1,5 @@
 # Gestão de Almoxarifado Colafix
 
-
 Sistema estático (HTML + CSS + JavaScript puro) de gestão de almoxarifado.
 Sem build, sem bundler, sem npm, sem framework — funciona abrindo o
 `index.html` diretamente (`file://`) ou hospedado em qualquer servidor
@@ -30,7 +29,7 @@ estático, incluindo **GitHub Pages**.
   utils.js                   → funções utilitárias (datas, formatação, toast, navegação)
   estoque.js                  → aba Estoque
   conferencia.js                → aba Conferência (contagem física + material rasgado)
-  divergencias.js                 → aba Divergências
+  divergencias.js                 → aba Auditoria de Estoque (validação de saldo pelo Supervisor Sistema, pós-conferência)
   pendentes.js                     → painel de requisições pendentes
   requisicao.js                     → criação, reprovação e aprovação de requisições
   movimentacao.js                    → movimentação física dos itens
@@ -93,4 +92,3 @@ comportamento foi alterado nesta modularização — o código de cada função
 foi apenas **movido** para o arquivo correspondente, sem reescrita de
 lógica. A aparência e o funcionamento são idênticos à versão em arquivo
 único anterior.
-

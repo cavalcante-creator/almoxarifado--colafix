@@ -1,156 +1,194 @@
-// ===== Aba Divergências: comparação sistema x físico e investigação =====
-// ─── DIVERGÊNCIAS ─────────────────────────────────────────────────
+// ===== Aba Auditoria de Estoque: validação de saldo pós-conferência (Supervisor Sistema) =====
+// ─── AUDITORIA DE ESTOQUE ────────────────────────────────────────────
+// [SUBSTITUI o antigo módulo "Divergências"] Mantém a mesma lógica de
+// investigação (causa + observação + status), adaptada ao processo real:
+// a auditoria é uma ETAPA SEPARADA, feita pelo Supervisor Sistema depois
+// que a conferência já foi salva — nunca durante a contagem do conferente.
+//
+// REGRA ESPECIAL DO ALMOX 3: fisicamente existe um único Almoxarifado 3,
+// mas no ERP o saldo dele é dividido contabilmente entre Empresa 1 e
+// Empresa 9. Por isso, ao auditar uma linha de "Almox 3", pedimos os dois
+// saldos (Empresa 1 + Empresa 9) e comparamos a SOMA com o saldo físico
+// único. Para "Almox 30" (e demais locais), pedimos um único saldo,
+// implicitamente da Empresa 1. Isso é automático — o Supervisor nunca
+// escolhe uma empresa manualmente.
+//
+// Os nomes das funções abaixo (renderDivergencias, renderDivHistorico,
+// atualizarSaldosDivergencias) foram mantidos para não precisar tocar nos
+// pontos de integração já existentes (utils.js, conferencia.js, polling.js,
+// sheets-api.js) — só o conteúdo/comportamento interno mudou.
+
 async function atualizarSaldosDivergencias() {
   toast('🔄 Buscando saldos...');
   await carregarSheetsData();
   await carregarInventarioItens();
+  await carregarConferenciasSheets();
+  await carregarAuditoriasSheets();
   renderDivergencias();
-  toast('✅ Saldos atualizados!');
+  toast('✅ Saldos e auditorias atualizados!');
 }
 
+// Regra especial: o Almox 3 físico tem o saldo dividido no ERP entre
+// Empresa 1 e Empresa 9. Todos os demais locais pedem um único saldo.
+function ehAlmox3Fisico(local){
+  return local === 'Almox 3';
+}
+
+// ── Painel gerencial: indicadores no topo ───────────────────────────
+function renderAuditIndicadores(conferenciasValidas){
+  const el = document.getElementById('auditIndicadores');
+  if(!el) return;
+
+  const hojeStr = new Date().toLocaleDateString('pt-BR');
+  let aguardando=0, emAndamento=0, concluidas=0;
+  let auditoriasHoje=0, investigacoesAbertas=0, investigacoesResolvidas=0;
+  let ultimaAuditoria=null;
+
+  conferenciasValidas.forEach(conf=>{
+    const r = getAuditoriaResumoConferencia(conf);
+    if(r.total===0) return;
+    if(r.concluida) concluidas++;
+    else if(r.validados>0 || r.resolvidas>0 || r.emInvestigacao>0) emAndamento++;
+    else aguardando++;
+  });
+
+  AUDITORIA_HISTORICO.forEach(a=>{
+    if((a.dataHora||'').startsWith(hojeStr)) auditoriasHoje++;
+    if(a.investigacao){
+      if(a.investigacao.status==='Em Investigação') investigacoesAbertas++;
+      if(a.investigacao.status==='Resolvido') investigacoesResolvidas++;
+    }
+    if(!ultimaAuditoria || a.dataHora > ultimaAuditoria.dataHora) ultimaAuditoria = a;
+  });
+
+  const cards = [
+    {label:'Aguardando Auditoria', val: aguardando, cor:'var(--text3)'},
+    {label:'Em Andamento', val: emAndamento, cor:'var(--yellow)'},
+    {label:'Concluídas', val: concluidas, cor:'var(--green)'},
+    {label:'Auditorias Hoje', val: auditoriasHoje, cor:'var(--accent)'},
+    {label:'Investigações Abertas', val: investigacoesAbertas, cor:'var(--red)'},
+    {label:'Investigações Resolvidas', val: investigacoesResolvidas, cor:'var(--accent)'}
+  ];
+  el.innerHTML = cards.map(c=>`
+    <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;text-align:center">
+      <div style="font-size:20px;font-weight:800;color:${c.cor}">${c.val}</div>
+      <div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-top:2px">${c.label}</div>
+    </div>`).join('')
+    + (ultimaAuditoria ? `<div style="grid-column:1/-1;font-size:10px;color:var(--text3);margin-top:2px">Última auditoria: <b>${ultimaAuditoria.dataHora}</b> por <b>${ultimaAuditoria.supervisor}</b></div>` : '');
+}
+
+// ── Painel principal: lista de conferências com semáforo de auditoria ──
 function renderDivergencias() {
   const container = document.getElementById('divGroupContainer');
   if(!container) return;
-  
   container.innerHTML = '';
-  let totalDivergenciasEncontradas = 0;
-  
+
   const filtroCod = (document.getElementById('divFiltroCod')?.value || '').toLowerCase();
-  const filtroTipo = document.getElementById('divFiltroTipo')?.value || 'todas';
+  const filtroAlmox = document.getElementById('auditFiltroAlmox')?.value || '';
+  const filtroSupervisor = (document.getElementById('auditFiltroSupervisor')?.value || '').toLowerCase();
+  const filtroData = document.getElementById('auditFiltroData')?.value || '';
+  const filtroStatus = document.getElementById('divFiltroTipo')?.value || 'todas';
 
-  // Iterar por todas as conferências do histórico
-  CONF_HISTORICO.forEach((conf, idx) => {
-    let confDivs = [];
-    
-    // Coletar divergências desta conferência
-    Object.keys(conf.itens).forEach(cod => {
-      const confItem = conf.itens[cod];
-      // Usar SALDO_BRUTO para buscar o item original (contém todos os itens, não apenas os filtrados)
-      const itemOriginal = SALDO_BRUTO.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
-      
-      // Item 7: filtrar locais sem permissão
-      const cpDiv = confPerm();
-      const invItemD = CONF_ITEMS.find(i => i.cod === cod) || SALDO_BRUTO.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
-      const isRejD  = !!(invItemD && invItemD.temRejunte);
-      const is30D   = !!(invItemD && invItemD.temAlmox30 && !invItemD.temAlmox3);
-      const lblD3   = isRejD ? 'Rejunte' : 'Almox 3';
-      const cssD3   = isRejD ? 'var(--purple-dim,#f3eeff)' : 'var(--accent-dim)';
-      const txtD3   = isRejD ? 'var(--purple,#7B5EA7)' : 'var(--accent)';
-      const locais = [];
-      if(cpDiv.acessoTotal || (isRejD ? cpDiv.podeContarRejunte : !is30D && cpDiv.podeContarAlmox3))
-        locais.push({ nome: lblD3, sist: confItem.saldoSistema3 || 0, fis: confItem.almox3 || 0, css: cssD3, txt: txtD3 });
-      if(cpDiv.acessoTotal || (!isRejD && cpDiv.podeContarAlmox30))
-        locais.push({ nome: 'Almox 30', sist: confItem.saldoSistema30 || 0, fis: confItem.almox30 || 0, css: 'var(--green-dim)', txt: 'var(--green)' });
-      // Auditoria Diária (Supervisor): Total físico (Almox 3 + Almox 30 + Empresa 1 + Empresa 9) x saldo do sistema
-      if(cpDiv.acessoTotal && confItem.statusAuditoria){
-        locais.push({
-          nome: 'Total (Auditoria)',
-          sist: (confItem.saldoSistema3 || 0) + (confItem.saldoSistema30 || 0),
-          fis: confItem.totalContadoAuditoria || 0,
-          css: 'var(--red-dim)', txt: 'var(--red)'
-        });
-      }
-
-      locais.forEach(loc => {
-        const diff = loc.fis - loc.sist;
-        const divKey = conf.numero + '_' + cod + '_' + loc.nome.replace(/\s+/g, '').toLowerCase();
-        const investigado = DIV_HISTORICO.find(d => d.divKey === divKey);
-        const status = investigado ? investigado.status : 'Aberta';
-
-        // Aplicar Filtros
-        if (diff === 0 && filtroTipo !== 'zerada' && filtroTipo !== 'conferidos' && filtroTipo !== 'todas') return;
-        if (filtroCod && !cod.toLowerCase().includes(filtroCod)) return;
-        if (filtroTipo === 'positiva' && diff <= 0) return;
-        if (filtroTipo === 'negativa' && diff >= 0) return;
-        if (filtroTipo === 'zerada' && diff !== 0) return;
-        if (filtroTipo === 'pendentes' && (status === 'Resolvida' || diff === 0)) return;
-        if (filtroTipo === 'justificadas' && status !== 'Resolvida') return;
-        // Novos filtros com nomenclatura da auditoria diária (Conferido/Divergência/Em Investigação/Resolvido)
-        if (filtroTipo === 'conferidos' && diff !== 0) return;
-        if (filtroTipo === 'divergencia' && (diff === 0 || status !== 'Aberta')) return;
-        if (filtroTipo === 'eminvestigacao' && status !== 'Em investigação') return;
-        if (filtroTipo === 'resolvidos' && status !== 'Resolvida') return;
-        if (filtroTipo !== 'todas' && filtroTipo !== 'zerada' && filtroTipo !== 'conferidos' && filtroTipo !== 'pendentes' && filtroTipo !== 'justificadas' && filtroTipo !== 'divergencia' && filtroTipo !== 'eminvestigacao' && filtroTipo !== 'resolvidos' && diff === 0) return;
-
-        confDivs.push({
-          cod,
-          nome: confItem.nome,
-          almox: loc.nome,
-          sist: loc.sist,
-          fis: loc.fis,
-          diff,
-          status,
-          css: loc.css,
-          txt: loc.txt
-        });
-      });
+  const conferenciasValidas = CONF_HISTORICO
+    .filter(c => c && c.numero && c.itens && Object.keys(c.itens).length>0)
+    .filter(c => {
+      // Auditoria passa a valer só a partir de hoje — conferências mais antigas não entram na fila
+      const dt = parseDateBR(c.data || c.dataHora);
+      if(!dt) return true; // sem data reconhecível: não filtra, pra não sumir com dado por engano
+      const hoje = new Date(); hoje.setHours(0,0,0,0);
+      return dt >= hoje;
     });
+  renderAuditIndicadores(conferenciasValidas);
 
-    if(confDivs.length > 0) {
-      totalDivergenciasEncontradas += confDivs.length;
-      
-      const divCard = document.createElement('div');
-      divCard.className = 'card';
-      divCard.style.padding = '0';
-      divCard.style.overflow = 'hidden';
-      divCard.style.border = '1px solid var(--border)';
-      
-      const isUltima = idx === 0;
-      const pendentes = confDivs.filter(d => d.status !== 'Resolvida' && d.diff !== 0).length;
-      
-      divCard.innerHTML = `
-        <div style="padding:12px 16px;background:${isUltima ? 'var(--accent-dim)' : 'var(--bg3)'};cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleDivGroup('${conf.numero}')">
-          <div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <strong style="color:var(--accent)">${conf.numero}</strong>
-              <span style="font-size:10px;color:var(--text3)">${conf.dataHora}</span>
-              ${pendentes > 0 ? `<span class="status-badge sb-pending">${pendentes} pendentes</span>` : `<span class="status-badge sb-done">Tudo resolvido</span>`}
-            </div>
-            <div style="font-size:11px;color:var(--text2);margin-top:2px">👤 ${conf.nomeUsuario || conf.usuario} · 📦 ${confDivs.length} divergência(s)</div>
-          </div>
-          <div style="font-size:12px;color:var(--accent);font-weight:700" id="icon-${conf.numero}">${isUltima ? '▲' : '▼'}</div>
-        </div>
-        <div id="content-${conf.numero}" style="display:${isUltima ? 'block' : 'none'};padding:10px;border-top:1px solid var(--border)">
-          <div style="overflow-x:auto">
-            <table class="hist-table">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Almox</th>
-                  <th style="text-align:center">Sist.</th>
-                  <th style="text-align:center">Fís.</th>
-                  <th style="text-align:center">Diff</th>
-                  <th style="text-align:center">Status</th>
-                  <th>Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${confDivs.map(d => {
-                  const statusClass = d.status === 'Resolvida' ? 'div-verde' : d.status === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
-                  return `
-                    <tr>
-                      <td><strong>${d.cod}</strong><br><small style="color:var(--text3);display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.nome}</small></td>
-                      <td style="text-align:center"><span style="font-size:9px;background:${d.css};color:${d.txt};padding:2px 6px;border-radius:4px;font-weight:700">${d.almox}</span></td>
-                      <td style="text-align:center;font-weight:700">${d.sist}</td>
-                      <td style="text-align:center;font-weight:700">${d.fis}</td>
-                      <td style="text-align:center;font-weight:700;color:${d.diff < 0 ? 'var(--red)' : d.diff > 0 ? 'var(--green)' : 'var(--text3)'}">${d.diff > 0 ? '+' : ''}${d.diff}</td>
-                      <td style="text-align:center"><span class="divergencia-tag ${statusClass}">${d.status}</span></td>
-                      <td>
-                        <button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="abrirInvestigacao('${d.cod}','${d.nome.replace(/'/g,"\\'")}','${d.almox}',${d.sist},${d.fis},${d.diff},'${conf.numero}')">🔍</button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      `;
-      container.appendChild(divCard);
+  let listaFiltrada = conferenciasValidas.filter(conf=>{
+    if(filtroCod && !Object.keys(conf.itens).some(cod=>cod.toLowerCase().includes(filtroCod))) return false;
+    if(filtroAlmox && !listarLinhasAuditaveis(conf).some(l=>l.local===filtroAlmox)) return false;
+    if(filtroSupervisor){
+      const temSupervisor = AUDITORIA_HISTORICO.some(a=>a.numConf===conf.numero && (a.supervisor||'').toLowerCase().includes(filtroSupervisor));
+      if(!temSupervisor) return false;
     }
+    if(filtroData && (conf.data !== formatarDataBRparaFiltro(filtroData))) return false;
+    return true;
   });
-  
-  document.getElementById('divEmpty').style.display = totalDivergenciasEncontradas === 0 ? 'block' : 'none';
+
+  listaFiltrada = listaFiltrada.filter(conf=>{
+    const r = getAuditoriaResumoConferencia(conf);
+    if(r.total===0) return filtroStatus==='todas';
+    if(filtroStatus==='aguardando') return r.validados===0 && r.resolvidas===0 && r.emInvestigacao===0;
+    if(filtroStatus==='parcial') return !r.concluida && (r.validados>0 || r.resolvidas>0);
+    if(filtroStatus==='concluida') return r.concluida;
+    if(filtroStatus==='cominvestigacao') return r.emInvestigacao>0;
+    if(filtroStatus==='cominvestigacaoresolvida') return r.resolvidas>0;
+    return true;
+  });
+
+  document.getElementById('divEmpty').style.display = listaFiltrada.length===0 ? 'block' : 'none';
+
+  listaFiltrada.forEach((conf, idx)=>{
+    const r = getAuditoriaResumoConferencia(conf);
+    const linhas = listarLinhasAuditaveis(conf);
+    const podeAud = podeAuditarEstoque();
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.padding = '0';
+    card.style.overflow = 'hidden';
+    card.style.border = '1px solid var(--border)';
+
+    const isPrimeira = idx===0;
+
+    const linhasHTML = linhas.map(l=>{
+      const status = getAuditStatus(conf.numero, l.cod, l.local);
+      return `<tr>
+        <td><strong>${l.cod}</strong><br><small style="color:var(--text3);display:block;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.nome||''}</small></td>
+        <td style="text-align:center"><span style="font-size:9px;background:var(--bg3);padding:2px 6px;border-radius:4px;font-weight:700">${l.local}</span></td>
+        <td style="text-align:center;font-weight:700">${l.saldoFisico}</td>
+        <td style="text-align:center">${auditStatusBadgeHTML(status)}</td>
+        <td>${podeAud ? `<button class="btn" style="height:24px;padding:0 8px;font-size:10px" onclick="abrirValidarSaldo('${conf.numero}','${l.cod}','${l.local}')">✔ Validar Saldo</button>` : ''}</td>
+      </tr>`;
+    }).join('');
+
+    card.innerHTML = `
+      <div style="padding:12px 16px;background:${isPrimeira?'var(--accent-dim)':'var(--bg3)'};cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleDivGroup('${conf.numero}')">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span title="Status geral">${semaforoHTML(r.semaforo)}</span>
+            <strong style="color:var(--accent)">${conf.numero}</strong>
+            <span style="font-size:10px;color:var(--text3)">${conf.dataHora}</span>
+            ${conf.local ? `<span style="font-size:9px;background:var(--bg3);color:var(--text2);border-radius:4px;padding:1px 6px;font-weight:700">📍 ${conf.local}</span>` : ''}
+            ${r.concluida ? '<span class="status-badge sb-done">Auditoria concluída</span>' : `<span class="status-badge sb-pending">${r.pendentes+r.emInvestigacao} pendente(s)</span>`}
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">👤 ${conf.nomeUsuario || conf.usuario} · 📦 ${linhas.length} linha(s) auditável(is) · ${r.percentual}%</div>
+        </div>
+        <div style="font-size:12px;color:var(--accent);font-weight:700" id="icon-${conf.numero}">${isPrimeira?'▲':'▼'}</div>
+      </div>
+      <div id="content-${conf.numero}" style="display:${isPrimeira?'block':'none'};padding:10px;border-top:1px solid var(--border)">
+        <div style="background:var(--border);border-radius:20px;height:6px;overflow:hidden;margin-bottom:10px">
+          <div style="background:${r.concluida?'var(--green)':'var(--accent)'};height:100%;width:${r.percentual}%"></div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="hist-table">
+            <thead><tr><th>Código</th><th>Local</th><th style="text-align:center">Físico</th><th style="text-align:center">Status</th><th>Ação</th></tr></thead>
+            <tbody>${linhasHTML}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function formatarDataBRparaFiltro(isoDate){
+  if(!isoDate) return '';
+  const [y,m,d] = isoDate.split('-');
+  return d+'/'+m+'/'+y;
+}
+// Filtro rápido "Hoje" — mesmo padrão já usado no Histórico de Conferências
+function auditFiltroHoje(){
+  const hoje = new Date().toISOString().slice(0,10);
+  const el = document.getElementById('auditFiltroData');
+  if(el) el.value = hoje;
+  renderDivergencias();
 }
 
 function toggleDivGroup(num) {
@@ -163,190 +201,249 @@ function toggleDivGroup(num) {
   }
 }
 
-function abrirInvestigacao(cod, nome, almox, sist, fis, diff, numConf) {
-  // A divKey deve ser única para a combinação de Conferência + Produto + Almoxarifado
-  const divKey = numConf + '_' + cod + '_' + almox.replace(/\s+/g, '').toLowerCase();
-  _invAtual = { cod, nome, almox, sist, fis, diff, numConf, divKey };
-  
-  // Buscar se já existe uma investigação para este item nesta conferência específica
-  const prev = DIV_HISTORICO.find(d => d.divKey === divKey);
-  
-  document.getElementById('modalInvTitle').textContent = '🔍 Investigação — ' + cod + ' (' + almox + ')';
-  document.getElementById('modalInvInfo').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
-      <div><span style="color:var(--text3)">Produto:</span> <strong>${nome}</strong></div>
-      <div><span style="color:var(--text3)">Almoxarifado:</span> <strong>${almox}</strong></div>
-      <div><span style="color:var(--text3)">Saldo Sistema:</span> <strong>${sist}</strong></div>
-      <div><span style="color:var(--text3)">Saldo Físico:</span> <strong>${fis}</strong></div>
-      <div><span style="color:var(--text3)">Diferença:</span> <strong style="color:${diff<0?'var(--red)':'var(--green)'}">${diff>0?'+':''}${diff}</strong></div>
-      <div><span style="color:var(--text3)">Conferência:</span> <strong>${numConf}</strong></div>
-    </div>
+// ── Modal: Validar Saldo ─────────────────────────────────────────────
+function abrirValidarSaldo(numConf, cod, local){
+  if(!podeAuditarEstoque()){ toast('⛔ Apenas o Supervisor Sistema pode realizar auditorias.'); return; }
+  const conf = CONF_HISTORICO.find(c=>c.numero===numConf);
+  if(!conf || !conf.itens[cod]) { toast('Conferência ou item não encontrado.'); return; }
+  const it = conf.itens[cod];
+  const saldoFisico = local==='Almox 30' ? (it.almox30||0) : (it.almox3||0);
+  const auditKey = getAuditKey(numConf, cod, local);
+  const existente = AUDITORIA_HISTORICO.find(a=>a.auditKey===auditKey);
+  const ehAlmox3 = ehAlmox3Fisico(local);
+
+  _auditAtual = { numConf, cod, nome: it.nome, local, saldoFisico, data: conf.data || conf.dataHora, auditKey, ehAlmox3 };
+
+  document.getElementById('vsInfo').innerHTML = `
+    <div><b>Almoxarifado:</b> ${local}${ehAlmox3 ? ' <span style="color:var(--text3)">(único fisicamente — saldo dividido no ERP entre Empresa 1 e Empresa 9)</span>' : ''}</div>
+    <div><b>Data da conferência:</b> ${_auditAtual.data}</div>
+    <div><b>Produto:</b> ${escapeHTML(cod)} — ${escapeHTML(it.nome||'')}</div>
+    <div><b>Saldo físico contado:</b> ${saldoFisico}</div>
   `;
-  
-  document.getElementById('invFaturado').value = prev ? (prev.faturado || 0) : 0;
-  document.getElementById('invTransferencia').value = prev ? (prev.transferencia || 0) : 0;
-  document.getElementById('invApontamento').value = prev ? (prev.apontamento || 0) : 0;
-	  document.getElementById('invAvaria').value = prev ? (prev.avaria || 0) : 0;
-	  document.getElementById('invEmpresa9').value = prev ? (prev.empresa9 || 0) : 0;
 
-	  document.getElementById('invObs').value = prev ? (prev.obs || '') : '';
-	  document.getElementById('invStatus').value = prev ? (prev.status || 'Aberta') : 'Aberta';
-	  document.getElementById('invStatus').disabled = false;
-	  
-	  calcResidual();
-  document.getElementById('modalInvestigacao').style.display = 'flex';
-}
-
-function fecharModalInvestigacao() {
-  document.getElementById('modalInvestigacao').style.display = 'none';
-  _invAtual = null;
-}
-
-function calcResidual() {
-  if(!_invAtual) return;
-  const diff = Math.abs(_invAtual.diff);
-  const fat = parseInt(document.getElementById('invFaturado').value) || 0;
-  const tra = parseInt(document.getElementById('invTransferencia').value) || 0;
-  const apo = parseInt(document.getElementById('invApontamento').value) || 0;
-	  const ava = parseInt(document.getElementById('invAvaria').value) || 0;
-	  const emp9 = parseInt(document.getElementById('invEmpresa9').value) || 0;
-	  const justTotal = fat + tra + apo + ava + emp9;
-  const residual = diff - justTotal;
-  
-  const el = document.getElementById('invResidual');
-  const statusEl = document.getElementById('invStatusAuto');
-  const statusSel = document.getElementById('invStatus');
-  
-  if(el) {
-    el.textContent = residual;
-    el.style.color = residual <= 0 ? 'var(--green)' : 'var(--red)';
+  // Monta os campos de saldo dinamicamente: 2 campos pro Almox 3 (Empresa 1 + Empresa 9), 1 campo pros demais
+  const container = document.getElementById('vsSaldoInputsContainer');
+  if(ehAlmox3){
+    container.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fld">
+          <label>Saldo Almox 3 — Empresa 1</label>
+          <input type="number" id="vsSaldoEmpresa1" min="0" oninput="compararSaldoAuditoria()" placeholder="0">
+        </div>
+        <div class="fld">
+          <label>Saldo Almox 3 — Empresa 9</label>
+          <input type="number" id="vsSaldoEmpresa9" min="0" oninput="compararSaldoAuditoria()" placeholder="0">
+        </div>
+      </div>
+      <div style="font-size:9px;color:var(--text3);margin-top:4px">A soma dos dois valores será comparada ao saldo físico contado (Almox 3 é um único almoxarifado físico).</div>
+    `;
+    document.getElementById('vsSaldoEmpresa1').value = existente && existente.saldoInformadoEmpresa1 != null ? existente.saldoInformadoEmpresa1 : '';
+    document.getElementById('vsSaldoEmpresa9').value = existente && existente.saldoInformadoEmpresa9 != null ? existente.saldoInformadoEmpresa9 : '';
+  } else {
+    container.innerHTML = `
+      <div class="fld">
+        <label>Saldo ${local} (sistema/ERP)</label>
+        <input type="number" id="vsSaldoUnico" min="0" oninput="compararSaldoAuditoria()" placeholder="Digite o saldo que consta no sistema">
+      </div>
+    `;
+    document.getElementById('vsSaldoUnico').value = existente ? existente.saldoInformado : '';
   }
-  
-	  if(residual <= 0) {
-	    if(statusEl) statusEl.textContent = '✅ Diferença residual zerada — Status será marcado como Resolvida';
-	    if(statusSel) {
-	      statusSel.value = 'Resolvida';
-	      statusSel.disabled = true; // Forçar Resolvida se zerado
-	    }
-	  } else {
-	    if(statusEl) statusEl.textContent = 'Diferença residual: ' + residual + ' unidades ainda não justificadas';
-	    if(statusSel) {
-	      statusSel.disabled = false;
-	      if(statusSel.value === 'Resolvida') statusSel.value = 'Em investigação';
-	    }
-	  }
+
+  const motivoSel = document.getElementById('vsMotivo');
+  const obsEl = document.getElementById('vsObservacao');
+  const btnResolver = document.getElementById('vsBtnResolver');
+  const statusInfo = document.getElementById('vsStatusInfo');
+
+  motivoSel.value = existente && existente.investigacao ? (existente.investigacao.motivo||'') : '';
+  obsEl.value = existente && existente.investigacao
+    ? (existente.investigacao.status==='Resolvido' ? (existente.investigacao.obsFinal||existente.investigacao.observacao||'') : (existente.investigacao.observacao||''))
+    : '';
+  document.getElementById('vsResultado').style.display='none';
+  document.getElementById('vsInvestigacaoBlock').style.display='none';
+  btnResolver.style.display='none';
+  statusInfo.textContent='';
+
+  if(existente){
+    compararSaldoAuditoria();
+    if(existente.investigacao && existente.investigacao.status==='Em Investigação'){
+      btnResolver.style.display='inline-block';
+      statusInfo.textContent = '🔴 Em investigação desde ' + existente.dataHora + ' — preencha a observação final e clique em "Marcar Resolvido".';
+    } else if(existente.investigacao && existente.investigacao.status==='Resolvido'){
+      statusInfo.textContent = '🔵 Investigação já resolvida em ' + (existente.investigacao.resolvidoDataHora||'—') + ' por ' + (existente.investigacao.resolvidoPor||'—') + '. Você ainda pode editar e salvar novamente se necessário.';
+    }
+  }
+
+  document.getElementById('modalValidarSaldo').style.display = 'flex';
 }
 
-function salvarInvestigacao() {
-  if(!_invAtual) return;
-  
-  const fat = parseInt(document.getElementById('invFaturado').value) || 0;
-  const tra = parseInt(document.getElementById('invTransferencia').value) || 0;
-  const apo = parseInt(document.getElementById('invApontamento').value) || 0;
-	  const ava = parseInt(document.getElementById('invAvaria').value) || 0;
-	  const emp9 = parseInt(document.getElementById('invEmpresa9').value) || 0;
-	  const obs = document.getElementById('invObs').value || '';
-	  let status = document.getElementById('invStatus').value;
-	  const justTotal = fat + tra + apo + ava + emp9;
-  const residual = Math.abs(_invAtual.diff) - justTotal;
-  if(residual <= 0) status = 'Resolvida';
-  
-  const ultimaConf = CONF_HISTORICO[0];
-  const registro = {
-    divKey: _invAtual.divKey,
-    numConf: _invAtual.numConf,
+function fecharModalValidarSaldo(){
+  document.getElementById('modalValidarSaldo').style.display = 'none';
+  _auditAtual = null;
+}
+
+// Lê os campos de saldo informado (1 ou 2, dependendo do local) e retorna
+// {total, empresa1, empresa9} — total é sempre o valor comparado ao físico.
+// Retorna null quando a leitura ainda não está completa (campo vazio) ou é inválida (negativo).
+function _lerSaldoInformadoAtual(){
+  if(!_auditAtual) return null;
+  if(_auditAtual.ehAlmox3){
+    const e1El = document.getElementById('vsSaldoEmpresa1');
+    const e9El = document.getElementById('vsSaldoEmpresa9');
+    if(!e1El || !e9El) return null;
+    // Os DOIS campos são obrigatórios no Almox 3 — preencher só um não é suficiente,
+    // pois o valor comparado é sempre a soma dos dois.
+    if(e1El.value==='' || e9El.value==='') return null;
+    const empresa1 = Math.max(0, parseInt(e1El.value)||0);
+    const empresa9 = Math.max(0, parseInt(e9El.value)||0);
+    return { total: empresa1+empresa9, empresa1, empresa9 };
+  }
+  const unicoEl = document.getElementById('vsSaldoUnico');
+  if(!unicoEl || unicoEl.value==='') return null;
+  return { total: Math.max(0, parseInt(unicoEl.value)||0), empresa1: null, empresa9: null };
+}
+
+function compararSaldoAuditoria(){
+  if(!_auditAtual) return;
+  const leitura = _lerSaldoInformadoAtual();
+  const resEl = document.getElementById('vsResultado');
+  const invBlock = document.getElementById('vsInvestigacaoBlock');
+  if(!leitura){ resEl.style.display='none'; invBlock.style.display='none'; return; }
+  const divergente = leitura.total !== _auditAtual.saldoFisico;
+  resEl.style.display='block';
+  if(!divergente){
+    resEl.innerHTML = '<div style="background:var(--green-dim);color:var(--green);padding:9px 12px;border-radius:6px;font-weight:700;text-align:center">✔ Saldo Validado</div>';
+    invBlock.style.display='none';
+  } else {
+    const diff = _auditAtual.saldoFisico - leitura.total;
+    resEl.innerHTML = '<div style="background:var(--red-dim);color:var(--red);padding:9px 12px;border-radius:6px;font-weight:700;text-align:center">⚠ Divergência Encontrada (' + (diff>0?'+':'') + diff + ')</div>';
+    invBlock.style.display='block';
+  }
+}
+
+function _montarRegistroAuditoria(leitura, divergente, investigacao){
+  const nome = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+  const usuario = (USUARIO_LOGADO && USUARIO_LOGADO.usuario) || '—';
+  return {
+    auditKey: _auditAtual.auditKey,
+    numConf: _auditAtual.numConf,
+    almoxarifado: _auditAtual.local,
+    cod: _auditAtual.cod,
+    nome: _auditAtual.nome,
+    saldoFisico: _auditAtual.saldoFisico,
+    saldoInformado: leitura.total,
+    saldoInformadoEmpresa1: leitura.empresa1,
+    saldoInformadoEmpresa9: leitura.empresa9,
+    resultado: divergente ? 'Divergência' : 'Validado',
+    supervisor: nome,
+    supervisorUsuario: usuario,
     dataHora: nowFull(),
-    usuario: (USUARIO_LOGADO && USUARIO_LOGADO.usuario) || '—',
-    nomeUsuario: (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—',
-    cod: _invAtual.cod,
-    nome: _invAtual.nome,
-    almox: _invAtual.almox,
-    sist: _invAtual.sist,
-    fis: _invAtual.fis,
-    diferenca: _invAtual.diff,
-    faturado: fat,
-    transferencia: tra,
-    apontamento: apo,
-	    avaria: ava,
-	    empresa9: emp9,
-	    obs,
-    residual,
-    status
+    investigacao: divergente ? investigacao : null
   };
-  
-  const idx = DIV_HISTORICO.findIndex(d => d.divKey === _invAtual.divKey);
-  if(idx >= 0) DIV_HISTORICO[idx] = registro;
-  else DIV_HISTORICO.unshift(registro);
-  
-  fecharModalInvestigacao();
+}
+function _salvarRegistroAuditoria(registro){
+  const idx = AUDITORIA_HISTORICO.findIndex(a=>a.auditKey===registro.auditKey);
+  if(idx>=0) AUDITORIA_HISTORICO[idx] = registro; else AUDITORIA_HISTORICO.unshift(registro);
+  salvarAuditoriaLocal(); // cache local instantâneo (funciona mesmo offline)
+  salvarAuditoriaSheets(registro); // envia pro Sheets em segundo plano — não bloqueia a UI
+  fecharModalValidarSaldo();
+  renderConfHistorico();
   renderDivergencias();
   renderDivHistorico();
-  toast('✅ Investigação salva! Status: ' + status, 3000);
 }
 
+function salvarValidacaoSaldo(){
+  if(!_auditAtual) return;
+  const leitura = _lerSaldoInformadoAtual();
+  if(!leitura){
+    toast(_auditAtual.ehAlmox3
+      ? '⚠️ Informe os dois saldos (Empresa 1 e Empresa 9) — os dois são obrigatórios no Almox 3.'
+      : '⚠️ Informe o saldo do sistema/ERP.');
+    return;
+  }
+  const divergente = leitura.total !== _auditAtual.saldoFisico;
+
+  if(!divergente){
+    _salvarRegistroAuditoria(_montarRegistroAuditoria(leitura, false, null));
+    toast('✔ Saldo Validado!');
+    return;
+  }
+
+  const motivo = document.getElementById('vsMotivo').value;
+  const obs = document.getElementById('vsObservacao').value || '';
+  if(!motivo){ toast('⚠️ Selecione o motivo da divergência para abrir a investigação.'); return; }
+
+  const existente = AUDITORIA_HISTORICO.find(a=>a.auditKey===_auditAtual.auditKey);
+  const investigacaoAnterior = existente && existente.investigacao;
+  const investigacao = {
+    motivo, observacao: obs,
+    status: 'Em Investigação',
+    resolvidoPor: investigacaoAnterior ? investigacaoAnterior.resolvidoPor : '',
+    resolvidoDataHora: investigacaoAnterior ? investigacaoAnterior.resolvidoDataHora : '',
+    obsFinal: investigacaoAnterior ? investigacaoAnterior.obsFinal : ''
+  };
+  _salvarRegistroAuditoria(_montarRegistroAuditoria(leitura, true, investigacao));
+  toast('⚠️ Divergência registrada — Em Investigação.');
+}
+
+function resolverInvestigacaoAuditoria(){
+  if(!_auditAtual){ return; }
+  if(!podeAuditarEstoque()){ toast('⛔ Apenas o Supervisor Sistema pode encerrar investigações.'); return; }
+  const existente = AUDITORIA_HISTORICO.find(a=>a.auditKey===_auditAtual.auditKey);
+  if(!existente || !existente.investigacao){ toast('Não há investigação em aberto para este item.'); return; }
+  const motivo = document.getElementById('vsMotivo').value || existente.investigacao.motivo;
+  const obsFinal = document.getElementById('vsObservacao').value || '';
+  if(!obsFinal){ toast('⚠️ Preencha a observação final antes de marcar como resolvido.'); return; }
+
+  const nome = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+  const registro = Object.assign({}, existente, {
+    investigacao: {
+      motivo,
+      observacao: existente.investigacao.observacao,
+      status: 'Resolvido',
+      resolvidoPor: nome,
+      resolvidoDataHora: nowFull(),
+      obsFinal
+    }
+  });
+  _salvarRegistroAuditoria(registro);
+  toast('✅ Investigação resolvida!');
+}
+
+// ── Histórico permanente de auditorias ───────────────────────────────
 function renderDivHistorico() {
   const body = document.getElementById('divHistBody');
   const table = document.getElementById('divHistTable');
   const empty = document.getElementById('divHistEmpty');
   if(!body) return;
-  
-  if(DIV_HISTORICO.length === 0) {
+
+  if(AUDITORIA_HISTORICO.length === 0) {
     if(empty) empty.style.display = 'block';
     if(table) table.style.display = 'none';
     return;
   }
   if(empty) empty.style.display = 'none';
   if(table) table.style.display = 'table';
-  
+
   body.innerHTML = '';
-  DIV_HISTORICO.forEach(d => {
-    const statusClass = d.status === 'Resolvida' ? 'div-verde' : d.status === 'Em investigação' ? 'div-amarelo' : 'div-vermelho';
-	    const justs = [];
-	    if(d.faturado > 0) justs.push('Faturado: ' + d.faturado);
-	    if(d.transferencia > 0) justs.push('Transf.: ' + d.transferencia);
-	    if(d.apontamento > 0) justs.push('Apontam.: ' + d.apontamento);
-	    if(d.avaria > 0) justs.push('Avaria: ' + d.avaria);
-	    if(d.empresa9 > 0) justs.push('Empresa 9: ' + d.empresa9);
-	    
-	    const tr = document.createElement('tr');
+  AUDITORIA_HISTORICO.forEach(a=>{
+    const status = !a.investigacao ? 'validado' : (a.investigacao.status==='Resolvido' ? 'resolvido' : 'em_investigacao');
+    const tr = document.createElement('tr');
+    const motivoObs = a.investigacao ? `${a.investigacao.motivo||''}${a.investigacao.observacao?' — '+escapeHTML(a.investigacao.observacao):''}${a.investigacao.status==='Resolvido'&&a.investigacao.obsFinal?' · Final: '+escapeHTML(a.investigacao.obsFinal):''}` : '—';
+    const saldoErpDisplay = (a.saldoInformadoEmpresa1!=null || a.saldoInformadoEmpresa9!=null)
+      ? `${a.saldoInformado} <span style="color:var(--text3);font-weight:400">(E1:${a.saldoInformadoEmpresa1||0} + E9:${a.saldoInformadoEmpresa9||0})</span>`
+      : a.saldoInformado;
     tr.innerHTML = `
-      <td><strong style="color:var(--accent)">${d.numConf}</strong></td>
-      <td style="white-space:nowrap;font-size:11px">${d.dataHora}</td>
-      <td style="font-size:11px">${d.nomeUsuario||d.usuario}</td>
-      <td style="font-size:11px"><strong>${d.cod}</strong><br><span style="color:var(--text3)">${d.nome}</span></td>
-      <td style="text-align:center"><span style="font-size:10px;background:var(--bg3);padding:2px 6px;border-radius:4px;font-weight:700">${d.almox}</span></td>
-      <td style="text-align:center;font-weight:700;color:${d.diferenca<0?'var(--red)':'var(--green)'}">${d.diferenca>0?'+':''}${d.diferenca}</td>
-      <td style="font-size:11px;color:var(--text2)">${justs.length > 0 ? justs.join(', ') : '—'}${d.obs ? ' · ' + d.obs : ''}</td>
-      <td style="text-align:center;font-weight:700;color:${d.residual<=0?'var(--green)':'var(--red)'}">${d.residual}</td>
-      <td style="text-align:center"><span class="divergencia-tag ${statusClass}">${d.status}</span></td>
+      <td><strong style="color:var(--accent)">${a.numConf}</strong></td>
+      <td style="white-space:nowrap;font-size:11px">${a.dataHora}</td>
+      <td style="font-size:11px">${a.supervisor}</td>
+      <td style="text-align:center"><span style="font-size:10px;background:var(--bg3);padding:2px 6px;border-radius:4px;font-weight:700">${a.almoxarifado}</span></td>
+      <td style="font-size:11px"><strong>${a.cod}</strong><br><span style="color:var(--text3)">${a.nome||''}</span></td>
+      <td style="text-align:center;font-weight:700">${a.saldoFisico}</td>
+      <td style="text-align:center;font-weight:700">${saldoErpDisplay}</td>
+      <td style="text-align:center;font-weight:700;color:${a.resultado==='Validado'?'var(--green)':'var(--red)'}">${a.resultado}</td>
+      <td style="font-size:11px;color:var(--text2)">${motivoObs}</td>
+      <td style="text-align:center">${auditStatusBadgeHTML(status)}</td>
     `;
     body.appendChild(tr);
   });
-}
-
-function aprovarDivergencia(cod) {
-  const obs = prompt('Observação para o ajuste de estoque:');
-  if(obs === null) return;
-
-  const registro = {
-    divKey: cod + '_ajuste_' + Date.now(),
-    numConf: (CONF_HISTORICO[0] && CONF_HISTORICO[0].numero) || '—',
-    dataHora: nowFull(),
-    usuario: (USUARIO_LOGADO && USUARIO_LOGADO.usuario) || '—',
-    nomeUsuario: (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—',
-    cod: cod,
-    nome: (ITEMS.find(i=>i.cod===cod)||{}).name || cod,
-    almox: '—', sist: 0, fis: 0, diferenca: 0,
-    faturado: 0, transferencia: 0, apontamento: 0, avaria: 0, empresa9: 0,
-    obs: obs || 'Ajuste de estoque aprovado manualmente',
-    residual: 0,
-    status: 'Resolvida'
-  };
-  DIV_HISTORICO.unshift(registro);
-
-  toast('✅ Divergência de ' + cod + ' aprovada e registrada!');
-  delete CONFERENCIAS[cod];
-  renderConferencia();
-  renderDivergencias();
-  renderDivHistorico();
 }

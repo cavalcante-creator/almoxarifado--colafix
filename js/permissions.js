@@ -121,6 +121,16 @@ function confPerm(){
   };
 }
 
+// ─── AUDITORIA DE ESTOQUE (NOVA FUNCIONALIDADE) ─────────────────────
+// Regra explícita do processo: só o perfil "Supervisor Sistema" pode auditar
+// e abrir/encerrar investigações. Administrador entra como superusuário,
+// já que em todo o resto do sistema ele tem acesso equivalente ou maior
+// que qualquer outro perfil (evita ficar sem acesso à própria auditoria).
+function podeAuditarEstoque(){
+  const p = perfil();
+  return p.label === 'Supervisor Sistema' || !!p.podeAdmin;
+}
+
 // Retorna o filtro de almoxarifado obrigatório para o perfil logado.
 // Retorna 'almox3', 'almox30', 'rejunte', 'separacao' ou null (acesso total).
 function confPerfilFiltro(){

@@ -378,8 +378,6 @@ function renderConferencia(){
     const conf = CONFERENCIAS[item.cod] || { pal3: 0, sac3: 0, total3: 0, pal30: 0, sac30: 0, total30: 0 };
     const qtdRasgadaAtual = Number(conf.qtdRasgada)||0;
     const itemRasgado = qtdRasgadaAtual > 0;
-    const qtdEmpresa1Atual = Number(conf.qtdEmpresa1)||0;
-    const qtdEmpresa9Atual = Number(conf.qtdEmpresa9)||0;
 
     const card = document.createElement('div');
     card.className = 'card';
@@ -468,28 +466,6 @@ function renderConferencia(){
     const badgeTipoOp = tipoOpBadge(item);
     const maxRasgoConf = (Number(conf.total3)||0) + (Number(conf.total30)||0);
 
-    // ─── AUDITORIA DIÁRIA (NOVA FUNCIONALIDADE — SOMENTE SUPERVISOR/ADMIN) ───
-    const podeAuditar = cp.acessoTotal;
-    const blocoAuditoria = podeAuditar ? `
-      <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
-        <div style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">🕵️ Auditoria Diária (Supervisor)</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <div class="fld" style="width:110px">
-            <label>Qtd. Empresa 1</label>
-            <input type="number" inputmode="numeric" min="0" value="${qtdEmpresa1Atual || ''}" placeholder="0"
-              id="confEmpresa1_${item.cod}" oninput="updateConfEmpresa('${item.cod}', this.value, 'qtdEmpresa1')"
-              style="text-align:center;font-weight:700;height:34px">
-          </div>
-          <div class="fld" style="width:110px">
-            <label>Qtd. Empresa 9</label>
-            <input type="number" inputmode="numeric" min="0" value="${qtdEmpresa9Atual || ''}" placeholder="0"
-              id="confEmpresa9_${item.cod}" oninput="updateConfEmpresa('${item.cod}', this.value, 'qtdEmpresa9')"
-              style="text-align:center;font-weight:700;height:34px">
-          </div>
-        </div>
-        <div id="confAuditoriaBadge_${item.cod}" style="margin-top:8px">${auditoriaBadgeHTML(item.cod, (Number(item.saldo3)||0)+(Number(item.saldo30)||0))}</div>
-      </div>` : '';
-
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:6px">
         <div style="min-width:0;flex:1">
@@ -509,7 +485,6 @@ function renderConferencia(){
 
       ${blocoContAlmox3}
       ${blocoContAlmox30}
-      ${blocoAuditoria}
 
       <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
         <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
@@ -583,35 +558,82 @@ function gerarNumConferencia() {
   return 'CONF-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 }
 
-// ─── AUDITORIA DIÁRIA (NOVA FUNCIONALIDADE — SOMENTE SUPERVISOR/ADMIN) ─────
-// Quantidades de Empresa 1 / Empresa 9 são adicionais à contagem de Almox 3/30
-// (estoque físico em locais que o sistema não controla por planilha própria),
-// somadas ao Total Contado e comparadas ao saldo do sistema (Almox 3 + Almox 30).
-function updateConfEmpresa(cod, val, campo){
-  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3:0,sac3:0,total3:0,pal30:0,sac30:0,total30:0,total:0 };
-  const n = Math.max(0, parseInt(val)||0);
-  CONFERENCIAS[cod][campo] = n;
-  try { localStorage.setItem('conf_temp', JSON.stringify(CONFERENCIAS)); } catch(e){}
-  const invItem = CONF_ITEMS.find(i=>i.cod===cod) || ITEMS.find(i=>i.cod===cod);
-  const saldoSistemaTotal = invItem ? ((Number(invItem.saldo3)||0)+(Number(invItem.saldo30)||0)) : 0;
-  const badgeEl = document.getElementById('confAuditoriaBadge_'+cod);
-  if(badgeEl) badgeEl.innerHTML = auditoriaBadgeHTML(cod, saldoSistemaTotal);
+// ─── AUDITORIA DE ESTOQUE (NOVA FUNCIONALIDADE) ─────────────────────
+// Chave única por conferência + item + local, usada tanto pela auditoria
+// quanto pela investigação (mesma chave identifica a mesma "linha auditável").
+function getAuditKey(numConf, cod, local){
+  return numConf + '_' + cod + '_' + String(local).replace(/\s+/g,'').toLowerCase();
 }
-// Monta o selo "✔ Conferido" / "⚠ Divergência Encontrada" comparando o total
-// físico (Almox 3 + Almox 30 + Empresa 1 + Empresa 9) com o saldo do sistema.
-// Só aparece depois que o item começou a ser contado (evita alarme falso em item ainda zerado).
-function auditoriaBadgeHTML(cod, saldoSistemaTotal){
-  const c = CONFERENCIAS[cod] || {};
-  const totalContado = (Number(c.total3)||0) + (Number(c.total30)||0) + (Number(c.qtdEmpresa1)||0) + (Number(c.qtdEmpresa9)||0);
-  const jaContou = (Number(c.total3)||0) > 0 || (Number(c.total30)||0) > 0 || (Number(c.qtdEmpresa1)||0) > 0 || (Number(c.qtdEmpresa9)||0) > 0;
-  if(!jaContou) return '';
-  const diff = totalContado - (Number(saldoSistemaTotal)||0);
-  if(diff === 0){
-    return '<span class="status-badge sb-done">✔ Conferido</span>';
-  }
-  return '<span class="status-badge" style="background:var(--red-dim);color:var(--red)">⚠ Divergência Encontrada (' + (diff>0?'+':'') + diff + ')</span>';
+function getAuditRegistro(numConf, cod, local){
+  return AUDITORIA_HISTORICO.find(a => a.auditKey === getAuditKey(numConf, cod, local));
 }
-
+// Estados possíveis: nao_auditado | validado | em_investigacao | resolvido
+function getAuditStatus(numConf, cod, local){
+  const reg = getAuditRegistro(numConf, cod, local);
+  if(!reg) return 'nao_auditado';
+  if(reg.resultado === 'Validado') return 'validado';
+  if(reg.investigacao && reg.investigacao.status === 'Resolvido') return 'resolvido';
+  return 'em_investigacao';
+}
+const AUDIT_STATUS_MAP = {
+  nao_auditado:    {emoji:'⚪', label:'Não Auditado',            bg:'var(--bg3)',        txt:'var(--text3)'},
+  validado:        {emoji:'🟢', label:'Saldo Validado',          bg:'var(--green-dim)',  txt:'var(--green)'},
+  em_investigacao: {emoji:'🔴', label:'Em Investigação',         bg:'var(--red-dim)',    txt:'var(--red)'},
+  resolvido:       {emoji:'🔵', label:'Investigação Resolvida',  bg:'var(--accent-dim)', txt:'var(--accent)'}
+};
+function auditStatusBadgeHTML(status, compacto){
+  const m = AUDIT_STATUS_MAP[status] || AUDIT_STATUS_MAP.nao_auditado;
+  return `<span class="status-badge" style="background:${m.bg};color:${m.txt}">${m.emoji}${compacto?'':' '+m.label}</span>`;
+}
+// Lista as "linhas auditáveis" (item + local) de uma conferência, respeitando
+// exatamente os mesmos locais já mostrados no histórico para aquele item.
+function listarLinhasAuditaveis(conf){
+  const cpAud = confPerm();
+  const linhas = [];
+  Object.entries(conf.itens||{}).forEach(([cod, it]) => {
+    const invItemA = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
+    const isRejA  = !!(invItemA && invItemA.temRejunte);
+    const isSepA  = !!(invItemA && invItemA.temSeparacao);
+    const is30A   = !!(invItemA && invItemA.temAlmox30 && !invItemA.temAlmox3);
+    // [FIX] Rejunte/Separação são locais ÚNICOS (não têm "Almox 30" par) — isso é uma
+    // característica do ITEM, não uma questão de permissão do auditor. Antes, o "||
+    // acessoTotal" ignorava essa regra e criava uma linha fantasma de Almox 30 para
+    // todo item de Rejunte/Separação quando o Supervisor auditava.
+    if(isRejA){
+      if(cpAud.acessoTotal || cpAud.podeContarRejunte) linhas.push({ cod, nome: it.nome, local: 'Rejunte', saldoFisico: it.almox3||0 });
+      return;
+    }
+    if(isSepA){
+      if(cpAud.acessoTotal || cpAud.podeContarSeparacao) linhas.push({ cod, nome: it.nome, local: 'Separação', saldoFisico: it.almox3||0 });
+      return;
+    }
+    // Item comum: pode ter Almox 3 e/ou Almox 30, cada um mostrado só se aplicável
+    if(!is30A && (cpAud.acessoTotal || cpAud.podeContarAlmox3)) linhas.push({ cod, nome: it.nome, local: 'Almox 3', saldoFisico: it.almox3||0 });
+    if(cpAud.acessoTotal || cpAud.podeContarAlmox30) linhas.push({ cod, nome: it.nome, local: 'Almox 30', saldoFisico: it.almox30||0 });
+  });
+  return linhas;
+}
+// Resumo/progresso de auditoria de uma conferência (painel + semáforo)
+function getAuditoriaResumoConferencia(conf){
+  const linhas = listarLinhasAuditaveis(conf);
+  let validados=0, pendentes=0, emInvestigacao=0, resolvidas=0;
+  linhas.forEach(l => {
+    const status = getAuditStatus(conf.numero, l.cod, l.local);
+    if(status==='validado') validados++;
+    else if(status==='em_investigacao') emInvestigacao++;
+    else if(status==='resolvido') resolvidas++;
+    else pendentes++;
+  });
+  const total = linhas.length;
+  const percentual = total>0 ? Math.round(((validados+resolvidas)/total)*100) : 0;
+  const semaforo = emInvestigacao>0 ? 'vermelho' : (pendentes>0 ? 'amarelo' : (total>0 ? 'verde' : 'cinza'));
+  const concluida = total>0 && pendentes===0 && emInvestigacao===0;
+  return { total, validados, pendentes, emInvestigacao, resolvidas, percentual, semaforo, concluida };
+}
+function semaforoHTML(semaforo){
+  const map = { verde:'🟢', amarelo:'🟡', vermelho:'🔴', cinza:'⚪' };
+  return map[semaforo] || '⚪';
+}
 
 // ─── MATERIAL RASGADO (QUANTIDADE) — NOVA FUNCIONALIDADE ───────────
 // Tag/badge visual reutilizável para indicar quantidade rasgada em qualquer tela
@@ -773,8 +795,7 @@ async function salvarConferencia() {
     const c = CONFERENCIAS[cod];
     return (Number(c.pal3)||0) > 0 || (Number(c.sac3)||0) > 0 ||
            (Number(c.pal30)||0) > 0 || (Number(c.sac30)||0) > 0 ||
-           (Number(c.qtdRasgada)||0) > 0 ||
-           (Number(c.qtdEmpresa1)||0) > 0 || (Number(c.qtdEmpresa9)||0) > 0;
+           (Number(c.qtdRasgada)||0) > 0;
   });
   if(codsComDados.length === 0) {
     toast('⚠️ Preencha ao menos um item antes de salvar.');
@@ -866,15 +887,7 @@ async function salvarConferencia() {
     // e não é descontado dele (qtdBoa = total contado, sem subtrair)
     const qtdRasgadaSalva = Math.max(0, Number(c.qtdRasgada)||0);
 
-    // Auditoria diária (Empresa 1 / Empresa 9) — somente quem tem acesso total lança esses campos
-    const qtdEmpresa1Salva = cpSave.acessoTotal ? Math.max(0, Number(c.qtdEmpresa1)||0) : 0;
-    const qtdEmpresa9Salva = cpSave.acessoTotal ? Math.max(0, Number(c.qtdEmpresa9)||0) : 0;
-    const saldoSistemaTotalAudit = (invItem ? (invItem.saldo3||0) : 0) + (invItem ? (invItem.saldo30||0) : 0);
-    const totalContadoAudit = totalGeral + qtdEmpresa1Salva + qtdEmpresa9Salva;
-    const jaAuditou = totalContadoAudit > 0;
-    const statusAuditoria = !jaAuditou ? '' : (totalContadoAudit === saldoSistemaTotalAudit ? 'Conferido' : 'Divergência');
-
-    if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0 || qtdRasgadaSalva > 0 || qtdEmpresa1Salva > 0 || qtdEmpresa9Salva > 0) {
+    if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0 || qtdRasgadaSalva > 0) {
       registro.itens[cod] = {
         nome: invItem ? invItem.name : cod,
         almox3:  c.total3,
@@ -890,13 +903,7 @@ async function salvarConferencia() {
         qtdBoa: totalGeral,
         motivoRasgo: c.motivoRasgo || '',
         rasgoApontadoPor: qtdRasgadaSalva > 0 ? (c.rasgoApontadoPor || nomeUsuario) : '',
-        rasgoDataHora: qtdRasgadaSalva > 0 ? (c.rasgoDataHora || (dataStr+' '+horaStr)) : '',
-        qtdEmpresa1: qtdEmpresa1Salva,
-        qtdEmpresa9: qtdEmpresa9Salva,
-        totalContadoAuditoria: jaAuditou ? totalContadoAudit : '',
-        statusAuditoria: statusAuditoria,
-        auditadoPor: jaAuditou ? nomeUsuario : '',
-        auditadoEm: jaAuditou ? (dataStr+' '+horaStr) : ''
+        rasgoDataHora: qtdRasgadaSalva > 0 ? (c.rasgoDataHora || (dataStr+' '+horaStr)) : ''
       };
     }
   });
@@ -1107,6 +1114,7 @@ function renderConfHistorico() {
 
     // Item 6: Linha resumo dos itens — ocultar locais sem permissão
     const cpHist = confPerm();
+    const podeAuditarHist = podeAuditarEstoque();
     let itensHtml = '';
     Object.entries(conf.itens).forEach(([cod, it]) => {
       const invItemH = CONF_ITEMS.find(i => i.cod === cod) || ITEMS.find(i => i.cod === cod);
@@ -1114,41 +1122,67 @@ function renderConfHistorico() {
       const isSepH  = !!(invItemH && invItemH.temSeparacao);
       const is30H   = !!(invItemH && invItemH.temAlmox30 && !invItemH.temAlmox3);
       // Determinar quais locais mostrar para este item (inclui SEPARAÇÃO)
-      const mostrar3H  = cpHist.acessoTotal || (isRejH ? cpHist.podeContarRejunte : isSepH ? cpHist.podeContarSeparacao : !is30H && cpHist.podeContarAlmox3);
-      const mostrar30H = cpHist.acessoTotal || (!isRejH && !isSepH && (is30H ? cpHist.podeContarAlmox30 : cpHist.podeContarAlmox30));
+      const mostrar3H  = isRejH ? (cpHist.acessoTotal || cpHist.podeContarRejunte) : isSepH ? (cpHist.acessoTotal || cpHist.podeContarSeparacao) : !is30H && (cpHist.acessoTotal || cpHist.podeContarAlmox3);
+      const mostrar30H = !isRejH && !isSepH && (cpHist.acessoTotal || cpHist.podeContarAlmox30);
       if(!mostrar3H && !mostrar30H) return; // ocultar item inteiro se sem permissão
       const lblH3  = isRejH ? 'Rejunte' : isSepH ? 'Separação' : 'Almox 3';
       const cor3H  = isRejH ? 'var(--purple,#7B5EA7)' : isSepH ? 'var(--orange,#E07B39)' : 'var(--accent)';
-      // ITEM 9: sem variáveis de divergência no histórico
       const qtdRasgH = Number(it.qtdRasgada)||0;
-      const temAuditoriaH = !!it.statusAuditoria;
+
+      // Linha de auditoria por local (Almox 3/Rejunte/Separação e Almox 30), cada uma com seu próprio status
+      const linhaAuditoria = (local, saldoFisico) => {
+        const status = getAuditStatus(conf.numero, cod, local);
+        const key = getAuditKey(conf.numero, cod, local);
+        return `<span style="display:inline-flex;align-items:center;gap:4px">
+          ${auditStatusBadgeHTML(status)}
+          ${podeAuditarHist ? `<button class="btn" style="height:22px;padding:0 8px;font-size:9px" onclick="abrirValidarSaldo('${conf.numero}','${cod}','${local}')" title="Validar saldo — ${local}">✔ Validar Saldo</button>` : ''}
+        </span>`;
+      };
+
       itensHtml += `<div style="padding:6px 8px;background:${qtdRasgH>0?'var(--red-dim)':'var(--bg3)'};border:${qtdRasgH>0?'1px solid var(--red-mid)':'none'};border-radius:5px;font-size:10px;margin-bottom:3px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
           <span style="font-weight:700;color:var(--text)">${cod}</span>
           <span style="color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.nome || ''}</span>
           ${qtdRasgH>0 ? rasgoTagHTML(qtdRasgH) : ''}
-          ${temAuditoriaH ? (it.statusAuditoria==='Conferido' ? '<span class="status-badge sb-done">✔ Conferido</span>' : '<span class="status-badge" style="background:var(--red-dim);color:var(--red)">⚠ Divergência</span>') : ''}
         </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          ${mostrar3H ? `<span style="color:${cor3H}">📍 ${lblH3}: <b>${it.almox3} ${isRejH?'fardo':'sc'}</b></span>` : ''}
-          ${mostrar30H ? `<span style="color:var(--green)">📍 Almox 30: <b>${it.almox30} sc</b></span>` : ''}
-          ${temAuditoriaH && (it.qtdEmpresa1>0) ? `<span style="color:var(--text2)">📍 Empresa 1: <b>${it.qtdEmpresa1} sc</b></span>` : ''}
-          ${temAuditoriaH && (it.qtdEmpresa9>0) ? `<span style="color:var(--text2)">📍 Empresa 9: <b>${it.qtdEmpresa9} sc</b></span>` : ''}
+        <div style="display:flex;flex-direction:column;gap:4px">
+          ${mostrar3H ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="color:${cor3H}">📍 ${lblH3}: <b>${it.almox3} ${isRejH?'fardo':'sc'}</b></span>${linhaAuditoria(lblH3, it.almox3)}</div>` : ''}
+          ${mostrar30H ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="color:var(--green)">📍 Almox 30: <b>${it.almox30} sc</b></span>${linhaAuditoria('Almox 30', it.almox30)}</div>` : ''}
         </div>
         ${qtdRasgH>0 ? `<div style="margin-top:4px;font-size:10px;font-weight:700">${rasgoResumoHTML(qtdRasgH, it.total)}</div>` : ''}
         ${qtdRasgH>0 ? `<div style="margin-top:2px;color:var(--text3);font-size:9px">👤 ${escapeHTML(it.rasgoApontadoPor||'—')} · 🕐 ${it.rasgoDataHora||'—'}</div>` : ''}
         ${qtdRasgH>0 && it.motivoRasgo ? `<div style="margin-top:2px;color:var(--red);font-size:10px">📝 ${escapeHTML(it.motivoRasgo)}</div>` : ''}
-        ${temAuditoriaH ? `<div style="margin-top:2px;color:var(--text3);font-size:9px">🕵️ Auditoria: Total contado ${it.totalContadoAuditoria} sc · por ${escapeHTML(it.auditadoPor||'—')} · 🕐 ${it.auditadoEm||'—'}</div>` : ''}
       </div>`;
     });
+
+    const resumoAud = getAuditoriaResumoConferencia(conf);
+    const painelAuditoriaHTML = resumoAud.total > 0 ? `
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">⚖️ Auditoria da Conferência</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--text2);margin-bottom:8px">
+          <span>Almoxarifado: <b>${conf.local || '—'}</b></span>
+          <span>Data: <b>${conf.data || ''}</b></span>
+          <span>Total de itens: <b>${resumoAud.total}</b></span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:10px;font-weight:700;margin-bottom:8px">
+          <span style="color:var(--green)">🟢 Auditados: ${resumoAud.validados}</span>
+          <span style="color:var(--text3)">⚪ Pendentes: ${resumoAud.pendentes}</span>
+          <span style="color:var(--red)">🔴 Em Investigação: ${resumoAud.emInvestigacao}</span>
+          <span style="color:var(--accent)">🔵 Resolvidas: ${resumoAud.resolvidas}</span>
+        </div>
+        <div style="background:var(--border);border-radius:20px;height:8px;overflow:hidden">
+          <div style="background:${resumoAud.concluida?'var(--green)':'var(--accent)'};height:100%;width:${resumoAud.percentual}%;transition:width .3s"></div>
+        </div>
+        <div style="text-align:right;font-size:10px;font-weight:700;color:var(--text2);margin-top:3px">${resumoAud.percentual}%${resumoAud.concluida?' — Auditoria concluída ✔':''}</div>
+      </div>` : '';
 
     div.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:4px">
         <div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
+          ${resumoAud.total > 0 ? `<span title="Status geral da auditoria">${semaforoHTML(resumoAud.semaforo)}</span>` : ''}
           ${conf.local ? `<span style="font-size:10px;background:var(--accent-dim);color:var(--accent);border-radius:4px;padding:1px 7px;font-weight:700">📍 ${conf.local}</span>` : ''}
           ${(()=>{const tot=Object.values(conf.itens||{}).reduce((a,it)=>a+(Number(it.qtdRasgada)||0),0);return tot>0?rasgoTagHTML(tot):'';})()}
-          <!-- Melhoria 4: badge de divergência removido -->
           <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia('${conf.numero}')">📄 Gerar PDF</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:flex-end">
@@ -1160,6 +1194,7 @@ function renderConfHistorico() {
         </div>
       </div>
       <div class="conf-detail-content" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        ${painelAuditoriaHTML}
         ${qtdItens > 0 ? `<div style="display:flex;flex-direction:column;gap:4px">${itensHtml}</div>` : ''}
       </div>
     `;

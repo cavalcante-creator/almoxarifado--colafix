@@ -62,7 +62,7 @@
     <button class="tab active" id="tab-estoque" onclick="showPage('pg-estoque',this)">📦 Estoque</button>
     <button class="tab" id="tab-pend" onclick="showPage('pg-pendencias',this)">🔔 Pendências <span id="pendTotalBadge" class="pend-badge" style="display:none">0</span></button>
     <button class="tab" id="tab-conf" onclick="showPage('pg-conferencia',this)">🔍 Conferência</button>
-    <button class="tab" id="tab-div" onclick="showPage('pg-divergencias',this)">📊 Divergências</button>
+    <button class="tab" id="tab-div" onclick="showPage('pg-divergencias',this)">⚖️ Auditoria de Estoque</button>
         <button class="tab" id="tab-hist" onclick="showPage('pg-hist',this)">🗂 Histórico</button>
     <button class="tab" id="tab-expedicao" onclick="showPage('pg-expedicao',this)">📧 Expedição</button>
   </div>
@@ -496,33 +496,52 @@
   </div>
 </div></div>
 
-<!-- ═══ DIVERGÊNCIAS ═══ -->
+<!-- ═══ AUDITORIA DE ESTOQUE ═══ -->
 <div id="pg-divergencias" class="page"><div class="wrap">
   <div class="card" style="margin-bottom:14px">
-    <div class="card-title">📊 Divergências de Estoque
+    <div class="card-title">⚖️ Auditoria de Estoque
       <button class="btn btn-primary" style="margin-left:auto;height:28px;padding:0 12px;font-size:11px" onclick="atualizarSaldosDivergencias()">🔄 Atualizar Saldos</button>
     </div>
-    <div id="divInfoConf" style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:var(--radius-sm);padding:9px 13px;font-size:11px;color:var(--accent);margin-bottom:12px;display:none"></div>
-    
-    <!-- Filtros de Divergências -->
+
+    <!-- Indicadores gerenciais -->
+    <div id="auditIndicadores" class="stat-grid" style="margin-bottom:14px"></div>
+
+    <!-- Filtros -->
     <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
-      <div class="fld" style="flex:1;min-width:200px">
+      <div class="fld" style="flex:1;min-width:160px">
         <label>Buscar Código</label>
         <input type="text" id="divFiltroCod" placeholder="Pesquisar código do item..." oninput="renderDivergencias()">
       </div>
-      <div class="fld" style="width:200px">
-        <label>Tipo de Divergência</label>
+      <div class="fld" style="width:150px">
+        <label>Almoxarifado</label>
+        <select id="auditFiltroAlmox" onchange="renderDivergencias()">
+          <option value="">Todos</option>
+          <option value="Almox 3">Almox 3</option>
+          <option value="Almox 30">Almox 30</option>
+          <option value="Rejunte">Rejunte</option>
+          <option value="Separação">Separação</option>
+        </select>
+      </div>
+      <div class="fld" style="width:150px">
+        <label>Supervisor</label>
+        <input type="text" id="auditFiltroSupervisor" placeholder="Nome do supervisor..." oninput="renderDivergencias()">
+      </div>
+      <div class="fld" style="width:150px">
+        <label>Data</label>
+        <input type="date" id="auditFiltroData" onchange="renderDivergencias()">
+      </div>
+      <div style="padding-bottom:2px">
+        <button class="btn" style="height:30px;padding:0 12px;font-size:11px;font-weight:700" onclick="auditFiltroHoje()" title="Mostrar apenas auditorias de hoje">📅 Hoje</button>
+      </div>
+      <div class="fld" style="width:210px">
+        <label>Status da Auditoria</label>
         <select id="divFiltroTipo" onchange="renderDivergencias()">
-          <option value="todas">Todas</option>
-          <option value="positiva">Divergência positiva</option>
-          <option value="negativa">Divergência negativa</option>
-          <option value="zerada">Divergência zerada</option>
-          <option value="pendentes">Somente pendentes de justificativa</option>
-          <option value="justificadas">Justificadas</option>
-          <option value="conferidos">✔ Conferidos (auditoria)</option>
-          <option value="divergencia">⚠ Divergências (não investigadas)</option>
-          <option value="eminvestigacao">🔍 Em Investigação</option>
-          <option value="resolvidos">✅ Resolvidos</option>
+          <option value="todas">Todas as conferências</option>
+          <option value="aguardando">⚪ Aguardando auditoria</option>
+          <option value="parcial">🟡 Parcialmente auditadas</option>
+          <option value="concluida">🟢 Concluídas</option>
+          <option value="cominvestigacao">🔴 Com investigação aberta</option>
+          <option value="cominvestigacaoresolvida">🔵 Com investigações resolvidas</option>
         </select>
       </div>
     </div>
@@ -530,22 +549,22 @@
     <div id="divGroupContainer" style="display:flex;flex-direction:column;gap:10px"></div>
     <div id="divEmpty" style="text-align:center;padding:40px 0;color:var(--text3)">
       <div style="font-size:32px;margin-bottom:8px;opacity:.3">✅</div>
-      Nenhuma divergência encontrada. Salve uma conferência primeiro.
+      Nenhuma conferência encontrada. Salve uma conferência primeiro.
     </div>
   </div>
-  <!-- Histórico de Divergências -->
+  <!-- Histórico permanente de auditorias -->
   <div class="card">
-    <div class="card-title">📋 Histórico de Divergências</div>
+    <div class="card-title">📋 Histórico de Auditorias</div>
     <div id="divHistEmpty" style="text-align:center;padding:30px 0;color:var(--text3)">
       <div style="font-size:28px;margin-bottom:8px;opacity:.3">🗂</div>
-      Nenhuma divergência investigada ainda
+      Nenhuma auditoria realizada ainda
     </div>
     <div style="overflow-x:auto">
       <table class="hist-table" id="divHistTable" style="display:none">
         <thead><tr>
-          <th>Nº Conf.</th><th>Data/Hora</th><th>Usuário</th><th>Produto</th>
-          <th style="text-align:center">Almox</th><th style="text-align:center">Diferença</th>
-          <th>Justificativas</th><th style="text-align:center">Residual</th><th style="text-align:center">Status</th>
+          <th>Nº Conf.</th><th>Data/Hora</th><th>Supervisor</th><th>Almox.</th><th>Produto</th>
+          <th style="text-align:center">Saldo Físico</th><th style="text-align:center">Saldo ERP</th>
+          <th style="text-align:center">Resultado</th><th>Motivo / Observação</th><th style="text-align:center">Status</th>
         </tr></thead>
         <tbody id="divHistBody"></tbody>
       </table>
@@ -553,61 +572,45 @@
   </div>
 </div></div>
 
-<!-- Modal Investigação de Divergência -->
-<div id="modalInvestigacao" class="modal-overlay" style="display:none">
-  <div class="modal-box" style="max-width:540px">
+<!-- Modal Validar Saldo (Auditoria) -->
+<div id="modalValidarSaldo" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:520px">
     <div class="modal-head">
-      <div style="font-size:13px;font-weight:700" id="modalInvTitle">Investigação de Divergência</div>
-      <button class="btn" style="height:28px;padding:0 10px;font-size:11px" onclick="fecharModalInvestigacao()">✕</button>
+      <div style="font-size:13px;font-weight:700">Validar Saldo — ⚖️ Auditoria de Estoque</div>
+      <button class="btn" style="height:28px;padding:0 10px;font-size:11px" onclick="fecharModalValidarSaldo()">✕</button>
     </div>
     <div class="modal-body">
-      <div id="modalInvInfo" style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:11px"></div>
-      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Justificativas da Divergência</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <div class="fld">
-          <label>Faturado e não expedido</label>
-          <input type="number" id="invFaturado" value="0" min="0" oninput="calcResidual()">
-        </div>
-        <div class="fld">
-          <label>Transferência pendente</label>
-          <input type="number" id="invTransferencia" value="0" min="0" oninput="calcResidual()">
-        </div>
-        <div class="fld">
-          <label>Falta apontamento produção</label>
-          <input type="number" id="invApontamento" value="0" min="0" oninput="calcResidual()">
-        </div>
-	        <div class="fld">
-	          <label>Avaria / Perda</label>
-	          <input type="number" id="invAvaria" value="0" min="0" oninput="calcResidual()">
-	        </div>
-	        <div class="fld">
-	          <label>Empresa 9</label>
-	          <input type="number" id="invEmpresa9" value="0" min="0" oninput="calcResidual()">
-	        </div>
+      <div id="vsInfo" style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:11px;line-height:1.7"></div>
 
-      </div>
-      <div class="fld" style="margin-bottom:12px">
-        <label>Observações</label>
-        <textarea id="invObs" style="height:64px;padding:8px 10px;resize:none;width:100%;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;outline:none" placeholder="Descreva detalhes adicionais..."></textarea>
-      </div>
-      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:11px;font-weight:700;color:var(--text2)">Diferença residual após justificativas:</span>
-          <span id="invResidual" style="font-size:16px;font-weight:800;color:var(--red)">0</span>
+      <div id="vsSaldoInputsContainer" style="margin-bottom:12px"></div>
+
+      <div id="vsResultado" style="display:none;margin-bottom:12px"></div>
+
+      <div id="vsInvestigacaoBlock" style="display:none">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Investigação da Divergência</div>
+        <div class="fld" style="margin-bottom:12px">
+          <label>Motivo</label>
+          <select id="vsMotivo">
+            <option value="">Selecione o motivo...</option>
+            <option>Faturado e não expedido</option>
+            <option>Transferência pendente</option>
+            <option>Falta de apontamento da produção</option>
+            <option>Avaria</option>
+            <option>Erro de contagem</option>
+            <option>Outro</option>
+          </select>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px" id="invStatusAuto"></div>
+        <div class="fld" style="margin-bottom:12px">
+          <label>Observação</label>
+          <textarea id="vsObservacao" style="height:64px;padding:8px 10px;resize:none;width:100%;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;outline:none" placeholder="Descreva o que foi apurado..."></textarea>
+        </div>
+        <div id="vsStatusInfo" style="font-size:10px;color:var(--text3);margin-bottom:12px"></div>
       </div>
-      <div class="fld" style="margin-bottom:14px">
-        <label>Status da Divergência</label>
-        <select id="invStatus">
-          <option value="Aberta">Aberta</option>
-          <option value="Em investigação">Em investigação</option>
-          <option value="Resolvida">Resolvida</option>
-        </select>
-      </div>
+
       <div class="brow">
-        <button class="btn" onclick="fecharModalInvestigacao()">Cancelar</button>
-        <button class="btn btn-primary" onclick="salvarInvestigacao()">💾 Salvar Investigação</button>
+        <button class="btn" onclick="fecharModalValidarSaldo()">Cancelar</button>
+        <button class="btn" id="vsBtnResolver" style="display:none;background:var(--accent);color:#fff;border-color:var(--accent)" onclick="resolverInvestigacaoAuditoria()">✔ Marcar Resolvido</button>
+        <button class="btn btn-primary" onclick="salvarValidacaoSaldo()">💾 Salvar</button>
       </div>
     </div>
   </div>

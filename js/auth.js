@@ -44,11 +44,13 @@ async function fazerLogin(){
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('appScreen').style.display='block';
     aplicarPermissoes();setStep(0);
+    carregarAuditoriaLocal();
     const overlay=document.getElementById('appLoading');if(overlay)overlay.style.display='flex';
     await carregarSheetsData();
     await carregarInventarioItens();
     await carregarRequisicoesPendentes();
     await carregarConferenciasSheets();
+    await carregarAuditoriasSheets();
     iniciarPolling();
     resetSessionTimeout();
     if(overlay)overlay.style.display='none';
