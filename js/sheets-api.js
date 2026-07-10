@@ -291,3 +291,67 @@ async function carregarAuditoriasSheets(){
     renderDivHistorico();
   }catch(e){ console.warn('[carregarAuditorias] Erro:', e); }
 }
+
+// ─── RECEBIMENTO DE MATERIAL (NOVA FUNCIONALIDADE) ─────────────────
+// Mesmo padrão de salvarAuditoriaSheets/carregarAuditoriasSheets, usando a
+// aba "RECEBIMENTOS" (rota 'salvarRecebimento' no Apps Script).
+async function salvarRecebimentoSheets(registro){
+  try{
+    console.log('[salvarRecebimentoSheets] Enviando', registro.id, 'para o GAS...');
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({acao:'salvarRecebimento', id: registro.id, dados: JSON.stringify(registro)})
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    console.log('[salvarRecebimentoSheets] Sucesso:', registro.id);
+    return true;
+  } catch(e){
+    console.error('[salvarRecebimentoSheets] Erro:', registro.id, e.message);
+    try{
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({acao:'salvarRecebimento', id: registro.id, dados: JSON.stringify(registro)})
+      });
+      console.log('[salvarRecebimentoSheets] Fallback no-cors enviado:', registro.id);
+      return true;
+    } catch(e2){
+      console.error('[salvarRecebimentoSheets] Falha total:', registro.id, e2.message);
+      return false;
+    }
+  }
+}
+async function carregarRecebimentosSheets(){
+  try{
+    console.log('[carregarRecebimentos] Carregando do Sheets...');
+    const rows = await fetchRange('RECEBIMENTOS!A2:B');
+    const loaded = rows.filter(r=>r[0]&&r[1]).map(r=>{
+      try{ return JSON.parse(r[1]); }
+      catch(e){ console.warn('[carregarRecebimentos] Erro ao parsear linha:', r[0], e); return null; }
+    }).filter(Boolean);
+    console.log('[carregarRecebimentos] Registros carregados do Sheets:', loaded.length);
+
+    loaded.forEach(reg=>{
+      if(!reg || !reg.id) { console.warn('[carregarRecebimentos] Ignorando registro sem id'); return; }
+      const idx = RECEBIMENTOS.findIndex(r=>r.id===reg.id);
+      if(idx >= 0) RECEBIMENTOS[idx] = reg;
+      else RECEBIMENTOS.push(reg);
+    });
+    RECEBIMENTOS.sort((a,b)=>{
+      const parsePtBR = s => {
+        if(!s) return 0;
+        const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+        if(m) return new Date(m[3],m[2]-1,m[1],m[4],m[5]).getTime();
+        return new Date(s).getTime() || 0;
+      };
+      return parsePtBR(b.dataHora) - parsePtBR(a.dataHora);
+    });
+    salvarRecebimentosLocal();
+    console.log('[carregarRecebimentos] Total em memória após merge:', RECEBIMENTOS.length);
+    if(typeof renderRecebimentos === 'function') renderRecebimentos();
+  }catch(e){ console.warn('[carregarRecebimentos] Erro:', e); }
+}
+

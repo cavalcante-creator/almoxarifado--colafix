@@ -63,6 +63,8 @@ const CONF_FILTROS_CONFIG = [
   { id:'POZOSUL',     label:'POZOSUL',        title:'' },
   { id:'PY',          label:'EXPORTAÇÃO PY',  title:'Exportação Paraguai' },
   { id:'UY',          label:'EXPORTAÇÃO UY',  title:'Exportação Uruguai' },
+  { id:'FILME',       label:'FILMES',         title:'Filmes plásticos' },
+  { id:'SACARIA',     label:'SACARIAS',       title:'Sacarias' },
 ];
 function renderFiltrosRapidosConf(){
   const container = document.getElementById('confFiltrosRapidosContainer');
@@ -426,6 +428,8 @@ function renderConferencia(){
     const isAlmox1    = !!item.temAlmox1;
     const isAlmox2    = !!item.temAlmox2;
     const isAlmox30Only = !!item.temAlmox30 && !item.temAlmox3 && !isRejunte && !isSeparacao && !isAlmox1 && !isAlmox2;
+    // Itens com unidade própria (UN, ROLO etc., sem conversão em massa) não fazem sentido em paletes
+    const esconderPaletes = temUnidadePropria(item) && !temConversaoBulk(item);
     const lblBloco3  = isRejunte ? 'Rejunte' : isSeparacao ? 'Separação' : isAlmox1 ? 'Almox 1' : 'Almox 3';
     const corBloco3  = isRejunte ? 'var(--purple,#7B5EA7)' : isSeparacao ? 'var(--orange,#E07B39)' : isAlmox1 ? 'var(--orange,#E07B39)' : 'var(--accent)';
     const lblBloco30 = isAlmox2 ? 'Almox 2' : 'Almox 30';
@@ -445,8 +449,8 @@ function renderConferencia(){
     const blocoContAlmox3 = mostrarBloco3 ? `
       <div style="margin-bottom:10px;background:var(--bg3);border-radius:8px;padding:10px">
         <div style="font-size:10px;font-weight:700;color:${corBloco3};margin-bottom:6px">✏️ Contagem Física — ${lblBloco3}</div>
-        <div style="display:grid;grid-template-columns:${isRejunte ? '1fr' : '1fr 1fr'};gap:8px">
-          ${!isRejunte ? `<div class="fld"><label>Paletes Contados</label>
+        <div style="display:grid;grid-template-columns:${(isRejunte || esconderPaletes) ? '1fr' : '1fr 1fr'};gap:8px">
+          ${(!isRejunte && !esconderPaletes) ? `<div class="fld"><label>Paletes Contados</label>
             <input type="number" min="0" value="${conf.pal3 || ''}" placeholder="0"
               oninput="updateConf('${item.cod}', this.value, 'pal3')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
@@ -470,13 +474,13 @@ function renderConferencia(){
     const blocoContAlmox30 = mostrarBloco30 ? `
       <div style="background:var(--bg3);border-radius:8px;padding:10px">
         <div style="font-size:10px;font-weight:700;color:${corBloco30};margin-bottom:6px">✏️ Contagem Física — ${lblBloco30}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div class="fld"><label>Paletes Contados</label>
+        <div style="display:grid;grid-template-columns:${esconderPaletes ? '1fr' : '1fr 1fr'};gap:8px">
+          ${!esconderPaletes ? `<div class="fld"><label>Paletes Contados</label>
             <input type="number" min="0" value="${conf.pal30 || ''}" placeholder="0"
               oninput="updateConf('${item.cod}', this.value, 'pal30')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
-          </div>
-          <div class="fld"><label>Sacos Avulsos</label>
+          </div>` : ''}
+          <div class="fld"><label>${unidAvul(item)}</label>
             <input type="number" min="0" value="${conf.sac30 || ''}" placeholder="0"
               oninput="updateConf('${item.cod}', this.value, 'sac30')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">

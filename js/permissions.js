@@ -44,7 +44,8 @@ const PERFIS={
     verTabOp:false,
     // Ajuste 2: restrições de almoxarifado na conferência
     confAlmox3:true,confAlmox30:false,confRejunte:false,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY'],
+    podeReceberMaterial:true
   },
   'conferente 2':{
     label:'Conferente 2',abas:['pg-conferencia'],
@@ -88,7 +89,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:true,confAlmox2:false,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['FILME','SACARIA']
   },
   'conferentealmox1':{
     label:'Conferente Almox 1',abas:['pg-conferencia'],
@@ -96,7 +97,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:true,confAlmox2:false,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['FILME','SACARIA']
   },
   'conferente almox 2':{
     label:'Conferente Almox 2',abas:['pg-conferencia'],
@@ -104,7 +105,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:false,confAlmox2:true,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['FILME','SACARIA']
   },
   'conferentealmox2':{
     label:'Conferente Almox 2',abas:['pg-conferencia'],
@@ -112,7 +113,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:false,confAlmox2:true,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['FILME','SACARIA']
   },
   'auditor':{
     label:'Auditor',abas:['pg-estoque','pg-hist','pg-divergencias'],
@@ -166,6 +167,30 @@ function podeAuditarEstoque(){
   return p.label === 'Supervisor Sistema' || !!p.podeAdmin;
 }
 
+// ─── RECEBIMENTO DE MATERIAL (NOVA FUNCIONALIDADE) ──────────────────
+// Quem pode registrar recebimento: perfis com a flag explícita, ou
+// acesso total (Admin/Supervisor), seguindo o mesmo padrão já usado
+// em toda a auditoria/conferência.
+function podeRegistrarRecebimento(){
+  const p = perfil();
+  return !!p.podeReceberMaterial || !!p.podeAdmin || !!p.podeAprovar;
+}
+// Mesma regra de segurança já usada na lista de seleção da Conferência:
+// o item só é permitido se o perfil tem acesso a PELO MENOS UM dos locais dele.
+function itemPermitidoParaContagem(item){
+  if(!item) return false;
+  const cp = confPerm();
+  if(cp.acessoTotal) return true;
+  return !!(
+    (item.temAlmox3    && cp.podeContarAlmox3) ||
+    (item.temAlmox30   && cp.podeContarAlmox30) ||
+    (item.temRejunte   && cp.podeContarRejunte) ||
+    (item.temSeparacao && cp.podeContarSeparacao) ||
+    (item.temAlmox1    && cp.podeContarAlmox1) ||
+    (item.temAlmox2    && cp.podeContarAlmox2)
+  );
+}
+
 // Retorna o filtro de almoxarifado obrigatório para o perfil logado.
 // Retorna 'almox3', 'almox30', 'rejunte', 'separacao' ou null (acesso total).
 function confPerfilFiltro(){
@@ -193,35 +218,62 @@ function localLabel(item){
   return 'Almox 3';
 }
 
-// AJUSTE 1: retorna a unidade correta conforme o tipo do item
-// Para REJUNTE/ÁREA LÍQUIDA: 'fardo'/'Fardos'/'Fardos Avulsos'
-// Para demais itens: 'sc'/'sacos'/'Sacos Avulsos'
-function unidSing(item){ return (item && item.temRejunte) ? 'fardo' : 'sc'; }
-function unidPlur(item){ return (item && item.temRejunte) ? 'Fardos' : 'sacos'; }
-function unidAvul(item){ return (item && item.temRejunte) ? 'Fardos Avulsos' : 'Sacos Avulsos'; }
-function unidTotal(item){ return (item && item.temRejunte) ? 'Total de Fardos' : 'Total de Sacos'; }
-
 // ─── UNIDADE DE MEDIDA E CONVERSÃO (NOVA FUNCIONALIDADE) ────────────
-// O item continua sendo CONTADO em sacos/fardos/paletes, exatamente como sempre
-// (isso não muda). Quando o item tem uma "unidade de medida" própria cadastrada
-// na planilha (ex: KG, L, UN), o sistema também mostra o total convertido, ex:
-// "10 sc → 250 kg". Itens sem unidade cadastrada continuam exatamente como hoje.
-function temConversaoUnidade(item){
+// Dois cenários possíveis, decididos pela coluna CONVERSAO da planilha:
+//  1) Unidade PRÓPRIA (conversão 1 ou vazia): o item é contado DIRETO nessa
+//     unidade (ex: Filme Plástico contado em "rolo", não em saco). A unidade
+//     cadastrada passa a ser a própria label de contagem em todo o sistema.
+//  2) Unidade com CONVERSÃO (fator > 1, ex: 1 saco = 25 kg): o item continua
+//     sendo contado em sacos/fardos, e o total convertido aparece do lado,
+//     ex: "10 sc → 250 kg".
+function temUnidadePropria(item){
   return !!(item && item.unidade && String(item.unidade).trim());
 }
+function temConversaoBulk(item){
+  return temUnidadePropria(item) && Number(item.conversao||1) > 1;
+}
+// [LEGADO] mantido pelo nome para não quebrar quem já chamava esta função
+function temConversaoUnidade(item){ return temConversaoBulk(item); }
 function converterQtd(item, qtdContada){
-  if(!temConversaoUnidade(item)) return null;
-  const fator = (item.conversao && item.conversao > 0) ? item.conversao : 1;
+  if(!temConversaoBulk(item)) return null;
+  const fator = item.conversao;
   const total = (Number(qtdContada)||0) * fator;
   // Arredonda para 2 casas quando necessário, mas sem casas decimais desnecessárias (ex: 250 em vez de 250.00)
   return Math.round(total * 100) / 100;
 }
-// Monta o texto "10 sc → 250 kg" (ou só "10 sc" se o item não tiver unidade cadastrada)
+// Monta o texto de exibição da quantidade, de acordo com o cenário do item:
+// unidade própria → só a unidade cadastrada (ex: "10 rolo")
+// conversão bulk  → "10 sc → 250 kg"
+// nenhum dos dois → comportamento padrão de sempre (ex: "10 sc")
 function qtdComConversaoTexto(item, qtdContada, unidadeContagem){
+  if(temUnidadePropria(item) && !temConversaoBulk(item)){
+    return qtdContada + ' ' + item.unidade;
+  }
   const base = qtdContada + ' ' + unidadeContagem;
-  if(!temConversaoUnidade(item)) return base;
+  if(!temConversaoBulk(item)) return base;
   const convertido = converterQtd(item, qtdContada);
   return base + ' → ' + convertido + ' ' + item.unidade;
+}
+
+// AJUSTE 1: retorna a unidade correta conforme o tipo do item
+// Para REJUNTE/ÁREA LÍQUIDA: 'fardo'/'Fardos'/'Fardos Avulsos'
+// Para itens com unidade PRÓPRIA cadastrada (sem conversão bulk): a unidade cadastrada
+// Para demais itens: 'sc'/'sacos'/'Sacos Avulsos'
+function unidSing(item){
+  if(temUnidadePropria(item) && !temConversaoBulk(item)) return item.unidade;
+  return (item && item.temRejunte) ? 'fardo' : 'sc';
+}
+function unidPlur(item){
+  if(temUnidadePropria(item) && !temConversaoBulk(item)) return item.unidade;
+  return (item && item.temRejunte) ? 'Fardos' : 'sacos';
+}
+function unidAvul(item){
+  if(temUnidadePropria(item) && !temConversaoBulk(item)) return item.unidade + ' Avulsos';
+  return (item && item.temRejunte) ? 'Fardos Avulsos' : 'Sacos Avulsos';
+}
+function unidTotal(item){
+  if(temUnidadePropria(item) && !temConversaoBulk(item)) return 'Total de ' + item.unidade;
+  return (item && item.temRejunte) ? 'Total de Fardos' : 'Total de Sacos';
 }
 
 // ITEM 4: Tipo operacional do item (PALETES / SACOS / FARDOS)
@@ -231,6 +283,8 @@ function tipoOperacional(item){
   if(item.temRejunte) return 'FARDOS';
   // Itens de SEPARAÇÃO: usar campo tipoOp se definido, senão SACOS por padrão
   if(item.temSeparacao) return item.tipoOp || 'SACOS';
+  // Itens com unidade própria cadastrada (sem conversão bulk): mostrar a unidade real
+  if(temUnidadePropria(item) && !temConversaoBulk(item)) return String(item.unidade).toUpperCase();
   // Demais itens: PALETES se tiver paletes, SACOS caso contrário
   return 'SACOS';
 }

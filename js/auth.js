@@ -45,12 +45,15 @@ async function fazerLogin(){
     document.getElementById('appScreen').style.display='block';
     aplicarPermissoes();setStep(0);
     carregarAuditoriaLocal();
+    carregarRecebimentosLocal();
+    if(typeof renderRecebimentos === 'function') renderRecebimentos();
     const overlay=document.getElementById('appLoading');if(overlay)overlay.style.display='flex';
     await carregarSheetsData();
     await carregarInventarioItens();
     await carregarRequisicoesPendentes();
     await carregarConferenciasSheets();
     await carregarAuditoriasSheets();
+    await carregarRecebimentosSheets();
     iniciarPolling();
     resetSessionTimeout();
     if(overlay)overlay.style.display='none';
@@ -92,6 +95,7 @@ function aplicarPermissoes(){
   if(tabHist) tabHist.style.display = abasVisiveis.includes('pg-hist') ? 'block' : 'none';
   if(tabExpedicao) tabExpedicao.style.display = abasVisiveis.includes('pg-expedicao') ? 'block' : 'none';
   if(tabOp) tabOp.style.display = p.verTabOp ? 'block' : 'none';
+  if(typeof aplicarVisibilidadeRecebimento === 'function') aplicarVisibilidadeRecebimento();
 
   const btnReq=document.getElementById('btnIniciarReq');
   if(btnReq)btnReq.style.display=(p.podeRequisitar||p.podeAdmin)?'':'none';

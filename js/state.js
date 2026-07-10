@@ -46,3 +46,18 @@ function carregarAuditoriaLocal(){
     AUDITORIA_HISTORICO = raw ? JSON.parse(raw) : [];
   } catch(e){ AUDITORIA_HISTORICO = []; }
 }
+
+// ─── RECEBIMENTO DE MATERIAL (NOVA FUNCIONALIDADE) ──────────────────
+// Log simples de entrada de material (item + quantidade + data), registrado
+// pelo Conferente. Mesmo padrão de persistência da Auditoria: cache local
+// instantâneo + sincronização com o Sheets em segundo plano.
+let RECEBIMENTOS = [];
+function salvarRecebimentosLocal(){
+  try { localStorage.setItem('recebimentos_historico', JSON.stringify(RECEBIMENTOS)); } catch(e){}
+}
+function carregarRecebimentosLocal(){
+  try {
+    const raw = localStorage.getItem('recebimentos_historico');
+    RECEBIMENTOS = raw ? JSON.parse(raw) : [];
+  } catch(e){ RECEBIMENTOS = []; }
+}

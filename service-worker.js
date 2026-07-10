@@ -9,7 +9,7 @@
  * Versão do cache: incrementar CACHE_VERSION ao publicar nova versão.
  */
 
-const CACHE_VERSION = 'colafix-v16';
+const CACHE_VERSION = 'colafix-v21';
 const CACHE_STATIC  = CACHE_VERSION + '-static';
 
 // Assets que serão pré-cacheados na instalação
@@ -28,6 +28,7 @@ const PRECACHE_ASSETS = [
   './js/estoque.js',
   './js/conferencia.js',
   './js/divergencias.js',
+  './js/recebimento.js',
   './js/pendentes.js',
   './js/requisicao.js',
   './js/movimentacao.js',

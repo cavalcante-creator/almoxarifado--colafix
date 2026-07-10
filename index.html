@@ -364,7 +364,54 @@
 <!-- ═══ CONFERÊNCIA FÍSICA ═══ -->
 <div id="pg-conferencia" class="page"><div class="wrap">
 
-  <!-- Painel de seleção de itens -->
+  <!-- Alternância entre Contagem e Recebimento (NOVA FUNCIONALIDADE) -->
+  <div id="confModoToggleBar" style="display:flex;gap:8px;margin-bottom:14px">
+    <button id="btnModoContagem" class="btn" onclick="confMudarModo('contagem')" style="flex:1;height:44px;font-size:13px;font-weight:700;background:var(--accent);color:#fff;border-color:var(--accent)">📊 Contagem</button>
+    <button id="btnModoRecebimento" class="btn" onclick="confMudarModo('recebimento')" style="flex:1;height:44px;font-size:13px;font-weight:700;display:none">📥 Recebimento</button>
+  </div>
+
+  <!-- Recebimento de Material (NOVA FUNCIONALIDADE) -->
+  <div id="confModoRecebimentoWrap" style="display:none">
+    <div class="card" style="margin-bottom:14px" id="recebCard">
+      <div class="card-title">📥 Recebimento Material Plataforma</div>
+      <div id="recebCardBody">
+        <div class="fld" style="margin-bottom:20px">
+          <label>Item</label>
+          <input type="text" id="recebBuscaItem" placeholder="Código ou descrição do produto..." oninput="buscarItemRecebimento(this.value)" autocomplete="off">
+          <div id="recebResultados" style="display:none;position:relative">
+            <div style="position:absolute;z-index:20;background:#fff;border:1px solid var(--border2);border-radius:var(--radius-sm);width:100%;max-height:220px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.12)"></div>
+          </div>
+        </div>
+        <div id="recebItemSelecionado" style="display:none;background:var(--accent-dim);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:20px;font-size:11px"></div>
+        <div style="height:1px;background:var(--border);margin-bottom:20px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+          <div class="fld">
+            <label>Quantidade Recebida</label>
+            <input type="number" id="recebQtd" min="0" placeholder="0" style="text-align:center;font-weight:700">
+          </div>
+          <div class="fld">
+            <label>Data</label>
+            <input type="date" id="recebData">
+          </div>
+          <div class="fld" style="grid-column:1 / -1">
+            <label>Observação (opcional)</label>
+            <input type="text" id="recebObs" placeholder="Ex: nota fiscal, transportadora, condição da carga...">
+          </div>
+        </div>
+        <div class="brow" style="justify-content:flex-end;margin-bottom:24px">
+          <button class="btn btn-primary" onclick="salvarRecebimento()">💾 Registrar Recebimento</button>
+        </div>
+        <div id="recebHistoricoWrap" style="border-top:1px solid var(--border);padding-top:16px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">Últimos Recebimentos</div>
+          <div id="recebHistorico" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div id="recebHistoricoEmpty" style="text-align:center;padding:16px 0;color:var(--text3);font-size:11px">Nenhum recebimento registrado ainda</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Conferência (contagem) — Painel de seleção de itens -->
+  <div id="confModoContagemWrap">
   <div class="card" style="margin-bottom:14px" id="confSelCard">
     <div class="card-title">🔍 Selecionar Itens para Conferência
       <span id="confSelBadge" style="display:none;margin-left:6px;background:var(--accent);color:#fff;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700">0 selecionados</span>
@@ -497,6 +544,7 @@
       Nenhuma conferência salva ainda
     </div>
     <div id="confHistList" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
   </div>
 </div></div>
 
@@ -637,6 +685,7 @@
 <script src="js/estoque.js"></script>
 <script src="js/conferencia.js"></script>
 <script src="js/divergencias.js"></script>
+<script src="js/recebimento.js"></script>
 <script src="js/pendentes.js"></script>
 <script src="js/requisicao.js"></script>
 <script src="js/movimentacao.js"></script>
