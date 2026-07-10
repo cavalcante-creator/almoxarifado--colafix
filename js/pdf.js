@@ -37,7 +37,7 @@ function gerarPDFConferencia(num) {
         <td style="text-align:center">${lblA3}</td>
         <td style="text-align:center">${it.pal3||0}</td>
         <td style="text-align:center">${it.sac3||0}</td>
-        <td rowspan="2" style="text-align:center;font-weight:700">${it.total||0} ${uPDF}</td>
+        <td rowspan="2" style="text-align:center;font-weight:700">${qtdComConversaoTexto(invItem, it.total||0, uPDF)}</td>
         <td rowspan="2" style="text-align:center">${celRasgado}</td>
       </tr><tr>
         <td style="text-align:center;background:#f9f9f9">Almox 30</td>
@@ -50,7 +50,7 @@ function gerarPDFConferencia(num) {
         <td style="text-align:center">${lblA3}</td>
         <td style="text-align:center">${it.pal3||0}</td>
         <td style="text-align:center">${it.sac3||0}</td>
-        <td style="text-align:center;font-weight:700">${it.almox3||0} ${uPDF}</td>
+        <td style="text-align:center;font-weight:700">${qtdComConversaoTexto(invItem, it.almox3||0, uPDF)}</td>
         <td style="text-align:center">${celRasgado}</td>
       </tr>`;
     } else if(tem30){
@@ -59,7 +59,7 @@ function gerarPDFConferencia(num) {
         <td style="text-align:center;background:#f9f9f9">Almox 30</td>
         <td style="text-align:center;background:#f9f9f9">${it.pal30||0}</td>
         <td style="text-align:center;background:#f9f9f9">${it.sac30||0}</td>
-        <td style="text-align:center;font-weight:700">${it.almox30||0} sc</td>
+        <td style="text-align:center;font-weight:700">${qtdComConversaoTexto(invItem, it.almox30||0, 'sc')}</td>
         <td style="text-align:center">${celRasgado}</td>
       </tr>`;
     }

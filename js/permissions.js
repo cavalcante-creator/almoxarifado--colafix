@@ -81,6 +81,39 @@ const PERFIS={
     confAlmox3:false,confAlmox30:false,confRejunte:true,confSeparacao:true,
     confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
   },
+  // Matéria-Prima: mesmo padrão dos conferentes de produto acabado, só muda o almoxarifado
+  'conferente almox 1':{
+    label:'Conferente Almox 1',abas:['pg-conferencia'],
+    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:false,
+    confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:true,confAlmox2:false,
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+  },
+  'conferentealmox1':{
+    label:'Conferente Almox 1',abas:['pg-conferencia'],
+    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:false,
+    confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:true,confAlmox2:false,
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+  },
+  'conferente almox 2':{
+    label:'Conferente Almox 2',abas:['pg-conferencia'],
+    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:false,
+    confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:false,confAlmox2:true,
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+  },
+  'conferentealmox2':{
+    label:'Conferente Almox 2',abas:['pg-conferencia'],
+    podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
+    podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
+    verTabOp:false,
+    confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:false,confAlmox2:true,
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+  },
   'auditor':{
     label:'Auditor',abas:['pg-estoque','pg-hist','pg-divergencias'],
     podeRequisitar:false,podeAprovar:false,podeMovFisica:false,
@@ -117,7 +150,9 @@ function confPerm(){
     podeContarAlmox3:    acessoTotal || p.confAlmox3     === true,
     podeContarAlmox30:   acessoTotal || p.confAlmox30    === true,
     podeContarRejunte:   acessoTotal || p.confRejunte    === true,
-    podeContarSeparacao: acessoTotal || p.confSeparacao  === true
+    podeContarSeparacao: acessoTotal || p.confSeparacao  === true,
+    podeContarAlmox1:    acessoTotal || p.confAlmox1     === true,
+    podeContarAlmox2:    acessoTotal || p.confAlmox2     === true
   };
 }
 
@@ -140,6 +175,8 @@ function confPerfilFiltro(){
   if(cp.podeContarRejunte && cp.podeContarSeparacao && !cp.podeContarAlmox30) return null;
   if(cp.podeContarRejunte && !cp.podeContarAlmox30 && !cp.podeContarSeparacao) return 'rejunte';
   if(cp.podeContarSeparacao && !cp.podeContarRejunte && !cp.podeContarAlmox30) return 'separacao';
+  if(cp.podeContarAlmox1 && !cp.podeContarAlmox2 && !cp.podeContarAlmox30 && !cp.podeContarAlmox3) return 'almox1';
+  if(cp.podeContarAlmox2 && !cp.podeContarAlmox1 && !cp.podeContarAlmox30 && !cp.podeContarAlmox3) return 'almox2';
   if(cp.podeContarAlmox30 && !cp.podeContarAlmox3) return 'almox30';
   if(cp.podeContarAlmox3 && !cp.podeContarAlmox30) return 'almox3';
   return null;
@@ -150,6 +187,8 @@ function localLabel(item){
   if(!item) return 'Almox 3';
   if(item.temRejunte) return 'Rejunte';
   if(item.temSeparacao) return 'Separação';
+  if(item.temAlmox1) return 'Almox 1';
+  if(item.temAlmox2) return 'Almox 2';
   if(item.temAlmox30 && !item.temAlmox3) return 'Almox 30';
   return 'Almox 3';
 }
@@ -161,6 +200,29 @@ function unidSing(item){ return (item && item.temRejunte) ? 'fardo' : 'sc'; }
 function unidPlur(item){ return (item && item.temRejunte) ? 'Fardos' : 'sacos'; }
 function unidAvul(item){ return (item && item.temRejunte) ? 'Fardos Avulsos' : 'Sacos Avulsos'; }
 function unidTotal(item){ return (item && item.temRejunte) ? 'Total de Fardos' : 'Total de Sacos'; }
+
+// ─── UNIDADE DE MEDIDA E CONVERSÃO (NOVA FUNCIONALIDADE) ────────────
+// O item continua sendo CONTADO em sacos/fardos/paletes, exatamente como sempre
+// (isso não muda). Quando o item tem uma "unidade de medida" própria cadastrada
+// na planilha (ex: KG, L, UN), o sistema também mostra o total convertido, ex:
+// "10 sc → 250 kg". Itens sem unidade cadastrada continuam exatamente como hoje.
+function temConversaoUnidade(item){
+  return !!(item && item.unidade && String(item.unidade).trim());
+}
+function converterQtd(item, qtdContada){
+  if(!temConversaoUnidade(item)) return null;
+  const fator = (item.conversao && item.conversao > 0) ? item.conversao : 1;
+  const total = (Number(qtdContada)||0) * fator;
+  // Arredonda para 2 casas quando necessário, mas sem casas decimais desnecessárias (ex: 250 em vez de 250.00)
+  return Math.round(total * 100) / 100;
+}
+// Monta o texto "10 sc → 250 kg" (ou só "10 sc" se o item não tiver unidade cadastrada)
+function qtdComConversaoTexto(item, qtdContada, unidadeContagem){
+  const base = qtdContada + ' ' + unidadeContagem;
+  if(!temConversaoUnidade(item)) return base;
+  const convertido = converterQtd(item, qtdContada);
+  return base + ' → ' + convertido + ' ' + item.unidade;
+}
 
 // ITEM 4: Tipo operacional do item (PALETES / SACOS / FARDOS)
 // Aplica-se apenas na conferência, histórico e impressões.

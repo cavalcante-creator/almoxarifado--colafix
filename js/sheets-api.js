@@ -56,6 +56,14 @@ async function carregarInventarioItens(){
       const temRejunte = String(r[4]||'').trim().toUpperCase()==='TRUE';
       // Coluna F = SEPARAÇÃO (TRUE/FALSE)
       const temSeparacao = String(r[5]||'').trim().toUpperCase()==='TRUE';
+      // Coluna G = ALMOX 1 — Matéria-Prima (TRUE/FALSE)
+      const temAlmox1 = String(r[6]||'').trim().toUpperCase()==='TRUE';
+      // Coluna H = ALMOX 2 — Matéria-Prima (TRUE/FALSE)
+      const temAlmox2 = String(r[7]||'').trim().toUpperCase()==='TRUE';
+      // Coluna I = UNIDADE DE MEDIDA (texto livre, ex: KG, L, UN, CX). Vazio = mantém "sc" padrão.
+      const unidadeRaw = String(r[8]||'').trim();
+      // Coluna J = CONVERSÃO (quantos UNIDADE equivalem a 1 saco/unidade contada). Vazio/0 = sem conversão (1:1).
+      const conversaoRaw = parseFloat(String(r[9]||'').replace(',','.')) || 0;
       // Busca saldos numéricos em SALDO_BRUTO (carregado de SALDO+CAPACIDADE) para exibir
       const itemSaldo = SALDO_BRUTO.find(i=>i.cod===cod) || {};
       return {
@@ -65,6 +73,10 @@ async function carregarInventarioItens(){
         temAlmox30,
         temRejunte,
         temSeparacao,
+        temAlmox1,
+        temAlmox2,
+        unidade: unidadeRaw,               // '' = usa o padrão sc/fardo já existente
+        conversao: conversaoRaw > 0 ? conversaoRaw : 1,
         saldo3: itemSaldo.saldo3 || 0,
         saldo30: itemSaldo.saldo30 || 0,
         min3: itemSaldo.min3 || 0,
@@ -89,6 +101,10 @@ async function carregarInventarioItens(){
         temAlmox30: inv.temAlmox30,
         temRejunte: inv.temRejunte,
         temSeparacao: inv.temSeparacao,
+        temAlmox1: inv.temAlmox1,
+        temAlmox2: inv.temAlmox2,
+        unidade: inv.unidade,
+        conversao: inv.conversao,
         saldo3: existente.saldo3 || inv.saldo3 || 0,
         saldo30: existente.saldo30 || inv.saldo30 || 0,
         min3: existente.min3 || inv.min3 || 0,

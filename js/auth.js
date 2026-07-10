@@ -60,8 +60,12 @@ async function fazerLogin(){
       const opTab=document.getElementById('tab-op');
       if(opTab){showPage('pg-op',opTab);}
     }
-    // Conferente, Conferente 2, Conferente 3: ir direto para aba de conferência
-    if(['Conferente','Conferente 2','Conferente 3'].includes(perfil().label)){
+    // Perfis "só conferência" (sem acesso a Estoque, mas com acesso a Conferência):
+    // ir direto para a aba de Conferência ao logar. Decidido automaticamente pelas
+    // abas do perfil — não depende de uma lista fixa de nomes, então qualquer novo
+    // perfil de conferente futuro já funciona sem precisar mexer aqui de novo.
+    const abasPerfil = perfil().abas || [];
+    if(!abasPerfil.includes('pg-estoque') && abasPerfil.includes('pg-conferencia')){
       const confTab=document.getElementById('tab-conf');
       if(confTab){showPage('pg-conferencia',confTab);}
     }

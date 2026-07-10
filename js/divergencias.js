@@ -209,7 +209,7 @@ function abrirValidarSaldo(numConf, cod, local){
   const conf = CONF_HISTORICO.find(c=>c.numero===numConf);
   if(!conf || !conf.itens[cod]) { toast('Conferência ou item não encontrado.'); return; }
   const it = conf.itens[cod];
-  const saldoFisico = local==='Almox 30' ? (it.almox30||0) : (it.almox3||0);
+  const saldoFisico = (local==='Almox 30' || local==='Almox 2') ? (it.almox30||0) : (it.almox3||0);
   const auditKey = getAuditKey(numConf, cod, local);
   const existente = AUDITORIA_HISTORICO.find(a=>a.auditKey===auditKey);
   const ehAlmox3 = ehAlmox3Fisico(local);
