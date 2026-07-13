@@ -61,3 +61,11 @@ function carregarRecebimentosLocal(){
     RECEBIMENTOS = raw ? JSON.parse(raw) : [];
   } catch(e){ RECEBIMENTOS = []; }
 }
+
+// ─── FILTROS RÁPIDOS — MATRIZ ITEM × FILTRO (NOVA FUNCIONALIDADE) ───
+// Formato real usado na planilha: uma linha por item (CODIGO, DESCRIÇÃO),
+// uma coluna por filtro (TRUE/FALSE) — igual já funciona no INVENTARIO_ITENS.
+// FILTROS_ITEM_MAP[cod] = Set com os nomes dos filtros marcados TRUE pro item.
+// 'planilha' = usa a matriz carregada · 'legado' = busca por palavra-chave (fallback)
+let CONF_FILTROS_MODO = 'legado';
+let FILTROS_ITEM_MAP = {};

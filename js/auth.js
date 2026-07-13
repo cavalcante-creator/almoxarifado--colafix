@@ -54,6 +54,7 @@ async function fazerLogin(){
     await carregarConferenciasSheets();
     await carregarAuditoriasSheets();
     await carregarRecebimentosSheets();
+    await carregarFiltrosRapidosSheets();
     iniciarPolling();
     resetSessionTimeout();
     if(overlay)overlay.style.display='none';

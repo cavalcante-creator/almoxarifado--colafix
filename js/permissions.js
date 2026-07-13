@@ -6,14 +6,14 @@ const PERFIS={
     podeRequisitar:true,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:true,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY']
   },
   'administrador':{
     label:'Administrador',abas:['pg-estoque','pg-pendencias','pg-conferencia','pg-divergencias','pg-hist','pg-expedicao'],
     podeRequisitar:true,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:true,podeAudit:true,podeAdmin:true,
     verTabOp:true,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY','FIXCOL','FILMES','MATERIAL EM BAG','PIGMENTOS/ADITIVOS','RESINAS','SACARIAS','ETIQUETAS']
   },
   'operador':{
     label:'Operador',abas:['pg-op'],
@@ -27,7 +27,7 @@ const PERFIS={
     podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:true,podeAudit:false,podeAdmin:false,
     verTabOp:false,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY']
   },
   'supervisorsistema':{
     // Alteração 1: liberar conferência para Iasmyn (Supervisor Sistema)
@@ -35,7 +35,7 @@ const PERFIS={
     podeRequisitar:false,podeAprovar:true,podeMovFisica:true,
     podeConferir:true,podeTransferir:true,podeAudit:false,podeAdmin:false,
     verTabOp:false,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY']
   },
   'conferente':{
     label:'Conferente',abas:['pg-conferencia'],
@@ -44,7 +44,7 @@ const PERFIS={
     verTabOp:false,
     // Ajuste 2: restrições de almoxarifado na conferência
     confAlmox3:true,confAlmox30:false,confRejunte:false,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY'],
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY','FIXCOL'],
     podeReceberMaterial:true
   },
   'conferente 2':{
@@ -54,7 +54,7 @@ const PERFIS={
     verTabOp:false,
     // Ajuste 2: visualiza e lança apenas ALMOX 30
     confAlmox3:false,confAlmox30:true,confRejunte:false,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY']
   },
   'conferente2':{
     label:'Conferente 2',abas:['pg-conferencia'],
@@ -62,7 +62,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:true,confRejunte:false,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY']
   },
   'conferente 3':{
     label:'Conferente 3',abas:['pg-conferencia'],
@@ -71,7 +71,7 @@ const PERFIS={
     verTabOp:false,
     // Acessa REJUNTE/ÁREA LÍQUIDA e SEPARAÇÃO — sem acesso ao Almox 3 e Almox 30
     confAlmox3:false,confAlmox30:false,confRejunte:true,confSeparacao:true,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY']
   },
   'conferente3':{
     label:'Conferente 3',abas:['pg-conferencia'],
@@ -80,7 +80,7 @@ const PERFIS={
     verTabOp:false,
     // Acessa REJUNTE/ÁREA LÍQUIDA e SEPARAÇÃO — sem acesso ao Almox 3 e Almox 30
     confAlmox3:false,confAlmox30:false,confRejunte:true,confSeparacao:true,
-    confFiltros:['COLAFIX','BAUTECH','POZOSUL','PY','UY']
+    confFiltros:['COLAFIX','BAUTECH','POZOSUL','EXPORTAÇÃO PY','EXPORTAÇÃO UY']
   },
   // Matéria-Prima: mesmo padrão dos conferentes de produto acabado, só muda o almoxarifado
   'conferente almox 1':{
@@ -89,7 +89,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:true,confAlmox2:false,
-    confFiltros:['FILME','SACARIA']
+    confFiltros:['FILMES','MATERIAL EM BAG','PIGMENTOS/ADITIVOS','RESINAS','SACARIAS','ETIQUETAS']
   },
   'conferentealmox1':{
     label:'Conferente Almox 1',abas:['pg-conferencia'],
@@ -97,7 +97,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:true,confAlmox2:false,
-    confFiltros:['FILME','SACARIA']
+    confFiltros:['FILMES','MATERIAL EM BAG','PIGMENTOS/ADITIVOS','RESINAS','SACARIAS','ETIQUETAS']
   },
   'conferente almox 2':{
     label:'Conferente Almox 2',abas:['pg-conferencia'],
@@ -105,7 +105,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:false,confAlmox2:true,
-    confFiltros:['FILME','SACARIA']
+    confFiltros:['FILMES','MATERIAL EM BAG','PIGMENTOS/ADITIVOS','RESINAS','SACARIAS','ETIQUETAS']
   },
   'conferentealmox2':{
     label:'Conferente Almox 2',abas:['pg-conferencia'],
@@ -113,7 +113,7 @@ const PERFIS={
     podeConferir:true,podeTransferir:false,podeAudit:false,podeAdmin:false,
     verTabOp:false,
     confAlmox3:false,confAlmox30:false,confRejunte:false,confSeparacao:false,confAlmox1:false,confAlmox2:true,
-    confFiltros:['FILME','SACARIA']
+    confFiltros:['FILMES','MATERIAL EM BAG','PIGMENTOS/ADITIVOS','RESINAS','SACARIAS','ETIQUETAS']
   },
   'auditor':{
     label:'Auditor',abas:['pg-estoque','pg-hist','pg-divergencias'],

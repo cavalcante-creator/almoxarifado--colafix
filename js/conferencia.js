@@ -57,20 +57,24 @@ function ultimaContagemItem(cod){
   return null;
 }
 // Melhoria 1: renderiza apenas os filtros permitidos pelo perfil logado
-const CONF_FILTROS_CONFIG = [
-  { id:'COLAFIX',     label:'COLAFIX',        title:'' },
-  { id:'BAUTECH',     label:'BAUTECH',        title:'' },
-  { id:'POZOSUL',     label:'POZOSUL',        title:'' },
-  { id:'PY',          label:'EXPORTAÇÃO PY',  title:'Exportação Paraguai' },
-  { id:'UY',          label:'EXPORTAÇÃO UY',  title:'Exportação Uruguai' },
-  { id:'FILME',       label:'FILMES',         title:'Filmes plásticos' },
-  { id:'SACARIA',     label:'SACARIAS',       title:'Sacarias' },
+// [NOVA FUNCIONALIDADE] Configuração padrão (fallback) — usada até a planilha
+// carregar (ou se a aba FILTROS_RAPIDOS não existir/estiver vazia). Depois do
+// login, carregarFiltrosRapidosSheets() pode substituir esse array pelo que
+// estiver cadastrado na planilha, sem precisar mexer em código.
+let CONF_FILTROS_CONFIG = [
+  { id:'COLAFIX',     label:'COLAFIX',        keyword:'COLAFIX',     title:'' },
+  { id:'BAUTECH',     label:'BAUTECH',        keyword:'BAUTECH',     title:'' },
+  { id:'POZOSUL',     label:'POZOSUL',        keyword:'POZOSUL',     title:'' },
+  { id:'PY',          label:'EXPORTAÇÃO PY',  keyword:'PY',          title:'Exportação Paraguai' },
+  { id:'UY',          label:'EXPORTAÇÃO UY',  keyword:'UY',          title:'Exportação Uruguai' },
+  { id:'FILME',       label:'FILMES',         keyword:'FILME',       title:'Filmes plásticos' },
+  { id:'SACARIA',     label:'SACARIAS',       keyword:'SACARIA',     title:'Sacarias' },
 ];
 function renderFiltrosRapidosConf(){
   const container = document.getElementById('confFiltrosRapidosContainer');
   if(!container) return;
   const pf = perfil();
-  const permitidos = pf.confFiltros || (pf.podeAdmin ? ['COLAFIX','BAUTECH','POZOSUL','PY','UY'] : []);
+  const permitidos = pf.confFiltros || (pf.podeAdmin ? CONF_FILTROS_CONFIG.map(f=>f.id) : []);
   container.innerHTML = '';
   CONF_FILTROS_CONFIG.forEach(f => {
     if(!permitidos.includes(f.id)) return;
@@ -85,24 +89,37 @@ function renderFiltrosRapidosConf(){
 }
 // Alteração 3: filtro rápido por descrição (COLAFIX, BAUTECH, POZOSUL, EXPORTAÇÃO PY, EXPORTAÇÃO UY)
 let _confFiltroColafix = false; // flag especial para o filtro COLAFIX
-let _confFiltroAtivo = ''; // termo do último filtro rápido ativado
-function confFiltroRapido(termo){
+let _confFiltroAtivo = ''; // id do último filtro rápido ativado (vazio = nenhum)
+function confFiltroRapido(id){
   const inp = document.getElementById('confSearch');
   // Melhoria 2: desmarcar itens do filtro anterior antes de trocar
-  if(_confFiltroAtivo && termo !== _confFiltroAtivo) {
+  if(_confFiltroAtivo && id !== _confFiltroAtivo) {
     _desselecionarItensFiltro(_confFiltroAtivo);
   }
-  if(termo === 'COLAFIX'){
+  if(id === ''){
+    _confFiltroColafix = false;
+    if(inp){ inp.value = ''; }
+    _confFiltroAtivo = '';
+    filtrarItensConf();
+    return;
+  }
+  const f = CONF_FILTROS_CONFIG.find(x => x.id === id);
+  if(!f) return;
+  if(CONF_FILTROS_MODO === 'planilha'){
+    // Modo planilha: filtro por categoria (matriz item×filtro) — não usa a busca por texto
+    _confFiltroColafix = false;
+    if(inp){ inp.value = ''; }
+  } else if(f.id === 'COLAFIX'){
     _confFiltroColafix = true;
     if(inp){ inp.value = ''; }
   } else {
     _confFiltroColafix = false;
-    if(inp){ inp.value = termo; }
+    if(inp){ inp.value = f.keyword || f.id; }
   }
-  _confFiltroAtivo = termo;
+  _confFiltroAtivo = f.id;
   filtrarItensConf();
   // Melhoria 2: selecionar automaticamente todos os itens visíveis do filtro
-  if(termo) { _selecionarItensFiltro(); }
+  if(id) { _selecionarItensFiltro(); }
 }
 // Melhoria 2: seleciona todos os itens atualmente visíveis na lista de seleção
 function _selecionarItensFiltro(){
@@ -114,15 +131,20 @@ function _selecionarItensFiltro(){
   filtrarItensConf();
 }
 // Melhoria 2: desmarca itens que pertencem ao filtro que está sendo desativado
-function _desselecionarItensFiltro(termoAnterior){
+function _desselecionarItensFiltro(idAnterior){
+  const fAnterior = CONF_FILTROS_CONFIG.find(x => x.id === idAnterior);
+  const keywordAnterior = fAnterior ? (fAnterior.keyword || fAnterior.id) : idAnterior;
   const fonte = CONF_ITEMS.length > 0 ? CONF_ITEMS : ITEMS;
   fonte.forEach(item => {
-    const n = item.name.toLowerCase();
     let pertence = false;
-    if(termoAnterior === 'COLAFIX'){
+    if(CONF_FILTROS_MODO === 'planilha'){
+      const marcados = FILTROS_ITEM_MAP[item.cod.toUpperCase()];
+      pertence = !!(marcados && marcados.has(idAnterior));
+    } else if(idAnterior === 'COLAFIX'){
+      const n = item.name.toLowerCase();
       pertence = !n.includes('bautech') && !n.includes('pozosul') && !n.includes(' py') && !n.includes('py ') && !n.includes(' uy') && !n.includes('uy ');
     } else {
-      pertence = n.includes(termoAnterior.toLowerCase());
+      pertence = item.name.toLowerCase().includes(keywordAnterior.toLowerCase());
     }
     if(pertence) CONF_ITENS_SEL.delete(item.cod);
   });
@@ -193,10 +215,16 @@ function filtrarItensConf(){
       if(!temPermAlmox3 && !temPermAlmox30 && !temPermRejunte && !temPermSeparacao && !temPermAlmox1 && !temPermAlmox2) return;
     }
     if(q && !item.cod.toLowerCase().includes(q) && !item.name.toLowerCase().includes(q)) return;
-    // Filtro COLAFIX: exclui itens que contenham BAUTECH, POZOSUL, PY ou UY na descrição
-    if(_confFiltroColafix){
-      const n = item.name.toLowerCase();
-      if(n.includes('bautech') || n.includes('pozosul') || n.includes(' py') || n.includes(' uy') || n.endsWith(' py') || n.endsWith(' uy') || n.includes('py ') || n.includes('uy ')) return;
+    // Filtro rápido: modo "planilha" (matriz item×filtro) usa pertencimento direto;
+    // modo "legado" (sem planilha configurada) mantém a busca por palavra-chave de sempre.
+    if(_confFiltroAtivo){
+      if(CONF_FILTROS_MODO === 'planilha'){
+        const marcados = FILTROS_ITEM_MAP[item.cod.toUpperCase()];
+        if(!marcados || !marcados.has(_confFiltroAtivo)) return;
+      } else if(_confFiltroColafix){
+        const n = item.name.toLowerCase();
+        if(n.includes('bautech') || n.includes('pozosul') || n.includes(' py') || n.includes(' uy') || n.endsWith(' py') || n.endsWith(' uy') || n.includes('py ') || n.includes('uy ')) return;
+      }
     }
     visiveis++;
     const sel = CONF_ITENS_SEL.has(item.cod);
@@ -430,10 +458,10 @@ function renderConferencia(){
     const isAlmox30Only = !!item.temAlmox30 && !item.temAlmox3 && !isRejunte && !isSeparacao && !isAlmox1 && !isAlmox2;
     // Itens com unidade própria (UN, ROLO etc., sem conversão em massa) não fazem sentido em paletes
     const esconderPaletes = temUnidadePropria(item) && !temConversaoBulk(item);
-    const lblBloco3  = isRejunte ? 'Rejunte' : isSeparacao ? 'Separação' : isAlmox1 ? 'Almox 1' : 'Almox 3';
-    const corBloco3  = isRejunte ? 'var(--purple,#7B5EA7)' : isSeparacao ? 'var(--orange,#E07B39)' : isAlmox1 ? 'var(--orange,#E07B39)' : 'var(--accent)';
-    const lblBloco30 = isAlmox2 ? 'Almox 2' : 'Almox 30';
-    const corBloco30 = isAlmox2 ? 'var(--purple,#7B5EA7)' : 'var(--green)';
+    const lblBloco3  = (isRejunte && podeVerRejunte) ? 'Rejunte' : (isSeparacao && podeVerSeparacao) ? 'Separação' : (isAlmox1 && podeVerAlmox1) ? 'Almox 1' : 'Almox 3';
+    const corBloco3  = (isRejunte && podeVerRejunte) ? 'var(--purple,#7B5EA7)' : (isSeparacao && podeVerSeparacao) ? 'var(--orange,#E07B39)' : (isAlmox1 && podeVerAlmox1) ? 'var(--orange,#E07B39)' : 'var(--accent)';
+    const lblBloco30 = (isAlmox2 && podeVerAlmox2) ? 'Almox 2' : 'Almox 30';
+    const corBloco30 = (isAlmox2 && podeVerAlmox2) ? 'var(--purple,#7B5EA7)' : 'var(--green)';
     // Mantidos para compatibilidade com trechos que ainda usam o rótulo único do item
     const lblLocalCard = localLabel(item);
     const corLocalCard = corBloco3;
@@ -909,29 +937,28 @@ async function salvarConferencia() {
       '| almox1:', itemTemAlmox1, '| almox2:', itemTemAlmox2,
       '| perm:', JSON.stringify(cpSave));
 
-    // Zerar cada campo APENAS se o item pertence EXCLUSIVAMENTE a um local sem permissão.
-    // Regra: zerar pal3/sac3 somente se o único local do item é um que o perfil não pode contar.
-    // Itens que pertencem a múltiplos locais só têm o campo do local sem permissão zerado.
+    // Zerar cada bloco somente se NENHUMA categoria aplicável ao item tiver permissão.
+    // [FIX] Um item pode pertencer a mais de uma categoria ao mesmo tempo (ex: Almox 3 E
+    // Separação juntos) — antes, a checagem usava "if/else if" e só validava UMA categoria
+    // por prioridade, ignorando que o perfil podia ter permissão por outro caminho válido.
+    // Isso zerava a contagem inteira na hora de salvar mesmo com o item corretamente
+    // preenchido na tela, com o erro "Nenhum item válido para salvar". Agora é uma soma
+    // (OR) de todas as categorias do item, igual já funciona na hora de EXIBIR o card.
     //
     // Bloco 3 (pal3/sac3) é usado por: Almox 3, Rejunte, Separação OU Almox 1 (matéria-prima).
     // Bloco 30 (pal30/sac30) é usado por: Almox 30 OU Almox 2 (matéria-prima).
-    // Um item pode ter Almox 1 E Almox 2 ao mesmo tempo (dois estoques físicos separados,
-    // igual Almox 3 + Almox 30) — por isso cada bloco é zerado de forma independente,
-    // conforme a categoria específica que o item tem naquele bloco.
 
-    // Bloco 3: descobrir qual categoria o item usa nesse bloco e checar a permissão dela
-    let zerarBloco3 = false;
-    if(itemTemRejunte)        zerarBloco3 = !cpSave.podeContarRejunte;
-    else if(itemTemSeparacao) zerarBloco3 = !cpSave.podeContarSeparacao;
-    else if(itemTemAlmox1)    zerarBloco3 = !cpSave.podeContarAlmox1;
-    else                      zerarBloco3 = !cpSave.podeContarAlmox3;
-    if(zerarBloco3){ c.pal3 = 0; c.sac3 = 0; }
+    const permBloco3 =
+      (itemTemAlmox3    && cpSave.podeContarAlmox3) ||
+      (itemTemRejunte   && cpSave.podeContarRejunte) ||
+      (itemTemSeparacao && cpSave.podeContarSeparacao) ||
+      (itemTemAlmox1    && cpSave.podeContarAlmox1);
+    if(!permBloco3){ c.pal3 = 0; c.sac3 = 0; }
 
-    // Bloco 30: descobrir qual categoria o item usa nesse bloco e checar a permissão dela
-    let zerarBloco30 = false;
-    if(itemTemAlmox2) zerarBloco30 = !cpSave.podeContarAlmox2;
-    else               zerarBloco30 = !cpSave.podeContarAlmox30;
-    if(zerarBloco30){ c.pal30 = 0; c.sac30 = 0; }
+    const permBloco30 =
+      (itemTemAlmox30 && cpSave.podeContarAlmox30) ||
+      (itemTemAlmox2  && cpSave.podeContarAlmox2);
+    if(!permBloco30){ c.pal30 = 0; c.sac30 = 0; }
 
     // Recalcular totais APÓS zerar campos não permitidos
     const spp = getSacsPorPal(cod);
@@ -1184,19 +1211,25 @@ function renderConfHistorico() {
       const isA1H   = !!(invItemH && invItemH.temAlmox1);
       const isA2H   = !!(invItemH && invItemH.temAlmox2);
       const is30H   = !!(invItemH && invItemH.temAlmox30 && !invItemH.temAlmox3);
+      const isA3H   = !!(invItemH && invItemH.temAlmox3);
+      // [FIX] Um item pode pertencer a mais de uma categoria ao mesmo tempo (ex: Almox 3 E
+      // Separação juntos) — antes era um "if/else if" que só validava UMA categoria por
+      // prioridade e podia esconder o item do próprio histórico de quem o contou.
       // Bloco 3 = Rejunte/Separação/Almox1/Almox3-regular · Bloco 30 = Almox2/Almox30-regular
-      // (independentes: um item pode ter Almox 1 E Almox 2 ao mesmo tempo)
-      const mostrar3H  = isRejH ? (cpHist.acessoTotal || cpHist.podeContarRejunte)
-                        : isSepH ? (cpHist.acessoTotal || cpHist.podeContarSeparacao)
-                        : isA1H ? (cpHist.acessoTotal || cpHist.podeContarAlmox1)
-                        : !is30H && (cpHist.acessoTotal || cpHist.podeContarAlmox3);
-      const mostrar30H = isA2H ? (cpHist.acessoTotal || cpHist.podeContarAlmox2)
-                        : !isRejH && !isSepH && !isA1H && (cpHist.acessoTotal || cpHist.podeContarAlmox30);
+      // (cada categoria aplicável é verificada independente, com OR entre elas)
+      const podeVerRejH   = isRejH && (cpHist.acessoTotal || cpHist.podeContarRejunte);
+      const podeVerSepH   = isSepH && (cpHist.acessoTotal || cpHist.podeContarSeparacao);
+      const podeVerA1H    = isA1H  && (cpHist.acessoTotal || cpHist.podeContarAlmox1);
+      const podeVerA3H    = isA3H  && !is30H && (cpHist.acessoTotal || cpHist.podeContarAlmox3);
+      const podeVerA2H    = isA2H  && (cpHist.acessoTotal || cpHist.podeContarAlmox2);
+      const podeVerA30H   = !isRejH && !isSepH && !isA1H && (cpHist.acessoTotal || cpHist.podeContarAlmox30);
+      const mostrar3H  = podeVerRejH || podeVerSepH || podeVerA1H || podeVerA3H;
+      const mostrar30H = podeVerA2H || podeVerA30H;
       if(!mostrar3H && !mostrar30H) return; // ocultar item inteiro se sem permissão
-      const lblH3   = isRejH ? 'Rejunte' : isSepH ? 'Separação' : isA1H ? 'Almox 1' : 'Almox 3';
-      const cor3H   = isRejH ? 'var(--purple,#7B5EA7)' : isSepH ? 'var(--orange,#E07B39)' : isA1H ? 'var(--orange,#E07B39)' : 'var(--accent)';
-      const lblH30  = isA2H ? 'Almox 2' : 'Almox 30';
-      const cor30H  = isA2H ? 'var(--purple,#7B5EA7)' : 'var(--green)';
+      const lblH3   = podeVerRejH ? 'Rejunte' : podeVerSepH ? 'Separação' : podeVerA1H ? 'Almox 1' : 'Almox 3';
+      const cor3H   = podeVerRejH ? 'var(--purple,#7B5EA7)' : podeVerSepH ? 'var(--orange,#E07B39)' : podeVerA1H ? 'var(--orange,#E07B39)' : 'var(--accent)';
+      const lblH30  = podeVerA2H ? 'Almox 2' : 'Almox 30';
+      const cor30H  = podeVerA2H ? 'var(--purple,#7B5EA7)' : 'var(--green)';
       const qtdRasgH = Number(it.qtdRasgada)||0;
 
       // Linha de auditoria por local (Almox 3/Rejunte/Separação e Almox 30), cada uma com seu próprio status

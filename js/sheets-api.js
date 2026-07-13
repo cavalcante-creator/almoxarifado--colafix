@@ -355,3 +355,46 @@ async function carregarRecebimentosSheets(){
   }catch(e){ console.warn('[carregarRecebimentos] Erro:', e); }
 }
 
+// ─── FILTROS RÁPIDOS DA CONFERÊNCIA (NOVA FUNCIONALIDADE) ──────────
+// Lê os botões de filtro rápido (nome + palavra-chave) da aba FILTROS_RAPIDOS.
+// Se a aba não existir ou estiver vazia, mantém os filtros padrão que já
+// funcionavam (CONF_FILTROS_CONFIG já vem com esse fallback definido).
+// Colunas esperadas: A=ID  B=LABEL  C=PALAVRA_CHAVE  D=DICA (opcional)
+async function carregarFiltrosRapidosSheets(){
+  try{
+    const rows = await fetchRange(RANGE_FILTROS_RAPIDOS);
+    if(!rows || rows.length < 1){
+      console.log('[carregarFiltrosRapidos] Aba FILTROS_RAPIDOS vazia ou não encontrada — mantendo filtros padrão.');
+      return;
+    }
+    const header = rows[0];
+    // Colunas a partir da 3ª (índice 2) são os filtros — as duas primeiras são CODIGO/DESCRIÇÃO
+    const nomesFiltros = header.slice(2).map(h => String(h||'').trim()).filter(Boolean);
+    if(nomesFiltros.length === 0){
+      console.log('[carregarFiltrosRapidos] Nenhuma coluna de filtro encontrada no cabeçalho — mantendo filtros padrão.');
+      return;
+    }
+
+    const novoMapa = {};
+    for(let i = 1; i < rows.length; i++){
+      const r = rows[i];
+      if(!r || !r[0]) continue;
+      const cod = String(r[0]).trim().toUpperCase();
+      const marcados = new Set();
+      nomesFiltros.forEach((nome, idx) => {
+        const val = String(r[2+idx]||'').trim().toUpperCase();
+        if(val === 'TRUE') marcados.add(nome);
+      });
+      if(marcados.size > 0) novoMapa[cod] = marcados;
+    }
+
+    FILTROS_ITEM_MAP = novoMapa;
+    CONF_FILTROS_CONFIG = nomesFiltros.map(nome => ({ id: nome, label: nome, keyword: nome }));
+    CONF_FILTROS_MODO = 'planilha';
+    console.log('[carregarFiltrosRapidos] Modo planilha ativado —', nomesFiltros.length, 'filtros,', Object.keys(novoMapa).length, 'itens categorizados.');
+    if(typeof renderFiltrosRapidosConf === 'function') renderFiltrosRapidosConf();
+  }catch(e){
+    console.warn('[carregarFiltrosRapidos] Erro (mantendo filtros padrão):', e);
+  }
+}
+
