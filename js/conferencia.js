@@ -1283,7 +1283,6 @@ function renderConfHistorico() {
       <div style="display:flex;flex-direction:column;gap:4px">
         <div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
-          ${resumoAud.total > 0 ? `<span title="Status geral da auditoria">${semaforoHTML(resumoAud.semaforo)}</span>` : ''}
           ${conf.local ? `<span style="font-size:10px;background:var(--accent-dim);color:var(--accent);border-radius:4px;padding:1px 7px;font-weight:700">📍 ${conf.local}</span>` : ''}
           ${(()=>{const tot=Object.values(conf.itens||{}).reduce((a,it)=>a+(Number(it.qtdRasgada)||0),0);return tot>0?rasgoTagHTML(tot):'';})()}
           <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia('${conf.numero}')">📄 Gerar PDF</button>

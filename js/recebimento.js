@@ -41,6 +41,20 @@ function confMudarModo(modo){
     if(wrapContagem) wrapContagem.style.display = 'block';
     if(wrapReceb) wrapReceb.style.display = 'none';
     if(btnContagem) btnContagem.classList.add('active');
+    // [FIX] Estas chamadas antes só aconteciam dentro do showPage('pg-conferencia', ...) —
+    // como a troca de Contagem/Recebimento/Auditoria não passa mais por showPage(), a lista
+    // de itens, os filtros rápidos e o histórico nunca eram carregados ao abrir o app.
+    if(CONF_MODO !== 'conferencia'){
+      CONF_MODO = 'selecao';
+      const sc = document.getElementById('confSelCard');
+      const pc = document.getElementById('confPainelConf');
+      if(sc) sc.style.display = 'block';
+      if(pc) pc.style.display = 'none';
+    }
+    atualizarSelectsConferencia();
+    renderFiltrosRapidosConf();
+    filtrarItensConf();
+    renderConfHistorico();
   }
 }
 
