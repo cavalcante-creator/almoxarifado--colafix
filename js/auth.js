@@ -55,6 +55,11 @@ async function fazerLogin(){
     await carregarAuditoriasSheets();
     await carregarRecebimentosSheets();
     await carregarFiltrosRapidosSheets();
+    // [FIX] aplicarPermissoes() (linha acima) roda ANTES dos dados da planilha chegarem —
+    // então a lista de itens, filtros etc. renderizavam vazios e nunca eram atualizados
+    // depois que os dados realmente carregavam. Repete a decisão de navegação/render
+    // agora que tudo já chegou, pra tela abrir com os itens de verdade.
+    if(typeof aplicarVisibilidadeNavGrupos === 'function') aplicarVisibilidadeNavGrupos();
     iniciarPolling();
     resetSessionTimeout();
     if(overlay)overlay.style.display='none';
