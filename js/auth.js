@@ -64,15 +64,8 @@ async function fazerLogin(){
       const opTab=document.getElementById('tab-op');
       if(opTab){showPage('pg-op',opTab);}
     }
-    // Perfis "só conferência" (sem acesso a Estoque, mas com acesso a Conferência):
-    // ir direto para a aba de Conferência ao logar. Decidido automaticamente pelas
-    // abas do perfil — não depende de uma lista fixa de nomes, então qualquer novo
-    // perfil de conferente futuro já funciona sem precisar mexer aqui de novo.
-    const abasPerfil = perfil().abas || [];
-    if(!abasPerfil.includes('pg-estoque') && abasPerfil.includes('pg-conferencia')){
-      const confTab=document.getElementById('tab-conf');
-      if(confTab){showPage('pg-conferencia',confTab);}
-    }
+    // Demais perfis: aplicarPermissoes() (chamado logo acima) já decide o grupo/aba
+    // inicial certo via aplicarVisibilidadeNavGrupos(), com base nas abas do perfil.
   }catch(err){errEl.textContent='Erro: '+err.message;errEl.style.display='block';loadEl.style.display='none';}
 }
 function aplicarPermissoes(){
@@ -82,21 +75,9 @@ function aplicarPermissoes(){
   if(badge){badge.textContent=USUARIO_LOGADO.nome+' • '+p.label;badge.style.display='inline';}
   
   const abasVisiveis = p.abas || [];
-  const tabEstoque = document.getElementById('tab-estoque');
-  const tabConf = document.getElementById('tab-conf');
-  const tabDiv = document.getElementById('tab-div');
-  const tabHist = document.getElementById('tab-hist');
-    const tabOp = document.getElementById('tab-op');
-  const tabPend = document.getElementById('tab-pend');
-  const tabExpedicao = document.getElementById('tab-expedicao');
-  if(tabEstoque) tabEstoque.style.display = abasVisiveis.includes('pg-estoque') ? 'block' : 'none';
-  if(tabPend) tabPend.style.display = abasVisiveis.includes('pg-pendencias') ? 'block' : 'none';
-  if(tabConf) tabConf.style.display = abasVisiveis.includes('pg-conferencia') ? 'block' : 'none';
-  if(tabDiv) tabDiv.style.display = abasVisiveis.includes('pg-divergencias') ? 'block' : 'none';
-  if(tabHist) tabHist.style.display = abasVisiveis.includes('pg-hist') ? 'block' : 'none';
-  if(tabExpedicao) tabExpedicao.style.display = abasVisiveis.includes('pg-expedicao') ? 'block' : 'none';
+  const tabOp = document.getElementById('tab-op');
   if(tabOp) tabOp.style.display = p.verTabOp ? 'block' : 'none';
-  if(typeof aplicarVisibilidadeRecebimento === 'function') aplicarVisibilidadeRecebimento();
+  if(typeof aplicarVisibilidadeNavGrupos === 'function') aplicarVisibilidadeNavGrupos();
 
   const btnReq=document.getElementById('btnIniciarReq');
   if(btnReq)btnReq.style.display=(p.podeRequisitar||p.podeAdmin)?'':'none';

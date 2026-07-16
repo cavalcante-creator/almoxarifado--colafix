@@ -9,7 +9,7 @@
  * Versão do cache: incrementar CACHE_VERSION ao publicar nova versão.
  */
 
-const CACHE_VERSION = 'colafix-v26';
+const CACHE_VERSION = 'colafix-v33';
 const CACHE_STATIC  = CACHE_VERSION + '-static';
 
 // Assets que serão pré-cacheados na instalação

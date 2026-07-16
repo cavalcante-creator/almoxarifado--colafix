@@ -33,7 +33,7 @@
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn-primary:hover:not(:disabled){background:var(--accent2)}
 .btn-success{background:var(--green);border-color:var(--green);color:#fff}.btn-success:hover:not(:disabled){background:#236138}
-.btn-purple{background:var(--purple);border-color:var(--purple);color:#fff}.btn-purple:hover:not(:disabled){background:#4A2F95}
+.btn-purple{background:var(--accent);border-color:var(--accent);color:#fff}.btn-purple:hover:not(:disabled){background:var(--accent2)}
 .btn-danger{background:var(--red);border-color:var(--red);color:#fff}.btn-danger:hover:not(:disabled){background:#962828}
 .btn-warn{background:var(--yellow);border-color:var(--yellow);color:#fff}.btn-warn:hover:not(:disabled){background:#6B5200}
 .btn-lg{height:44px;font-size:14px;padding:0 20px}

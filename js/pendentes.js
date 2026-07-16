@@ -108,8 +108,8 @@ function carregarPendente(i){
   const pf = perfil();
   // Se for operador, ele já está na aba pg-op, não precisa mudar
   if(!pf.verTabOp || pf.label !== 'Operador') {
-    const tabEstoque = document.getElementById('tab-estoque');
-    if(tabEstoque) showPage('pg-estoque', tabEstoque);
+    mudarGrupoNav('transferencias');
+    mudarSubTransf('pg-estoque', document.getElementById('btnSubEstoque'));
   }
   
   setTimeout(() => {
