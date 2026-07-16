@@ -253,7 +253,6 @@ function filtrarItensConf(){
     const badgeSel = tipoOpBadge(item);
     row.innerHTML = `
       <div style="width:18px;height:18px;border:2px solid ${sel ? 'var(--accent)' : 'var(--border2)'};border-radius:4px;background:${sel ? 'var(--accent)' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;transition:all .15s;margin-top:2px">${sel ? '\u2713' : ''}</div>
-      <div class="color-bar ${stCB(s3)}" style="width:3px;min-height:28px;align-self:stretch;border-radius:3px;flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em">${escapeHTML(item.cod)}</div>
         <div style="font-size:12px;font-weight:600;word-break:break-word;white-space:normal;line-height:1.4">${escapeHTML(item.name)}</div>

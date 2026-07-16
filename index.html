@@ -420,7 +420,7 @@
       <span id="confSelBadge" style="display:none;margin-left:6px;background:var(--accent);color:#fff;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700">0 selecionados</span>
     </div>
     <!-- Barra de pesquisa e filtro de almox -->
-    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
       <div class="fld" style="width:150px;flex-shrink:0">
         <label>Almoxarifado</label>
         <select id="confAlmox" onchange="filtrarItensConf()">
@@ -433,12 +433,13 @@
           <option value="almox2">Almox 2 (Matéria-Prima)</option>
         </select>
       </div>
-      <div style="position:relative;flex:1;min-width:200px">
+      <div class="fld" style="flex:1;min-width:200px;position:relative">
+        <label>Pesquisar Item</label>
         <input type="text" id="confSearch" placeholder="Código ou descrição do produto..." oninput="debouncedFiltrarItensConf()"
-          style="width:100%;height:36px;padding:0 36px 0 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s"
+          style="width:100%;height:36px;padding:0 36px 0 12px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s;box-sizing:border-box"
           onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--accent-dim)'"
           onblur="this.style.borderColor='var(--border2)';this.style.boxShadow='none'">
-        <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none">🔍</span>
+        <span style="position:absolute;right:10px;bottom:9px;color:var(--text3);pointer-events:none">🔍</span>
       </div>
       <button class="btn" onclick="confSelecionarTodos()" style="height:36px;font-size:11px">☑ Todos</button>
       <button class="btn" onclick="confLimparSelecao()" style="height:36px;font-size:11px">☐ Limpar</button>
