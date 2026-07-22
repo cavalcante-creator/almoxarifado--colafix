@@ -326,3 +326,77 @@ function gerarPDF(){
   <script>window.onload=()=>window.print()<\/script></body></html>`;
   const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);window.open(url,'_blank');toast('PDF aberto para impressão');
 }
+
+// ─── PDF: Monitoramento de Auditoria por Item (NOVA FUNCIONALIDADE) ─
+// Exporta exatamente a lista que está filtrada na tela (mesma busca, mesmo
+// filtro de produto/almoxarifado/situação/data) — o que você vê é o que sai no PDF.
+function gerarPDFAuditoriaItens(){
+  const { cods, porItem, pendPorItem } = _calcularAuditoriaFiltrada();
+  if(cods.length === 0){ toast('Nenhum item para exportar. Verifique os filtros.'); return; }
+
+  const linhas = cods.map((cod, i) => {
+    const regs = porItem[cod] || [];
+    const pend = pendPorItem[cod] || [];
+    const maisRecente = regs[0];
+    const nome = (maisRecente && maisRecente.nome) || (pend[0] && pend[0].nome) || '';
+    const totalDiv = regs.filter(r=>r.resultado==='Divergência').length;
+    const ultimoAjuste = regs.find(r=>r.investigacao && r.investigacao.status==='Resolvido' && r.investigacao.motivo===MOTIVO_AJUSTE_ERP);
+
+    let statusTxt, statusCor;
+    if(pend.length>0){ statusTxt = 'Aguardando auditoria'; statusCor = '#8A6A00'; }
+    else if(!maisRecente){ statusTxt = '—'; statusCor = '#9C9888'; }
+    else if(!maisRecente.investigacao){ statusTxt = 'Validado'; statusCor = '#2D7D46'; }
+    else if(maisRecente.investigacao.status==='Resolvido'){ statusTxt = 'Resolvido'; statusCor = '#1B5C7A'; }
+    else { statusTxt = 'Em investigação (' + _diasAberta(maisRecente.dataHora) + ')'; statusCor = '#B83232'; }
+
+    const bg = i % 2 === 0 ? '#fff' : '#F7F5F0';
+    return `<tr style="background:${bg}">
+      <td><b>${cod}</b><br><span style="font-size:10px;color:#5A574F">${nome}</span></td>
+      <td style="text-align:center">${regs.length}</td>
+      <td style="text-align:center">${totalDiv}</td>
+      <td style="text-align:center;font-weight:700;color:${statusCor}">${statusTxt}</td>
+      <td style="text-align:center;font-size:10px">${maisRecente ? maisRecente.dataHora : '—'}</td>
+      <td style="text-align:center;font-size:10px;color:#B85C00">${ultimoAjuste ? ultimoAjuste.investigacao.resolvidoDataHora.split(' ')[0] : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const nomeUsuario = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+  const agora = new Date();
+  const dataHoraStr = agora.toLocaleDateString('pt-BR') + ' ' + agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Auditoria de Estoque — Monitoramento por Item</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;margin:36px;color:#1C1C1A;font-size:12px}
+    h1{font-size:20px;color:#1B5C7A;text-align:center;margin:0}
+    h2{font-size:11px;color:#5A574F;text-align:center;margin:4px 0 16px}
+    hr{border:none;border-top:2px solid #1B5C7A;margin:14px 0}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px}
+    th{background:#1B5C7A;color:#fff;padding:8px;text-align:left;font-size:10px;text-transform:uppercase}
+    td{padding:8px;border:1px solid #DDD9D0}
+    .info{display:flex;gap:12px;margin-bottom:14px}
+    .ibox{flex:1;border:1px solid #DDD9D0;border-radius:6px;padding:9px}
+    .ibox .l{font-size:9px;color:#9C9888;text-transform:uppercase;margin-bottom:2px}
+    .ibox .v{font-size:12px;font-weight:600}
+    @media print{body{margin:20px}}
+  </style></head>
+  <body>
+    <h1>AUDITORIA DE ESTOQUE</h1>
+    <h2>Monitoramento por Item</h2>
+    <hr>
+    <div class="info">
+      <div class="ibox"><div class="l">Data / Hora</div><div class="v">${dataHoraStr}</div></div>
+      <div class="ibox"><div class="l">Gerado por</div><div class="v">${nomeUsuario}</div></div>
+      <div class="ibox"><div class="l">Total de Itens</div><div class="v">${cods.length}</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Item</th><th style="text-align:center">Auditorias</th><th style="text-align:center">Divergências</th><th style="text-align:center">Status Atual</th><th style="text-align:center">Última Auditoria</th><th style="text-align:center">Sistema Ajustado Em</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+    <script>window.onload=()=>window.print()<\/script>
+  </body></html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  toast('🖨️ Relatório de auditoria aberto para impressão');
+}

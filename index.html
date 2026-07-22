@@ -59,7 +59,7 @@
     </div>
   </div>
   <div class="tabs" id="mainTabs">
-    <button class="tab" id="tab-conf-group" onclick="mudarGrupoNav('conferencia')">🔍 Conferência</button>
+    <button class="tab" id="tab-conf-group" onclick="mudarGrupoNav('conferencia')">🔍 Conferência <span id="auditInvestBadge" class="pend-badge" style="display:none">0</span></button>
     <button class="tab" id="tab-transf-group" onclick="mudarGrupoNav('transferencias')">🔄 Transferências <span id="pendTotalBadge" class="pend-badge" style="display:none">0</span></button>
   </div>
   <!-- Sub-navegação: Conferência (Contagem / Recebimento / Auditoria) -->
@@ -556,14 +556,16 @@
 <div id="pg-divergencias" class="page"><div class="wrap">
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">⚖️ Auditoria de Estoque
-      <button class="btn btn-primary" style="margin-left:auto;height:28px;padding:0 12px;font-size:11px" onclick="atualizarSaldosDivergencias()">🔄 Atualizar Saldos</button>
+      <button class="btn btn-primary" style="margin-left:auto;height:26px;width:26px;padding:0;font-size:12px" onclick="atualizarSaldosDivergencias()" title="Atualizar saldos e auditorias">🔄</button>
     </div>
 
     <!-- Indicadores gerenciais -->
-    <div id="auditIndicadores" class="stat-grid" style="margin-bottom:14px"></div>
+    <div id="auditIndicadores" class="stat-grid" style="margin-bottom:10px;gap:8px"></div>
 
-    <!-- Filtros -->
-    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+    <!-- Filtros antigos (mantidos escondidos: os indicadores acima ainda dependem
+         deles internamente pra calcular). A lista/filtro visível agora é só a de baixo,
+         organizada por item — evita ter duas telas de auditoria misturadas. -->
+    <div style="display:none">
       <div class="fld" style="flex:1;min-width:160px">
         <label>Buscar Código</label>
         <input type="text" id="divFiltroCod" placeholder="Pesquisar código do item..." oninput="renderDivergencias()">
@@ -582,51 +584,74 @@
       </div>
       <div class="fld" style="width:150px">
         <label>Supervisor</label>
-        <input type="text" id="auditFiltroSupervisor" placeholder="Nome do supervisor..." oninput="renderDivergencias()">
+        <input type="text" id="auditFiltroSupervisor" placeholder="Nome do supervisor...">
       </div>
       <div class="fld" style="width:150px">
         <label>Data</label>
-        <input type="date" id="auditFiltroData" onchange="renderDivergencias()">
+        <input type="date" id="auditFiltroData">
       </div>
-      <div style="padding-bottom:2px">
-        <button class="btn" style="height:30px;padding:0 12px;font-size:11px;font-weight:700" onclick="auditFiltroHoje()" title="Mostrar apenas auditorias de hoje">📅 Hoje</button>
-      </div>
+      <button class="btn" onclick="auditFiltroHoje()">Hoje</button>
       <div class="fld" style="width:210px">
         <label>Status da Auditoria</label>
-        <select id="divFiltroTipo" onchange="renderDivergencias()">
+        <select id="divFiltroTipo">
           <option value="todas">Todas as conferências</option>
-          <option value="aguardando">⚪ Aguardando auditoria</option>
-          <option value="parcial">🟡 Parcialmente auditadas</option>
-          <option value="concluida">🟢 Concluídas</option>
-          <option value="cominvestigacao">🔴 Com investigação aberta</option>
-          <option value="cominvestigacaoresolvida">🔵 Com investigações resolvidas</option>
         </select>
       </div>
-    </div>
-
-    <div id="divGroupContainer" style="display:flex;flex-direction:column;gap:10px"></div>
-    <div id="divEmpty" style="text-align:center;padding:40px 0;color:var(--text3)">
-      <div style="font-size:32px;margin-bottom:8px;opacity:.3">✅</div>
-      Nenhuma conferência encontrada. Salve uma conferência primeiro.
+      <div id="divGroupContainer"></div>
+      <div id="divEmpty"></div>
     </div>
   </div>
-  <!-- Histórico permanente de auditorias -->
+  <!-- Histórico permanente de auditorias — MONITORAMENTO POR ITEM -->
+  <!-- Esta é agora a ÚNICA tela de auditoria visível: por item, com filtros próprios abaixo -->
   <div class="card">
-    <div class="card-title">📋 Histórico de Auditorias</div>
+    <div class="card-title">Monitoramento por Item
+      <span style="font-weight:400;text-transform:none;letter-spacing:normal;font-size:10px;color:var(--text3)">— cada código com sua linha do tempo completa</span>
+      <button class="btn btn-purple" style="margin-left:auto;height:26px;padding:0 10px;font-size:11px" onclick="gerarPDFAuditoriaItens()">📄 Exportar PDF</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+      <div class="fld" style="flex:1;min-width:180px;max-width:260px">
+        <label>Buscar Item</label>
+        <input type="text" id="auditItemBusca" placeholder="Código ou descrição..." oninput="renderDivHistorico()" style="height:32px;font-size:12px">
+      </div>
+      <div class="fld" style="width:150px">
+        <label>Almoxarifado</label>
+        <select id="auditItemFiltroAlmox" onchange="renderDivHistorico()" style="height:32px;font-size:12px">
+          <option value="">Todos</option>
+          <option value="Almox 3">Almox 3</option>
+          <option value="Almox 30">Almox 30</option>
+          <option value="Rejunte">Rejunte</option>
+          <option value="Separação">Separação</option>
+          <option value="Almox 1">Almox 1 (Matéria-Prima)</option>
+          <option value="Almox 2">Almox 2 (Matéria-Prima)</option>
+        </select>
+      </div>
+      <div class="fld" style="width:140px">
+        <label>Data inicial</label>
+        <input type="date" id="auditDtIni" onchange="renderDivHistorico()" style="height:32px;font-size:11px">
+      </div>
+      <div class="fld" style="width:140px">
+        <label>Data final</label>
+        <input type="date" id="auditDtFim" onchange="renderDivHistorico()" style="height:32px;font-size:11px">
+      </div>
+      <button class="btn" style="height:32px;font-size:11px" onclick="auditItemFiltroHoje()">📅 Hoje</button>
+      <button class="btn" style="height:32px;font-size:11px;opacity:.7" onclick="auditLimparDatas()">✕ Limpar datas</button>
+    </div>
+    <div id="auditResumoAlmox" style="margin-bottom:12px"></div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Filtro rápido por produto</div>
+      <div id="auditItemFiltrosRapidos" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="auditChipsSituacao">
+      <button class="btn" data-sit="todos" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('todos')">📋 Todos</button>
+      <button class="btn" data-sit="pend" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('pend')">⏳ Aguardando auditoria</button>
+      <button class="btn" data-sit="inv" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('inv')">🔴 Em investigação</button>
+      <button class="btn" data-sit="adj" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('adj')">🔧 Ajustados</button>
+    </div>
     <div id="divHistEmpty" style="text-align:center;padding:30px 0;color:var(--text3)">
       <div style="font-size:28px;margin-bottom:8px;opacity:.3">🗂</div>
       Nenhuma auditoria realizada ainda
     </div>
-    <div style="overflow-x:auto">
-      <table class="hist-table" id="divHistTable" style="display:none">
-        <thead><tr>
-          <th>Nº Conf.</th><th>Data/Hora</th><th>Supervisor</th><th>Almox.</th><th>Produto</th>
-          <th style="text-align:center">Saldo Físico</th><th style="text-align:center">Saldo ERP</th>
-          <th style="text-align:center">Resultado</th><th>Motivo / Observação</th><th style="text-align:center">Status</th>
-        </tr></thead>
-        <tbody id="divHistBody"></tbody>
-      </table>
-    </div>
+    <div id="auditItemList" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
 </div></div>
 

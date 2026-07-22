@@ -26,6 +26,7 @@ function confMudarModo(modo){
     if(pgDiv) pgDiv.classList.add('active');
     if(btnAudit) btnAudit.classList.add('active');
     renderDivergencias();
+    if(typeof renderFiltrosRapidosAuditItem === 'function') renderFiltrosRapidosAuditItem();
     renderDivHistorico();
     return;
   }
@@ -217,6 +218,7 @@ function renderRecebimentos(){
 // Aplica a visibilidade de toda a navegação nova (2 grupos + sub-abas) conforme
 // as permissões do perfil logado, e decide onde a pessoa cai ao entrar.
 function aplicarVisibilidadeNavGrupos(){
+  if(typeof atualizarBadgeInvestigacoes === 'function') atualizarBadgeInvestigacoes();
   const p = perfil();
   const abas = p.abas || [];
   const temConf   = abas.includes('pg-conferencia');
