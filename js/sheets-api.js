@@ -324,6 +324,31 @@ async function salvarRecebimentoSheets(registro){
     }
   }
 }
+
+// ─── NOTIFICAÇÃO POR E-MAIL (NOVA FUNCIONALIDADE) ───────────────────
+// Dispara um e-mail via Apps Script sempre que uma conferência ou um
+// recebimento é salvo. Não bloqueia a UI e não trava o fluxo se falhar —
+// notificação é "nice to have", não pode impedir o salvamento de verdade.
+async function notificarEmailSheets(tipo, dados){
+  try{
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'cors',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({acao:'notificarEmail', dados: JSON.stringify({tipo, dados})})
+    });
+  }catch(e){
+    try{
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({acao:'notificarEmail', dados: JSON.stringify({tipo, dados})})
+      });
+    }catch(e2){
+      console.warn('[notificarEmailSheets] Falha ao notificar (não crítico):', e2.message);
+    }
+  }
+}
+
 async function carregarRecebimentosSheets(){
   try{
     console.log('[carregarRecebimentos] Carregando do Sheets...');

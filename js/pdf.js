@@ -352,18 +352,22 @@ function gerarPDFAuditoriaItens(){
     // Saldo contado (físico) e saldo do sistema (ERP) — do registro de auditoria mais
     // recente; se ainda está aguardando auditoria, mostra o físico contado e o saldo
     // atual da planilha (ainda não tem valor de ERP informado nesse caso).
-    let saldoContado, saldoSistema;
+    let saldoContado, saldoSistema, diferenca, diferencaCor;
     if(maisRecente){
       saldoContado = maisRecente.saldoFisico;
       saldoSistema = (maisRecente.saldoInformadoEmpresa1!=null || maisRecente.saldoInformadoEmpresa9!=null)
         ? `${maisRecente.saldoInformado} (E1:${maisRecente.saldoInformadoEmpresa1||0}+E9:${maisRecente.saldoInformadoEmpresa9||0})`
         : maisRecente.saldoInformado;
+      const dif = (Number(maisRecente.saldoFisico)||0) - (Number(maisRecente.saldoInformado)||0);
+      diferenca = (dif>0?'+':'') + dif;
+      diferencaCor = dif===0 ? '#2D7D46' : '#B83232';
     } else if(pend.length>0){
       saldoContado = pend[0].fis;
       const invItem = (CONF_ITEMS||[]).find(it=>it.cod===cod) || (ITEMS||[]).find(it=>it.cod===cod);
       saldoSistema = invItem ? `${(Number(invItem.saldo3)||0)+(Number(invItem.saldo30)||0)} (ainda não auditado)` : '—';
+      diferenca = '—'; diferencaCor = '#9C9888';
     } else {
-      saldoContado = '—'; saldoSistema = '—';
+      saldoContado = '—'; saldoSistema = '—'; diferenca = '—'; diferencaCor = '#9C9888';
     }
 
     const bg = i % 2 === 0 ? '#fff' : '#F7F5F0';
@@ -371,6 +375,7 @@ function gerarPDFAuditoriaItens(){
       <td><b>${cod}</b><br><span style="font-size:10px;color:#5A574F">${nome}</span></td>
       <td style="text-align:center">${saldoContado}</td>
       <td style="text-align:center;font-size:10px">${saldoSistema}</td>
+      <td style="text-align:center;font-weight:700;color:${diferencaCor}">${diferenca}</td>
       <td style="text-align:center">${regs.length}</td>
       <td style="text-align:center">${totalDiv}</td>
       <td style="text-align:center;font-weight:700;color:${statusCor}">${statusTxt}</td>
@@ -409,7 +414,7 @@ function gerarPDFAuditoriaItens(){
       <div class="ibox"><div class="l">Total de Itens</div><div class="v">${cods.length}</div></div>
     </div>
     <table>
-      <thead><tr><th>Item</th><th style="text-align:center">Saldo Contado</th><th style="text-align:center">Saldo Sistema</th><th style="text-align:center">Auditorias</th><th style="text-align:center">Divergências</th><th style="text-align:center">Status Atual</th><th style="text-align:center">Última Auditoria</th><th style="text-align:center">Sistema Ajustado Em</th></tr></thead>
+      <thead><tr><th>Item</th><th style="text-align:center">Saldo Contado</th><th style="text-align:center">Saldo Sistema</th><th style="text-align:center">Diferença</th><th style="text-align:center">Auditorias</th><th style="text-align:center">Divergências</th><th style="text-align:center">Status Atual</th><th style="text-align:center">Última Auditoria</th><th style="text-align:center">Sistema Ajustado Em</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table>
     <script>window.onload=()=>window.print()<\/script>

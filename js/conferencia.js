@@ -1018,6 +1018,15 @@ async function salvarConferencia() {
   console.log('[salvarConferencia] Registro salvo:', JSON.stringify({numero:registro.numero,data:registro.dataHora,itens:Object.keys(registro.itens).length,local:registro.local}));
   CONF_HISTORICO.unshift(JSON.parse(JSON.stringify(registro)));
 
+  // Notificação por e-mail (NOVA FUNCIONALIDADE) — não bloqueia a UI, roda em segundo plano
+  if(typeof notificarEmailSheets === 'function'){
+    const temRasgo = Object.values(registro.itens).some(it => (Number(it.qtdRasgada)||0) > 0);
+    notificarEmailSheets('contagem', {
+      numero: registro.numero, nomeUsuario: registro.nomeUsuario, local: registro.local,
+      dataHora: registro.dataHora, qtdItens: Object.keys(registro.itens).length, temRasgo
+    });
+  }
+
   // [FIX-2] Limpar estado SOMENTE após salvamento confirmado
   CONFERENCIAS = {};
   CONF_ITENS_SEL.clear();

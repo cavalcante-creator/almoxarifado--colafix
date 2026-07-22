@@ -180,6 +180,14 @@ function salvarRecebimento(){
   salvarRecebimentosLocal();
   salvarRecebimentoSheets(registro); // sincroniza com o Sheets em segundo plano, não bloqueia a UI
 
+  // Notificação por e-mail (NOVA FUNCIONALIDADE) — não bloqueia a UI, roda em segundo plano
+  if(typeof notificarEmailSheets === 'function'){
+    notificarEmailSheets('recebimento', {
+      cod: registro.cod, nome: registro.nome, quantidade: registro.quantidade, unidade: registro.unidade,
+      nomeUsuario: registro.nomeUsuario, data: registro.data, observacao: registro.observacao
+    });
+  }
+
   toast('✅ Recebimento registrado: ' + qtd + ' ' + registro.unidade + ' de ' + item.cod);
 
   // Reset do formulário
