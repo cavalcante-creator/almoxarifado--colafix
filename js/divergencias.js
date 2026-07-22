@@ -648,6 +648,7 @@ function _calcularAuditoriaFiltrada(){
   Object.keys(pendPorItem).forEach(cod => { if(!porItem[cod]) porItem[cod] = []; });
 
   const filtroAlmox = (document.getElementById('auditItemFiltroAlmox')||{}).value || '';
+  const filtroConf = ((document.getElementById('auditItemFiltroConf')||{}).value||'').trim().toLowerCase();
   const cods = Object.keys(porItem).filter(cod => {
     const regs = porItem[cod];
     const pend = pendPorItem[cod] || [];
@@ -655,6 +656,7 @@ function _calcularAuditoriaFiltrada(){
     if(busca && !cod.toLowerCase().includes(busca) && !nome.includes(busca)) return false;
     if(!_itemPassaFiltroProduto(cod)) return false;
     if(filtroAlmox && !regs.some(r=>r.almoxarifado===filtroAlmox) && !pend.some(p=>p.local===filtroAlmox)) return false;
+    if(filtroConf && !regs.some(r=>(r.numConf||'').toLowerCase().includes(filtroConf)) && !pend.some(p=>(p.numConf||'').toLowerCase().includes(filtroConf))) return false;
     if(_auditFiltroSit==='pend' && pend.length===0) return false;
     if(_auditFiltroSit==='inv' && !regs.some(r=>r.investigacao && r.investigacao.status!=='Resolvido')) return false;
     if(_auditFiltroSit==='adj' && !regs.some(r=>r.investigacao && r.investigacao.status==='Resolvido' && r.investigacao.motivo===MOTIVO_AJUSTE_ERP)) return false;
@@ -719,6 +721,8 @@ function renderDivHistorico() {
     const totalDiv = regs.filter(r=>r.resultado==='Divergência').length;
     const emInvestigacao = regs.some(r=>r.investigacao && r.investigacao.status!=='Resolvido');
     const ultimoAjuste = regs.find(r=>r.investigacao && r.investigacao.status==='Resolvido' && (r.investigacao.motivo===MOTIVO_AJUSTE_ERP));
+    // Última vez que o físico bateu certinho com o sistema (sem nenhuma divergência)
+    const ultimoBateu = regs.find(r=>r.resultado === 'Validado');
     const reincidencias30d = regs.filter(r=>r.resultado==='Divergência' && (agora-_parseDataHoraBR(r.dataHora))<=DIAS30).length;
 
     // Contexto: saldo atual do sistema (planilha) + última contagem física
@@ -768,6 +772,9 @@ function renderDivHistorico() {
         <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--text2);background:var(--bg3);border-radius:5px;padding:4px 8px">
           ${saldoSist!=null ? `<span>Saldo sistema: <b>${saldoSist}</b></span>` : ''}
           ${ultCont ? `<span>Última contagem: <b>${ultCont.qtd}</b> em ${ultCont.data} (${escapeHTML(ultCont.por)})</span>` : '<span style="color:var(--text3)">Sem contagem registrada</span>'}
+          ${ultimoBateu
+            ? `<span style="color:var(--green)">Última vez que bateu: <b>${ultimoBateu.dataHora.split(' ')[0]}</b></span>`
+            : (regs.length>0 ? `<span style="color:var(--text3)">Nunca bateu certinho até hoje</span>` : '')}
         </div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--text3)">
           <span>${totalAud} auditoria${totalAud!==1?'s':''} · ${totalDiv} divergência${totalDiv!==1?'s':''}</span>
