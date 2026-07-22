@@ -38,6 +38,7 @@ function confMudarModo(modo){
     if(wrapContagem) wrapContagem.style.display = 'none';
     if(wrapReceb) wrapReceb.style.display = 'block';
     if(btnReceb) btnReceb.classList.add('active');
+    if(typeof renderRecebimentos === 'function') renderRecebimentos();
   } else {
     if(wrapContagem) wrapContagem.style.display = 'block';
     if(wrapReceb) wrapReceb.style.display = 'none';
@@ -190,6 +191,64 @@ function salvarRecebimento(){
   renderRecebimentos();
 }
 
+let _recebItemExpandido = null; // id do recebimento atualmente expandido
+let _recebFiltroApontado = 'todos'; // todos | pendentes | apontados
+
+function recebFiltroHoje(){
+  const hoje = new Date().toISOString().slice(0,10);
+  const i = document.getElementById('recebFiltroDtIni'); if(i) i.value = hoje;
+  const f = document.getElementById('recebFiltroDtFim'); if(f) f.value = hoje;
+  renderRecebimentos();
+}
+function recebLimparFiltros(){
+  const b = document.getElementById('recebFiltroBusca'); if(b) b.value = '';
+  const i = document.getElementById('recebFiltroDtIni'); if(i) i.value = '';
+  const f = document.getElementById('recebFiltroDtFim'); if(f) f.value = '';
+  _recebFiltroApontado = 'todos';
+  renderRecebimentos();
+}
+function recebToggleFiltroApontado(){
+  _recebFiltroApontado = _recebFiltroApontado==='todos' ? 'pendentes' : _recebFiltroApontado==='pendentes' ? 'apontados' : 'todos';
+  const btn = document.getElementById('recebFiltroApontBtn');
+  if(btn){
+    btn.textContent = _recebFiltroApontado==='todos' ? 'Todos' : _recebFiltroApontado==='pendentes' ? '⏳ Não apontados' : '✔ Apontados';
+    btn.style.background = _recebFiltroApontado==='todos' ? '' : 'var(--accent)';
+    btn.style.color = _recebFiltroApontado==='todos' ? '' : '#fff';
+    btn.style.borderColor = _recebFiltroApontado==='todos' ? '' : 'var(--accent)';
+  }
+  renderRecebimentos();
+}
+function toggleRecebItem(id){
+  _recebItemExpandido = (_recebItemExpandido === id) ? null : id;
+  renderRecebimentos();
+}
+
+// Marca um recebimento como "apontado" (conferido/lançado no sistema) — só quem
+// tem a mesma permissão de auditar estoque (Supervisor Sistema/Admin) pode confirmar.
+// Reaproveita a mesma rota de salvamento do Sheets (upsert pelo id).
+function marcarRecebimentoApontado(id){
+  if(!podeAuditarEstoque()){ toast('⛔ Você não tem permissão para apontar recebimentos.'); return; }
+  const r = RECEBIMENTOS.find(x=>x.id===id);
+  if(!r) return;
+  r.apontado = true;
+  r.apontadoPor = (USUARIO_LOGADO && USUARIO_LOGADO.nome) || '—';
+  r.apontadoDataHora = new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR');
+  salvarRecebimentosLocal();
+  salvarRecebimentoSheets(r); // upsert pelo id — atualiza a mesma linha no Sheets
+  toast('✔ Recebimento marcado como apontado');
+  renderRecebimentos();
+}
+function desmarcarRecebimentoApontado(id){
+  if(!podeAuditarEstoque()) return;
+  const r = RECEBIMENTOS.find(x=>x.id===id);
+  if(!r) return;
+  r.apontado = false; r.apontadoPor = ''; r.apontadoDataHora = '';
+  salvarRecebimentosLocal();
+  salvarRecebimentoSheets(r);
+  toast('Apontamento desfeito');
+  renderRecebimentos();
+}
+
 function renderRecebimentos(){
   const cont = document.getElementById('recebHistorico');
   const empty = document.getElementById('recebHistoricoEmpty');
@@ -200,19 +259,76 @@ function renderRecebimentos(){
     if(empty) empty.style.display = 'block';
     return;
   }
+
+  const busca = ((document.getElementById('recebFiltroBusca')||{}).value||'').trim().toLowerCase();
+  const dtIniV = (document.getElementById('recebFiltroDtIni')||{}).value || '';
+  const dtFimV = (document.getElementById('recebFiltroDtFim')||{}).value || '';
+  const dtIni = dtIniV ? new Date(dtIniV+'T00:00:00').getTime() : null;
+  const dtFim = dtFimV ? new Date(dtFimV+'T23:59:59').getTime() : null;
+
+  const filtrados = RECEBIMENTOS.filter(r => {
+    if(busca){
+      const alvo = (r.cod+' '+(r.nome||'')+' '+(r.nomeUsuario||'')).toLowerCase();
+      if(!alvo.includes(busca)) return false;
+    }
+    if(dtIni || dtFim){
+      const t = _parseDataHoraBR(r.dataHora || r.data || '');
+      if(dtIni && t < dtIni) return false;
+      if(dtFim && t > dtFim) return false;
+    }
+    if(_recebFiltroApontado==='pendentes' && r.apontado) return false;
+    if(_recebFiltroApontado==='apontados' && !r.apontado) return false;
+    return true;
+  });
+
+  if(filtrados.length === 0){
+    cont.innerHTML = '<div style="text-align:center;padding:16px 0;color:var(--text3);font-size:11px">Nenhum recebimento para esse filtro</div>';
+    if(empty) empty.style.display = 'none';
+    return;
+  }
   if(empty) empty.style.display = 'none';
 
-  cont.innerHTML = RECEBIMENTOS.slice(0, 15).map(r => `
-    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border-radius:6px;padding:8px 10px;font-size:11px">
-      <div>
-        <b>${escapeHTML(r.cod)}</b> — ${escapeHTML(r.nome||'')}
-        ${r.observacao ? `<br><span style="color:var(--text3);font-size:10px">📝 ${escapeHTML(r.observacao)}</span>` : ''}
-      </div>
-      <div style="text-align:right;flex-shrink:0;margin-left:10px">
-        <div style="font-weight:700;color:var(--green)">+${r.quantidade} ${escapeHTML(r.unidade||'')}</div>
-        <div style="color:var(--text3);font-size:9px">${r.data} · ${escapeHTML(r.nomeUsuario||'')}</div>
-      </div>
-    </div>`).join('');
+  const podeApontar = podeAuditarEstoque();
+
+  cont.innerHTML = filtrados.map(r => {
+    const expandido = _recebItemExpandido === r.id;
+    const statusBadge = r.apontado
+      ? `<span class="status-badge" style="background:var(--green-dim);color:var(--green)">✔ Apontado</span>`
+      : `<span class="status-badge" style="background:var(--yellow-dim);color:var(--yellow)">⏳ Não apontado</span>`;
+
+    let detalhe = '';
+    if(expandido){
+      detalhe = `
+        <div style="border-top:1px solid var(--bg4);margin-top:8px;padding-top:8px;font-size:11px;color:var(--text2);display:flex;flex-direction:column;gap:4px">
+          <div>Registrado por <b>${escapeHTML(r.nomeUsuario||'—')}</b> em ${r.dataHora||r.data}</div>
+          ${r.observacao ? `<div>Observação: ${escapeHTML(r.observacao)}</div>` : ''}
+          ${r.apontado
+            ? `<div style="color:var(--green)">Apontado por <b>${escapeHTML(r.apontadoPor||'—')}</b> em ${r.apontadoDataHora||'—'}
+                 ${podeApontar ? ` — <span style="color:var(--accent);cursor:pointer;font-weight:700" onclick="event.stopPropagation();desmarcarRecebimentoApontado('${r.id}')">desfazer</span>` : ''}</div>`
+            : podeApontar
+              ? `<button class="btn btn-primary" style="height:26px;padding:0 12px;font-size:11px;align-self:flex-start" onclick="event.stopPropagation();marcarRecebimentoApontado('${r.id}')">✔ Marcar como apontado</button>`
+              : `<div style="color:var(--text3)">Aguardando confirmação do Supervisor Sistema</div>`
+          }
+        </div>`;
+    }
+
+    return `
+      <div style="border-bottom:1px solid var(--bg4);padding:10px 4px;cursor:pointer${expandido?';background:var(--bg3)':''}" onclick="toggleRecebItem('${r.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div style="min-width:0">
+            <b>${escapeHTML(r.cod)}</b> <span style="color:var(--text2);font-size:11px">${escapeHTML(r.nome||'')}</span>
+          </div>
+          <div style="text-align:right;flex-shrink:0;display:flex;align-items:center;gap:8px">
+            ${statusBadge}
+            <div>
+              <div style="font-weight:700;color:var(--green);font-size:12px">+${r.quantidade} ${escapeHTML(r.unidade||'')}</div>
+              <div style="color:var(--text3);font-size:9px">${r.data}</div>
+            </div>
+          </div>
+        </div>
+        ${detalhe}
+      </div>`;
+  }).join('');
 }
 
 // Aplica a visibilidade de toda a navegação nova (2 grupos + sub-abas) conforme

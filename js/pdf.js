@@ -349,9 +349,28 @@ function gerarPDFAuditoriaItens(){
     else if(maisRecente.investigacao.status==='Resolvido'){ statusTxt = 'Resolvido'; statusCor = '#1B5C7A'; }
     else { statusTxt = 'Em investigação (' + _diasAberta(maisRecente.dataHora) + ')'; statusCor = '#B83232'; }
 
+    // Saldo contado (físico) e saldo do sistema (ERP) — do registro de auditoria mais
+    // recente; se ainda está aguardando auditoria, mostra o físico contado e o saldo
+    // atual da planilha (ainda não tem valor de ERP informado nesse caso).
+    let saldoContado, saldoSistema;
+    if(maisRecente){
+      saldoContado = maisRecente.saldoFisico;
+      saldoSistema = (maisRecente.saldoInformadoEmpresa1!=null || maisRecente.saldoInformadoEmpresa9!=null)
+        ? `${maisRecente.saldoInformado} (E1:${maisRecente.saldoInformadoEmpresa1||0}+E9:${maisRecente.saldoInformadoEmpresa9||0})`
+        : maisRecente.saldoInformado;
+    } else if(pend.length>0){
+      saldoContado = pend[0].fis;
+      const invItem = (CONF_ITEMS||[]).find(it=>it.cod===cod) || (ITEMS||[]).find(it=>it.cod===cod);
+      saldoSistema = invItem ? `${(Number(invItem.saldo3)||0)+(Number(invItem.saldo30)||0)} (ainda não auditado)` : '—';
+    } else {
+      saldoContado = '—'; saldoSistema = '—';
+    }
+
     const bg = i % 2 === 0 ? '#fff' : '#F7F5F0';
     return `<tr style="background:${bg}">
       <td><b>${cod}</b><br><span style="font-size:10px;color:#5A574F">${nome}</span></td>
+      <td style="text-align:center">${saldoContado}</td>
+      <td style="text-align:center;font-size:10px">${saldoSistema}</td>
       <td style="text-align:center">${regs.length}</td>
       <td style="text-align:center">${totalDiv}</td>
       <td style="text-align:center;font-weight:700;color:${statusCor}">${statusTxt}</td>
@@ -370,9 +389,10 @@ function gerarPDFAuditoriaItens(){
     h1{font-size:20px;color:#1B5C7A;text-align:center;margin:0}
     h2{font-size:11px;color:#5A574F;text-align:center;margin:4px 0 16px}
     hr{border:none;border-top:2px solid #1B5C7A;margin:14px 0}
+    @page{size:landscape}
     table{width:100%;border-collapse:collapse;margin-bottom:14px}
-    th{background:#1B5C7A;color:#fff;padding:8px;text-align:left;font-size:10px;text-transform:uppercase}
-    td{padding:8px;border:1px solid #DDD9D0}
+    th{background:#1B5C7A;color:#fff;padding:6px;text-align:left;font-size:9px;text-transform:uppercase}
+    td{padding:6px;border:1px solid #DDD9D0;font-size:11px}
     .info{display:flex;gap:12px;margin-bottom:14px}
     .ibox{flex:1;border:1px solid #DDD9D0;border-radius:6px;padding:9px}
     .ibox .l{font-size:9px;color:#9C9888;text-transform:uppercase;margin-bottom:2px}
@@ -389,7 +409,7 @@ function gerarPDFAuditoriaItens(){
       <div class="ibox"><div class="l">Total de Itens</div><div class="v">${cods.length}</div></div>
     </div>
     <table>
-      <thead><tr><th>Item</th><th style="text-align:center">Auditorias</th><th style="text-align:center">Divergências</th><th style="text-align:center">Status Atual</th><th style="text-align:center">Última Auditoria</th><th style="text-align:center">Sistema Ajustado Em</th></tr></thead>
+      <thead><tr><th>Item</th><th style="text-align:center">Saldo Contado</th><th style="text-align:center">Saldo Sistema</th><th style="text-align:center">Auditorias</th><th style="text-align:center">Divergências</th><th style="text-align:center">Status Atual</th><th style="text-align:center">Última Auditoria</th><th style="text-align:center">Sistema Ajustado Em</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table>
     <script>window.onload=()=>window.print()<\/script>

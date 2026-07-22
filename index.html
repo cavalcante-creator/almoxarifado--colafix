@@ -405,8 +405,25 @@
           <button class="btn btn-primary" onclick="salvarRecebimento()">💾 Registrar Recebimento</button>
         </div>
         <div id="recebHistoricoWrap" style="border-top:1px solid var(--border);padding-top:16px">
-          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">Últimos Recebimentos</div>
-          <div id="recebHistorico" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">Histórico de Recebimentos</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+            <div class="fld" style="flex:1;min-width:160px">
+              <label>Buscar</label>
+              <input type="text" id="recebFiltroBusca" placeholder="Código, descrição ou conferente..." oninput="renderRecebimentos()" style="height:32px;font-size:12px">
+            </div>
+            <div class="fld" style="width:140px">
+              <label>Data inicial</label>
+              <input type="date" id="recebFiltroDtIni" onchange="renderRecebimentos()" style="height:32px;font-size:11px">
+            </div>
+            <div class="fld" style="width:140px">
+              <label>Data final</label>
+              <input type="date" id="recebFiltroDtFim" onchange="renderRecebimentos()" style="height:32px;font-size:11px">
+            </div>
+            <button class="btn" style="height:32px;font-size:11px" onclick="recebFiltroHoje()">📅 Hoje</button>
+            <button class="btn" style="height:32px;font-size:11px;opacity:.7" onclick="recebLimparFiltros()">✕ Limpar</button>
+            <button class="btn" id="recebFiltroApontBtn" data-ap="todos" style="height:32px;font-size:11px;border-radius:20px" onclick="recebToggleFiltroApontado()">Todos</button>
+          </div>
+          <div id="recebHistorico" style="display:flex;flex-direction:column"></div>
           <div id="recebHistoricoEmpty" style="text-align:center;padding:16px 0;color:var(--text3);font-size:11px">Nenhum recebimento registrado ainda</div>
         </div>
       </div>
