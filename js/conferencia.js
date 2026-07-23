@@ -561,6 +561,10 @@ function renderConferencia(){
         <div id="confRasgoObsWrap_${item.cod}" style="display:${itemRasgado?'block':'none'};margin-top:6px">
           <textarea class="rasgo-obs" placeholder="Motivo/Avaria (opcional)" oninput="updateMotivoRasgoConf('${item.cod}', this.value)">${escapeHTML(conf.motivoRasgo||'')}</textarea>
         </div>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:11px;color:var(--text2);cursor:pointer">
+          <input type="checkbox" id="confZero_${item.cod}" ${conf.confirmadoZero ? 'checked' : ''} onchange="setConfirmarZeroConf('${item.cod}', this.checked)" style="width:15px;height:15px;cursor:pointer">
+          Confirmar contagem zero — contei e não há nenhuma unidade deste item no local
+        </label>
       </div>
     `;
     grid.appendChild(card);
@@ -746,6 +750,14 @@ function updateMotivoRasgoConf(cod, val){
   CONFERENCIAS[cod].motivoRasgo = val;
   try { localStorage.setItem('conf_temp', JSON.stringify(CONFERENCIAS)); } catch(e){}
 }
+// [NOVA FUNCIONALIDADE] Marca que o conferente realmente contou o item e não achou
+// nenhuma unidade — sem isso, um item com todos os campos em 0 fica indistinguível
+// de "não contei esse item" e simplesmente não entra na conferência salva.
+function setConfirmarZeroConf(cod, marcado){
+  if(!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3:0,sac3:0,total3:0,pal30:0,sac30:0,total30:0,total:0 };
+  CONFERENCIAS[cod].confirmadoZero = marcado;
+  try { localStorage.setItem('conf_temp', JSON.stringify(CONFERENCIAS)); } catch(e){}
+}
 // Atualiza apenas os elementos do item (sem recriar a lista inteira) para preservar o foco do campo
 function atualizarUIRasgoConf(cod){
   const c = CONFERENCIAS[cod] || {};
@@ -869,7 +881,7 @@ async function salvarConferencia() {
     const c = CONFERENCIAS[cod];
     return (Number(c.pal3)||0) > 0 || (Number(c.sac3)||0) > 0 ||
            (Number(c.pal30)||0) > 0 || (Number(c.sac30)||0) > 0 ||
-           (Number(c.qtdRasgada)||0) > 0;
+           (Number(c.qtdRasgada)||0) > 0 || !!c.confirmadoZero;
   });
   if(codsComDados.length === 0) {
     toast('⚠️ Preencha ao menos um item antes de salvar.');
@@ -968,7 +980,7 @@ async function salvarConferencia() {
     // e não é descontado dele (qtdBoa = total contado, sem subtrair)
     const qtdRasgadaSalva = Math.max(0, Number(c.qtdRasgada)||0);
 
-    if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0 || qtdRasgadaSalva > 0) {
+    if(c.pal3 > 0 || c.sac3 > 0 || c.pal30 > 0 || c.sac30 > 0 || qtdRasgadaSalva > 0 || c.confirmadoZero) {
       registro.itens[cod] = {
         nome: invItem ? invItem.name : cod,
         almox3:  c.total3,
@@ -984,7 +996,8 @@ async function salvarConferencia() {
         qtdBoa: totalGeral,
         motivoRasgo: c.motivoRasgo || '',
         rasgoApontadoPor: qtdRasgadaSalva > 0 ? (c.rasgoApontadoPor || nomeUsuario) : '',
-        rasgoDataHora: qtdRasgadaSalva > 0 ? (c.rasgoDataHora || (dataStr+' '+horaStr)) : ''
+        rasgoDataHora: qtdRasgadaSalva > 0 ? (c.rasgoDataHora || (dataStr+' '+horaStr)) : '',
+        confirmadoZero: !!c.confirmadoZero
       };
     }
   });
@@ -1254,6 +1267,7 @@ function renderConfHistorico() {
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
           <span style="font-weight:700;color:var(--text)">${cod}</span>
           <span style="color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.nome || ''}</span>
+          ${it.confirmadoZero ? `<span class="status-badge" style="background:var(--bg4);color:var(--text2)">Contagem zero confirmada</span>` : ''}
           ${qtdRasgH>0 ? rasgoTagHTML(qtdRasgH) : ''}
         </div>
         <div style="display:flex;flex-direction:column;gap:4px">

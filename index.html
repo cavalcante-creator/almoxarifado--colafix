@@ -623,8 +623,12 @@
   <div class="card">
     <div class="card-title">Monitoramento por Item
       <span style="font-weight:400;text-transform:none;letter-spacing:normal;font-size:10px;color:var(--text3)">— cada código com sua linha do tempo completa</span>
-      <button class="btn btn-purple" style="margin-left:auto;height:26px;padding:0 10px;font-size:11px" onclick="gerarPDFAuditoriaItens()">📄 Exportar PDF</button>
+      <button class="btn" style="margin-left:auto;height:26px;padding:0 10px;font-size:11px" onclick="exportarCSVAuditoriaItens()">⬇ CSV</button>
+      <button class="btn btn-purple" style="height:26px;padding:0 10px;font-size:11px" onclick="gerarPDFAuditoriaItens()">📄 Exportar PDF</button>
     </div>
+
+    <div id="auditResumoGeral" style="margin-bottom:14px"></div>
+
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
       <div class="fld" style="flex:1;min-width:180px;max-width:260px">
         <label>Buscar Item</label>
@@ -643,6 +647,10 @@
         </select>
       </div>
       <div class="fld" style="width:150px">
+        <label>Conferente</label>
+        <input type="text" id="auditItemFiltroConferente" placeholder="Nome de quem contou..." oninput="renderDivHistorico()" style="height:32px;font-size:11px">
+      </div>
+      <div class="fld" style="width:140px">
         <label>Nº Conferência</label>
         <input type="text" id="auditItemFiltroConf" placeholder="CONF-..." oninput="renderDivHistorico()" style="height:32px;font-size:11px">
       </div>
@@ -657,6 +665,28 @@
       <button class="btn" style="height:32px;font-size:11px" onclick="auditItemFiltroHoje()">📅 Hoje</button>
       <button class="btn" style="height:32px;font-size:11px;opacity:.7" onclick="auditLimparDatas()">✕ Limpar datas</button>
     </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap">
+        <div class="fld" style="width:210px;margin-bottom:0">
+          <label>Ordenar por</label>
+          <select id="auditOrdenacao" onchange="setAuditOrdenacao(this.value)" style="height:32px;font-size:12px">
+            <option value="situacao">Situação (padrão)</option>
+            <option value="diferenca">Maior diferença primeiro</option>
+          </select>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;padding-bottom:6px">
+          <input type="checkbox" onchange="toggleAuditAgrupado(this.checked)" style="width:15px;height:15px">
+          Agrupar por almoxarifado
+        </label>
+      </div>
+      <span style="font-size:12px;color:var(--accent);font-weight:700;cursor:pointer" id="auditBtnLogExclusoes" onclick="toggleLogExclusoesAudit()">Ver registro de exclusões ▾</span>
+    </div>
+
+    <div id="auditPainelLogExclusoes" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px">
+      <div id="auditListaLogExclusoes"></div>
+    </div>
+
     <div id="auditResumoAlmox" style="margin-bottom:12px"></div>
     <div style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Filtro rápido por produto</div>
@@ -664,13 +694,25 @@
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="auditChipsSituacao">
       <button class="btn" data-sit="todos" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('todos')">📋 Todos</button>
-      <button class="btn" data-sit="pend" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('pend')">⏳ Aguardando auditoria</button>
-      <button class="btn" data-sit="inv" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('inv')">🔴 Em investigação</button>
-      <button class="btn" data-sit="adj" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('adj')">🔧 Ajustados</button>
+      <button class="btn" data-sit="pend" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('pend')">Contados, sem auditoria aberta</button>
+      <button class="btn" data-sit="inv" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('inv')">🔴 Precisam ser ajustados</button>
+      <button class="btn" data-sit="adj" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('adj')">🔧 Já ajustados</button>
+      <button class="btn" data-sit="reinc" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('reinc')">⚠ Reincidentes</button>
+      <button class="btn" data-sit="nunca" style="height:30px;font-size:11px;border-radius:20px" onclick="setAuditFiltroSituacao('nunca')">Nunca auditados</button>
     </div>
+
+    <div id="auditBarraAcaoMassa" style="display:none;background:var(--accent-dim);border:1px solid var(--accent);border-radius:8px;padding:10px 16px;margin-bottom:10px;align-items:center;justify-content:space-between">
+      <span style="font-size:12px;color:var(--accent);font-weight:700" id="auditTxtSelecionados"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn" style="height:28px;font-size:11px" onclick="abrirAuditoriaSelecionados()">Abrir auditoria para selecionados</button>
+        <button class="btn" style="height:28px;font-size:11px;color:var(--red);border-color:var(--red-mid)" onclick="excluirDivergenciasSelecionadas()">Excluir divergências selecionadas</button>
+        <button class="btn" style="height:28px;font-size:11px;opacity:.7" onclick="limparSelecaoAudit()">Cancelar seleção</button>
+      </div>
+    </div>
+
     <div id="divHistEmpty" style="text-align:center;padding:30px 0;color:var(--text3)">
       <div style="font-size:28px;margin-bottom:8px;opacity:.3">🗂</div>
-      Nenhuma auditoria realizada ainda
+      Nenhum item cadastrado ainda
     </div>
     <div id="auditItemList" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>

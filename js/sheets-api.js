@@ -132,6 +132,15 @@ async function removerRequisicaoSheets(reqId){
     setTimeout(()=>REQS_REMOVIDAS.delete(reqId),5*60*1000);
   }catch(e){console.error('removerRequisicaoSheets',e);}
 }
+// Exclui um registro de auditoria (investigação) — reaproveita o mesmo mecanismo
+// de "marcarConcluido" já usado pra requisições, então não precisa de rota nova
+// no Apps Script: sobrescreve a linha com ID='CONCLUIDO' e dados vazios, que o
+// carregarAuditoriasSheets() já ignora automaticamente ao recarregar (filtro r[0]&&r[1]).
+async function removerAuditoriaSheets(auditKey){
+  try{
+    await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'removerAuditoria',id:auditKey})});
+  }catch(e){console.error('removerAuditoriaSheets',e);}
+}
 async function salvarHistoricoSheets(entrada){
   try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarHist',id:entrada.req,dados:JSON.stringify(entrada)})});}
   catch(e){console.error('salvarHistoricoSheets',e);}
