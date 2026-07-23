@@ -141,6 +141,22 @@ async function removerAuditoriaSheets(auditKey){
     await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'removerAuditoria',id:auditKey})});
   }catch(e){console.error('removerAuditoriaSheets',e);}
 }
+// Marca uma contagem pendente como "auditoria aberta" — sincroniza pra TODO MUNDO ver
+// a mesma coisa (antes ficava só na sessão de quem clicou, sumia ao atualizar a página
+// e não aparecia pra outros usuários).
+async function salvarAuditoriaAbertaSheets(key){
+  try{
+    await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarAuditoriaAberta',id:key,dados:JSON.stringify({key,quem:(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'—',quando:new Date().toLocaleString('pt-BR')})})});
+  }catch(e){console.error('salvarAuditoriaAbertaSheets',e);}
+}
+async function carregarAuditoriasAbertasSheets(){
+  try{
+    const rows = await fetchRange('AUDITORIAS_ABERTAS!A2:B');
+    const keys = rows.filter(r=>r[0]&&r[1]).map(r=>r[0]);
+    keys.forEach(k=>_auditoriasAbertasKeys.add(k));
+    console.log('[carregarAuditoriasAbertas] Total carregado:', keys.length);
+  }catch(e){ console.warn('[carregarAuditoriasAbertas] Erro (mantendo local):', e); }
+}
 async function salvarHistoricoSheets(entrada){
   try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarHist',id:entrada.req,dados:JSON.stringify(entrada)})});}
   catch(e){console.error('salvarHistoricoSheets',e);}

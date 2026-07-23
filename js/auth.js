@@ -55,6 +55,7 @@ async function fazerLogin(){
     await carregarAuditoriasSheets();
     await carregarRecebimentosSheets();
     await carregarFiltrosRapidosSheets();
+    await carregarAuditoriasAbertasSheets();
     // [FIX] aplicarPermissoes() (linha acima) roda ANTES dos dados da planilha chegarem —
     // então a lista de itens, filtros etc. renderizavam vazios e nunca eram atualizados
     // depois que os dados realmente carregavam. Repete a decisão de navegação/render

@@ -692,6 +692,7 @@ function toggleAuditAgrupado(checked){ _auditAgrupado = checked; renderDivHistor
 // decidir auditar (clicar aqui) — não entra mais automaticamente numa fila urgente.
 function abrirAuditoriaItem(key){
   _auditoriasAbertasKeys.add(key);
+  salvarAuditoriaAbertaSheets(key);
   renderDivHistorico();
   _atualizarModalSeAberto();
 }
@@ -717,7 +718,7 @@ function abrirAuditoriaSelecionados(){
   const { pendPorItem } = _calcularAuditoriaFiltrada();
   let n = 0;
   _auditSelecionados.forEach(cod=>{
-    (pendPorItem[cod]||[]).forEach(p=>{ _auditoriasAbertasKeys.add(p.key); n++; });
+    (pendPorItem[cod]||[]).forEach(p=>{ _auditoriasAbertasKeys.add(p.key); salvarAuditoriaAbertaSheets(p.key); n++; });
   });
   if(n===0){ toast('Nenhum item selecionado tem contagem pendente de auditoria.'); return; }
   toast('Auditoria aberta para ' + n + ' contagem(ns)');
@@ -762,6 +763,7 @@ function abrirAuditoriaPorConferencia(numConf){
     if(AUDITORIA_HISTORICO.some(a=>a.auditKey===key)) return; // já auditado, não conta
     if(_auditDescartados.has(key)) return; // descartado, não reabre sozinho
     _auditoriasAbertasKeys.add(key);
+    salvarAuditoriaAbertaSheets(key);
     n++;
   });
   if(n===0){ toast('Nenhum item pendente de auditoria nessa conferência.'); return; }
