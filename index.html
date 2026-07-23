@@ -654,6 +654,7 @@
         <label>Nº Conferência</label>
         <input type="text" id="auditItemFiltroConf" placeholder="CONF-..." oninput="renderDivHistorico()" style="height:32px;font-size:11px">
       </div>
+      <button class="btn" style="height:32px;font-size:11px" onclick="const v=document.getElementById('auditItemFiltroConf').value.trim(); if(!v){toast('Digite o número da conferência primeiro.');}else{abrirAuditoriaPorConferencia(v);}">⚖️ Abrir auditoria desta conferência</button>
       <div class="fld" style="width:140px">
         <label>Data inicial</label>
         <input type="date" id="auditDtIni" onchange="renderDivHistorico()" style="height:32px;font-size:11px">

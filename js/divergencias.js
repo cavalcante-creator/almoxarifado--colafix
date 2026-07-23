@@ -737,6 +737,33 @@ function excluirDivergenciasSelecionadas(){
   renderDivergencias();
 }
 
+// Abre a auditoria de TODOS os itens pendentes de uma conferência de uma vez —
+// chamável tanto da Auditoria (filtrando por Nº Conferência) quanto do Histórico
+// de Conferências, pra não precisar abrir item por item.
+function abrirAuditoriaPorConferencia(numConf){
+  if(!podeAuditarEstoque()){ toast('⛔ Você não tem permissão para abrir auditorias.'); return; }
+  const conf = (CONF_HISTORICO||[]).find(c=>c.numero===numConf);
+  if(!conf){ toast('Conferência não encontrada.'); return; }
+  const linhas = listarLinhasAuditaveis(conf);
+  let n = 0;
+  linhas.forEach(l=>{
+    const key = getAuditKey(numConf, l.cod, l.local);
+    if(AUDITORIA_HISTORICO.some(a=>a.auditKey===key)) return; // já auditado, não conta
+    if(_auditDescartados.has(key)) return; // descartado, não reabre sozinho
+    _auditoriasAbertasKeys.add(key);
+    n++;
+  });
+  if(n===0){ toast('Nenhum item pendente de auditoria nessa conferência.'); return; }
+  // Leva pra Auditoria já filtrado por essa conferência, pra ver os itens abertos
+  mudarGrupoNav('conferencia');
+  confMudarModo('auditoria');
+  setTimeout(()=>{
+    const campo = document.getElementById('auditItemFiltroConf');
+    if(campo){ campo.value = numConf; renderDivHistorico(); }
+  }, 50);
+  toast('Auditoria aberta para ' + n + ' item(ns) de ' + numConf);
+}
+
 function toggleLogExclusoesAudit(){
   const el = document.getElementById('auditPainelLogExclusoes');
   if(!el) return;

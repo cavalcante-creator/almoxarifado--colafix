@@ -1307,7 +1307,8 @@ function renderConfHistorico() {
           <span style="font-weight:700;font-size:12px;color:var(--accent)">${conf.numero}</span>
           ${conf.local ? `<span style="font-size:10px;background:var(--accent-dim);color:var(--accent);border-radius:4px;padding:1px 7px;font-weight:700">📍 ${conf.local}</span>` : ''}
           ${(()=>{const tot=Object.values(conf.itens||{}).reduce((a,it)=>a+(Number(it.qtdRasgada)||0),0);return tot>0?rasgoTagHTML(tot):'';})()}
-          <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="gerarPDFConferencia('${conf.numero}')">📄 Gerar PDF</button>
+          ${typeof podeAuditarEstoque === 'function' && podeAuditarEstoque() ? `<button class="btn" style="height:24px;padding:0 10px;font-size:10px;margin-left:auto" onclick="event.stopPropagation();abrirAuditoriaPorConferencia('${conf.numero}')">⚖️ Abrir Auditoria</button>` : ''}
+          <button class="btn btn-purple" style="height:24px;padding:0 10px;font-size:10px;${typeof podeAuditarEstoque === 'function' && podeAuditarEstoque() ? '' : 'margin-left:auto'}" onclick="gerarPDFConferencia('${conf.numero}')">📄 Gerar PDF</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:flex-end">
           <div style="font-size:10px;color:var(--text3);line-height:1.4">
