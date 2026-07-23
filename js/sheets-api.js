@@ -149,6 +149,13 @@ async function salvarAuditoriaAbertaSheets(key){
     await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'salvarAuditoriaAberta',id:key,dados:JSON.stringify({key,quem:(USUARIO_LOGADO&&USUARIO_LOGADO.nome)||'—',quando:new Date().toLocaleString('pt-BR')})})});
   }catch(e){console.error('salvarAuditoriaAbertaSheets',e);}
 }
+// Desfaz a abertura de auditoria — pra quando alguém abriu por engano ou mudou de
+// ideia antes de validar de verdade. Sincroniza pra todo mundo, igual o salvar.
+async function removerAuditoriaAbertaSheets(key){
+  try{
+    await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({acao:'removerAuditoriaAberta',id:key})});
+  }catch(e){console.error('removerAuditoriaAbertaSheets',e);}
+}
 async function carregarAuditoriasAbertasSheets(){
   try{
     const rows = await fetchRange('AUDITORIAS_ABERTAS!A2:B');

@@ -523,7 +523,7 @@ function confirmarRecontagemDireto(auditKey){
   _auditRecontandoKey = null;
   renderConfHistorico(); renderDivergencias(); renderDivHistorico();
   _atualizarModalSeAberto();
-  toast(bateu ? '✔ Recontagem bateu com o sistema — validado!' : '⚠️ Recontagem ainda divergiu, nova investigação aberta');
+  toast(bateu ? '✔ Recontagem validada com o sistema!' : '⚠️ Recontagem ainda divergiu, nova investigação aberta');
 }
 
 // Exclui um registro de auditoria/investigação por completo — pra quando não vai
@@ -693,6 +693,14 @@ function toggleAuditAgrupado(checked){ _auditAgrupado = checked; renderDivHistor
 function abrirAuditoriaItem(key){
   _auditoriasAbertasKeys.add(key);
   salvarAuditoriaAbertaSheets(key);
+  renderDivHistorico();
+  _atualizarModalSeAberto();
+}
+// Desfaz a abertura — volta pro estado neutro "Contado, não auditado" (com os botões
+// "Abrir auditoria" / "Descartar" de novo), pra quando abriu sem querer ou mudou de ideia.
+function cancelarAberturaAuditoria(key){
+  _auditoriasAbertasKeys.delete(key);
+  removerAuditoriaAbertaSheets(key);
   renderDivHistorico();
   _atualizarModalSeAberto();
 }
@@ -1191,8 +1199,8 @@ function renderDivHistorico() {
           ${saldoSist!=null ? `<span>Saldo sistema: <b>${saldoSist}</b></span>` : ''}
           ${ultCont ? `<span>Última contagem: <b>${ultCont.qtd}</b> em ${ultCont.data}</span>` : '<span style="color:var(--text3)">Sem contagem registrada</span>'}
           ${ultimoBateu
-            ? `<span style="color:var(--green)">Última vez que bateu: <b>${ultimoBateu.dataHora.split(' ')[0]}</b></span>`
-            : (regs.length>0 ? `<span style="color:var(--text3)">Nunca bateu certinho até hoje</span>` : '')}
+            ? `<span style="color:var(--green)">Última validação: <b>${ultimoBateu.dataHora.split(' ')[0]}</b></span>`
+            : (regs.length>0 ? `<span style="color:var(--text3)">Nunca validado até hoje</span>` : '')}
         </div>` : `<div style="font-size:11px;color:var(--text3)">Almoxarifado: ${escapeHTML((invItemCad&&(invItemCad.temAlmox3?'Almox 3':invItemCad.temAlmox30?'Almox 30':''))||'—')} · nenhuma contagem ou auditoria registrada até hoje</div>`}
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--text3)">
           ${!nuncaAuditado ? `<span>${totalAud} auditoria${totalAud!==1?'s':''} · ${totalDiv} divergência${totalDiv!==1?'s':''}</span>` : ''}
@@ -1255,7 +1263,7 @@ function _renderDetalheItemModal(cod){
   let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:16px">
     <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Saldo sistema</div><div style="font-size:15px;font-weight:700">${saldoSist!=null?saldoSist:'—'}</div></div>
     <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Última contagem</div><div style="font-size:15px;font-weight:700">${ultCont?ultCont.qtd:'—'}</div><div style="font-size:9px;color:var(--text3)">${ultCont?ultCont.data+' · '+escapeHTML(ultCont.por):''}</div></div>
-    <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Última vez que bateu</div><div style="font-size:15px;font-weight:700;color:${ultimoBateu?'var(--green)':'var(--text3)'}">${ultimoBateu?ultimoBateu.dataHora.split(' ')[0]:'Nunca'}</div></div>
+    <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Última validação</div><div style="font-size:15px;font-weight:700;color:${ultimoBateu?'var(--green)':'var(--text3)'}">${ultimoBateu?ultimoBateu.dataHora.split(' ')[0]:'Nunca'}</div></div>
     <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Sistema ajustado</div><div style="font-size:15px;font-weight:700;color:${ultimoAjuste?'var(--orange)':'var(--text3)'}">${ultimoAjuste?(ultimoAjuste.investigacao.resolvidoDataHora||'').split(' ')[0]:'Nunca'}</div></div>
   </div>`;
 
@@ -1291,7 +1299,10 @@ function _renderDetalheItemModal(cod){
         </div>
         <div style="color:var(--text3);margin-top:4px">Contado, ainda sem auditoria aberta.</div>
         ${podeValidar ? (auditoriaAberta
-          ? `<div style="margin-top:6px"><button class="btn btn-primary" style="height:26px;padding:0 12px;font-size:11px" onclick="abrirValidarSaldo('${p.numConf}','${cod}','${p.local}')">Validar saldo</button></div>`
+          ? `<div style="margin-top:6px;display:flex;gap:6px">
+               <button class="btn btn-primary" style="height:26px;padding:0 12px;font-size:11px" onclick="abrirValidarSaldo('${p.numConf}','${cod}','${p.local}')">Validar saldo</button>
+               <button class="btn" style="height:26px;padding:0 12px;font-size:11px;color:var(--text3)" onclick="cancelarAberturaAuditoria('${p.key}')">Cancelar</button>
+             </div>`
           : `<div style="margin-top:6px;display:flex;gap:6px">
                <button class="btn" style="height:26px;padding:0 12px;font-size:11px;background:#fff;border:1px solid var(--border2)" onclick="abrirAuditoriaItem('${p.key}')">Abrir auditoria</button>
                <button class="btn" style="height:26px;padding:0 12px;font-size:11px;color:var(--text3)" onclick="descartarContagemAuditoria('${p.key}')">Descartar</button>
