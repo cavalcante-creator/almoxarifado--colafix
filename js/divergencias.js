@@ -383,6 +383,7 @@ function _salvarRegistroAuditoria(registro){
   renderConfHistorico();
   renderDivergencias();
   renderDivHistorico();
+  _atualizarModalSeAberto();
 }
 
 function salvarValidacaoSaldo(){
@@ -427,12 +428,12 @@ let _auditRecontandoKey = null;
 function abrirResolverDireto(auditKey){
   _auditResolvendoKey = (_auditResolvendoKey === auditKey) ? null : auditKey;
   _auditRecontandoKey = null;
-  renderDivHistorico();
+  _atualizarModalSeAberto();
 }
 function abrirRecontarDireto(auditKey){
   _auditRecontandoKey = (_auditRecontandoKey === auditKey) ? null : auditKey;
   _auditResolvendoKey = null;
-  renderDivHistorico();
+  _atualizarModalSeAberto();
 }
 
 // Resolve uma investigação direto da ficha do item com AJUSTE DE SISTEMA — pede o
@@ -510,6 +511,7 @@ function confirmarRecontagemDireto(auditKey){
 
   _auditRecontandoKey = null;
   renderConfHistorico(); renderDivergencias(); renderDivHistorico();
+  _atualizarModalSeAberto();
   toast(bateu ? '✔ Recontagem bateu com o sistema — validado!' : '⚠️ Recontagem ainda divergiu, nova investigação aberta');
 }
 
@@ -529,6 +531,7 @@ function excluirInvestigacaoAuditoria(auditKey){
   toast('🗑️ Auditoria excluída');
   renderDivergencias();
   renderDivHistorico();
+  _atualizarModalSeAberto();
 }
 
 function resolverInvestigacaoAuditoria(){
@@ -627,13 +630,32 @@ function _diasAberta(dataHoraStr){
   return 'aberta há ' + dias + ' dias';
 }
 
-function toggleAuditItem(cod){
-  _auditItemExpandido = (_auditItemExpandido === cod) ? null : cod;
-  renderDivHistorico();
+// Abre a ficha completa do item numa tela própria (modal), em vez de expandir
+// tudo espremido dentro do card da lista.
+function abrirDetalheItem(cod){
+  _auditItemExpandido = cod;
+  const modal = document.getElementById('modalDetalheItem');
+  if(!modal) return;
+  document.getElementById('detItemTitulo').textContent = cod;
+  _renderDetalheItemModal(cod);
+  modal.style.display = 'flex';
+}
+function fecharDetalheItem(){
+  _auditItemExpandido = null;
+  const modal = document.getElementById('modalDetalheItem');
+  if(modal) modal.style.display = 'none';
+}
+// Depois de qualquer ação (resolver, recontar, excluir, abrir auditoria, validar
+// saldo), atualiza o modal se ele estiver aberto pro mesmo item — sem isso, a tela
+// ficaria com dado velho até fechar e abrir de novo.
+function _atualizarModalSeAberto(){
+  if(_auditItemExpandido && document.getElementById('modalDetalheItem').style.display !== 'none'){
+    _renderDetalheItemModal(_auditItemExpandido);
+  }
 }
 function toggleTimelineCompleta(cod){
   _auditItemTimelineExpandida[cod] = !_auditItemTimelineExpandida[cod];
-  renderDivHistorico();
+  _renderDetalheItemModal(cod);
 }
 
 function setAuditFiltroSituacao(f){
@@ -660,6 +682,7 @@ function toggleAuditAgrupado(checked){ _auditAgrupado = checked; renderDivHistor
 function abrirAuditoriaItem(key){
   _auditoriasAbertasKeys.add(key);
   renderDivHistorico();
+  _atualizarModalSeAberto();
 }
 
 function toggleAuditSelecao(cod){
@@ -796,6 +819,7 @@ function descartarContagemAuditoria(key){
   _salvarDescartados();
   toast('Contagem descartada da fila');
   renderDivHistorico();
+  _atualizarModalSeAberto();
 }
 // Quem digitou o número físico do registro — auditoria já feita usa a conferência
 // original (numConf) pra achar o conferente; pendências já trazem isso pronto.
@@ -1108,14 +1132,14 @@ function renderDivHistorico() {
       statusBadge = '';
     }
 
-    const expandido = _auditItemExpandido === cod;
     const marcado = _auditSelecionados.has(cod);
     const card = document.createElement('div');
     const corBordaCard = emInvestigacao ? 'var(--red-mid)' : 'var(--border)';
-    card.style.cssText = 'background:#fff;border:1px solid ' + corBordaCard + ';border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px';
+    card.style.cssText = 'background:#fff;border:1px solid ' + corBordaCard + ';border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;cursor:pointer';
+    card.onclick = () => abrirDetalheItem(cod);
 
-    let headerHTML = `
-      <div style="padding:10px 14px;cursor:pointer;display:flex;flex-direction:column;gap:4px${expandido?';background:var(--accent-dim)':''}" onclick="toggleAuditItem('${cod}')">
+    card.innerHTML = `
+      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:4px">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           ${podeValidar ? `<input type="checkbox" ${marcado?'checked':''} onclick="event.stopPropagation();toggleAuditSelecao('${cod}')" style="width:15px;height:15px;flex-shrink:0">` : ''}
           <span style="font-weight:700;font-size:13px">${escapeHTML(cod)}</span>
@@ -1125,134 +1149,199 @@ function renderDivHistorico() {
         </div>
         ${!nuncaAuditado ? `<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--text2);background:var(--bg3);border-radius:5px;padding:4px 8px">
           ${saldoSist!=null ? `<span>Saldo sistema: <b>${saldoSist}</b></span>` : ''}
-          ${ultCont ? `<span>Última contagem: <b>${ultCont.qtd}</b> em ${ultCont.data} (${escapeHTML(ultCont.por)})</span>` : '<span style="color:var(--text3)">Sem contagem registrada</span>'}
+          ${ultCont ? `<span>Última contagem: <b>${ultCont.qtd}</b> em ${ultCont.data}</span>` : '<span style="color:var(--text3)">Sem contagem registrada</span>'}
           ${ultimoBateu
             ? `<span style="color:var(--green)">Última vez que bateu: <b>${ultimoBateu.dataHora.split(' ')[0]}</b></span>`
             : (regs.length>0 ? `<span style="color:var(--text3)">Nunca bateu certinho até hoje</span>` : '')}
         </div>` : `<div style="font-size:11px;color:var(--text3)">Almoxarifado: ${escapeHTML((invItemCad&&(invItemCad.temAlmox3?'Almox 3':invItemCad.temAlmox30?'Almox 30':''))||'—')} · nenhuma contagem ou auditoria registrada até hoje</div>`}
-        ${!nuncaAuditado ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--text3)">
-          <span>${totalAud} auditoria${totalAud!==1?'s':''} · ${totalDiv} divergência${totalDiv!==1?'s':''}</span>
-          ${maisRecente ? `<span>Última auditoria: ${maisRecente.dataHora}</span>` : ''}
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--text3)">
+          ${!nuncaAuditado ? `<span>${totalAud} auditoria${totalAud!==1?'s':''} · ${totalDiv} divergência${totalDiv!==1?'s':''}</span>` : ''}
           ${ultimoAjuste ? `<span style="background:var(--orange-dim);color:var(--orange);border-radius:4px;padding:1px 7px;font-weight:700">🔧 Sistema ajustado em ${(ultimoAjuste.investigacao.resolvidoDataHora||ultimoAjuste.dataHora).split(' ')[0]}</span>` : ''}
-          <span style="margin-left:auto;color:var(--accent);font-weight:700">${expandido?'Recolher ▴':'Ver linha do tempo ▾'}</span>
-        </div>` : ''}
+          <span style="margin-left:auto;color:var(--accent);font-weight:700">Abrir ficha do item →</span>
+        </div>
       </div>`;
-
-    let timelineHTML = '';
-    if(expandido && !nuncaAuditado){
-      timelineHTML = '<div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;flex-direction:column;gap:8px">';
-      timelineHTML += _graficoEvolucaoSVG(regs);
-
-      // Pendências: agora são NEUTRAS — só mostram "Validar saldo" depois de alguém
-      // clicar em "Abrir auditoria" de propósito. Tem também a opção de descartar.
-      pend.forEach(p => {
-        const auditoriaAberta = _auditoriasAbertasKeys.has(p.key);
-        timelineHTML += `
-          <div style="border-left:3px solid var(--border2);padding:6px 10px;background:var(--bg3);border-radius:0 5px 5px 0;font-size:11px">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <b>${p.dh}</b>
-              <span style="color:var(--text2)">· ${p.numConf} · ${p.local}</span>
-              <span style="color:var(--text2)">Físico contado: <b>${p.fis}</b></span>
-              ${p.conferente ? `<span style="color:var(--text3)">${escapeHTML(p.conferente)}</span>` : ''}
-            </div>
-            <div style="color:var(--text3);margin-top:4px">Contado, ainda sem auditoria aberta — fica no histórico normalmente, só entra em comparação se alguém decidir auditar.</div>
-            ${podeValidar ? (auditoriaAberta
-              ? `<div style="margin-top:6px"><button class="btn btn-primary" style="height:24px;padding:0 10px;font-size:10px" onclick="event.stopPropagation();abrirValidarSaldo('${p.numConf}','${cod}','${p.local}')">Validar saldo</button></div>`
-              : `<div style="margin-top:6px;display:flex;gap:6px">
-                   <button class="btn btn-outline" style="height:24px;padding:0 10px;font-size:10px;background:#fff;border:1px solid var(--border2);border-radius:4px" onclick="event.stopPropagation();abrirAuditoriaItem('${p.key}')">Abrir auditoria</button>
-                   <button class="btn" style="height:24px;padding:0 10px;font-size:10px;color:var(--text3);border-color:var(--border2)" onclick="event.stopPropagation();descartarContagemAuditoria('${p.key}')">Descartar</button>
-                 </div>`
-            ) : ''}
-          </div>`;
-      });
-
-      if(regs.length===0 && pend.length===0){
-        timelineHTML += '<div style="text-align:center;padding:6px 0;color:var(--text3);font-size:11px">Nenhuma auditoria ainda</div>';
-      }
-
-      const timelineCompleta = !!_auditItemTimelineExpandida[cod];
-      const regsVisiveis = timelineCompleta ? regs : regs.slice(0, AUDIT_TIMELINE_LIMITE);
-      const ocultos = regs.length - regsVisiveis.length;
-
-      regsVisiveis.forEach(r => {
-        const st = !r.investigacao ? 'validado' : (r.investigacao.status==='Resolvido' ? 'resolvido' : 'em_investigacao');
-        const dif = (Number(r.saldoFisico)||0) - (Number(r.saldoInformado)||0);
-        const ehAjuste = r.investigacao && r.investigacao.status==='Resolvido' && r.investigacao.motivo===MOTIVO_AJUSTE_ERP;
-        const ehRecontagem = r.investigacao && r.investigacao.status==='Resolvido' && r.investigacao.motivo===MOTIVO_RECONTAGEM;
-        const corBorda = ehAjuste ? 'var(--orange)' : ehRecontagem ? 'var(--accent)' : r.resultado==='Divergência' ? 'var(--red)' : 'var(--green)';
-        const saldoErpDisplay = (r.saldoInformadoEmpresa1!=null || r.saldoInformadoEmpresa9!=null)
-          ? `${r.saldoInformado} <span style="color:var(--text3)">(E1:${r.saldoInformadoEmpresa1||0} + E9:${r.saldoInformadoEmpresa9||0})</span>`
-          : r.saldoInformado;
-
-        timelineHTML += `
-          <div style="border-left:3px solid ${corBorda};padding:6px 10px;background:var(--bg3);border-radius:0 5px 5px 0;font-size:11px">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
-              <b>${r.dataHora}</b>
-              <span style="color:var(--text3)">· ${r.numConf} · ${r.almoxarifado}</span>
-              ${_auditBadgeCalmo(st)}
-              ${ehAjuste ? '<span style="background:var(--orange-dim);color:var(--orange);border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">🔧 Sistema ajustado aqui</span>' : ''}
-              ${ehRecontagem ? '<span style="background:var(--accent-dim);color:var(--accent);border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">Material recontado</span>' : ''}
-            </div>
-            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:2px">
-              <span>Físico: <b>${r.saldoFisico}</b></span>
-              <span>ERP: <b>${saldoErpDisplay}</b></span>
-              <span style="color:${dif===0?'var(--green)':'var(--red)'}">Diferença: <b>${dif>0?'+':''}${dif}</b></span>
-              <span style="color:var(--text3)">${escapeHTML(_conferenteDoRegistro(r)||r.supervisor||'—')}</span>
-            </div>
-            ${r.investigacao ? `
-              <div style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--border)">
-                <span style="color:var(--text2)">Motivo: <b>${escapeHTML(r.investigacao.motivo||'—')}</b></span>
-                ${r.investigacao.observacao ? `<br><span style="color:var(--text3)">Obs. inicial: ${escapeHTML(r.investigacao.observacao)}</span>` : ''}
-                ${r.investigacao.status==='Resolvido'
-                  ? `<br><span style="color:${ehAjuste?'var(--orange)':ehRecontagem?'var(--accent)':'var(--green)'}">${ehAjuste?'Sistema ajustado':ehRecontagem?'Recontado':'Resolvido'} por <b>${escapeHTML(r.investigacao.resolvidoPor||'—')}</b> em ${r.investigacao.resolvidoDataHora||'—'}</span>
-                     ${r.investigacao.saldoAjustado!=null ? `<br><span style="color:var(--text2)">Saldo mudou de <b>${r.saldoInformado}</b> para <b>${r.investigacao.saldoAjustado}</b></span>` : ''}
-                     ${r.investigacao.obsFinal?`<br><span style="color:var(--text2)">Conclusão: ${escapeHTML(r.investigacao.obsFinal)}</span>`:''}`
-                  : `<br><span style="color:var(--red);font-weight:700">Investigação em aberto — ${_diasAberta(r.dataHora)}</span>
-                     ${podeValidar ? `
-                       <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-                         <button class="btn btn-primary" style="height:24px;padding:0 10px;font-size:10px" onclick="event.stopPropagation();abrirResolverDireto('${r.auditKey}')">Informar saldo ajustado</button>
-                         <button class="btn" style="height:24px;padding:0 10px;font-size:10px;background:#fff;border:1px solid var(--border2);border-radius:4px" onclick="event.stopPropagation();abrirRecontarDireto('${r.auditKey}')">Material recontado</button>
-                         <button class="btn" style="height:24px;padding:0 10px;font-size:10px;color:var(--red);border-color:var(--red-mid)" onclick="event.stopPropagation();excluirInvestigacaoAuditoria('${r.auditKey}')">Excluir</button>
-                       </div>
-                       ${_auditResolvendoKey === r.auditKey ? `
-                         <div style="margin-top:6px;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;padding:8px" onclick="event.stopPropagation()">
-                           <div class="fld" style="margin-bottom:6px"><label>Novo saldo do sistema (após o ajuste)</label><input type="number" id="resolverSaldo_${r.auditKey}" placeholder="Ex: ${r.saldoFisico}" style="height:30px"></div>
-                           <div style="font-size:10px;color:var(--text2);margin-bottom:4px">O que foi feito (opcional)</div>
-                           <textarea id="resolverObs_${r.auditKey}" rows="2" style="width:100%;font-size:11px;font-family:inherit;border:1px solid var(--border2);border-radius:4px;padding:6px;box-sizing:border-box" placeholder="Ex: ERP corrigido conforme contagem física."></textarea>
-                           <div style="display:flex;gap:6px;margin-top:6px">
-                             <button class="btn btn-primary" style="height:24px;padding:0 10px;font-size:10px" onclick="resolverInvestigacaoDireto('${r.auditKey}')">Confirmar ajuste</button>
-                             <button class="btn" style="height:24px;padding:0 10px;font-size:10px" onclick="abrirResolverDireto('${r.auditKey}')">Cancelar</button>
-                           </div>
-                         </div>` : ''}
-                       ${_auditRecontandoKey === r.auditKey ? `
-                         <div style="margin-top:6px;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;padding:8px" onclick="event.stopPropagation()">
-                           <div style="font-size:10px;color:var(--text2);margin-bottom:4px">O conferente errou na contagem — informe o novo número contado. Isso fecha essa divergência como recontagem (sem mexer no sistema) e já compara com o saldo do sistema que já conhecemos.</div>
-                           <div class="fld"><label>Novo saldo contado (recontagem)</label><input type="number" id="recontarSaldo_${r.auditKey}" placeholder="Ex: ${r.saldoInformado}" style="height:30px"></div>
-                           <div style="display:flex;gap:6px;margin-top:6px">
-                             <button class="btn btn-primary" style="height:24px;padding:0 10px;font-size:10px" onclick="confirmarRecontagemDireto('${r.auditKey}')">Confirmar recontagem</button>
-                             <button class="btn" style="height:24px;padding:0 10px;font-size:10px" onclick="abrirRecontarDireto('${r.auditKey}')">Cancelar</button>
-                           </div>
-                         </div>` : ''}
-                     ` : ''}`
-                }
-              </div>` : ''}
-          </div>`;
-      });
-      if(ocultos > 0){
-        timelineHTML += `<div style="text-align:center;padding:4px 0">
-          <span style="color:var(--accent);font-weight:700;font-size:11px;cursor:pointer" onclick="toggleTimelineCompleta('${cod}')">Mostrar mais ${ocultos} auditoria${ocultos!==1?'s':''} antiga${ocultos!==1?'s':''} ▾</span>
-        </div>`;
-      } else if(timelineCompleta && regs.length > AUDIT_TIMELINE_LIMITE){
-        timelineHTML += `<div style="text-align:center;padding:4px 0">
-          <span style="color:var(--accent);font-weight:700;font-size:11px;cursor:pointer" onclick="toggleTimelineCompleta('${cod}')">Mostrar menos ▴</span>
-        </div>`;
-      }
-      timelineHTML += '</div>';
-    }
-
-    card.innerHTML = headerHTML + timelineHTML;
     list.appendChild(card);
   });
+}
+
+// Calcula quanto o saldo variou ESTE MÊS de calendário em relação ao mês passado —
+// soma as diferenças (físico−sistema) de cada auditoria de cada mês e compara.
+function _calcularVariacaoMes(regs){
+  const agora = new Date();
+  const inicioMesAtual = new Date(agora.getFullYear(), agora.getMonth(), 1).getTime();
+  const inicioMesPassado = new Date(agora.getFullYear(), agora.getMonth()-1, 1).getTime();
+  let esteMes = 0, qtdEsteMes = 0, mesPassado = 0, qtdMesPassado = 0;
+  regs.forEach(r=>{
+    if(r.saldoInformado==null) return;
+    const t = _parseDataHoraBR(r.dataHora);
+    const dif = (Number(r.saldoFisico)||0) - (Number(r.saldoInformado)||0);
+    if(t >= inicioMesAtual){ esteMes += Math.abs(dif); qtdEsteMes++; }
+    else if(t >= inicioMesPassado){ mesPassado += Math.abs(dif); qtdMesPassado++; }
+  });
+  if(qtdEsteMes===0 && qtdMesPassado===0) return null;
+  return { esteMes, qtdEsteMes, mesPassado, qtdMesPassado };
+}
+
+// Monta e injeta o conteúdo da ficha completa do item dentro do modal — reaproveita
+// a mesma lógica de linha do tempo que já existia, só que numa tela própria e com
+// mais espaço (contexto, variação do mês e gráfico ficam em blocos separados).
+function _renderDetalheItemModal(cod){
+  const body = document.getElementById('detItemBody');
+  if(!body) return;
+  const { porItem, pendPorItem } = _calcularAuditoriaFiltrada();
+  const regs = porItem[cod] || [];
+  const pend = pendPorItem[cod] || [];
+  const todosItensCadastro = (CONF_ITEMS && CONF_ITEMS.length ? CONF_ITEMS : ITEMS) || [];
+  const invItemCad = todosItensCadastro.find(i=>i.cod===cod);
+  const maisRecente = regs[0] || null;
+  const nomeItem = (maisRecente && maisRecente.nome) || (pend[0] && pend[0].nome) || (invItemCad && invItemCad.name) || '';
+  document.getElementById('detItemTitulo').innerHTML = `<b>${escapeHTML(cod)}</b> <span style="font-weight:400;color:var(--text2)">${escapeHTML(nomeItem)}</span>`;
+
+  const podeValidar = podeAuditarEstoque();
+  const invItem = (CONF_ITEMS||[]).find(i=>i.cod===cod) || (ITEMS||[]).find(i=>i.cod===cod);
+  const saldoSist = invItem ? (Number(invItem.saldo3)||0)+(Number(invItem.saldo30)||0) : null;
+  let ultCont = null;
+  (CONF_HISTORICO||[]).forEach(c=>{
+    if(c.itens && c.itens[cod]){
+      const t = _parseDataHoraBR(c.dataHora || c.data || '');
+      if(!ultCont || t > ultCont.t) ultCont = { t, qtd: c.itens[cod].total, data: (c.data||c.dataHora||'').split(' ')[0], por: c.nomeUsuario||c.usuario||'' };
+    }
+  });
+  const ultimoBateu = regs.find(r=>r.resultado === 'Validado');
+  const ultimoAjuste = regs.find(r=>r.investigacao && r.investigacao.status==='Resolvido' && r.investigacao.motivo===MOTIVO_AJUSTE_ERP);
+  const variacao = _calcularVariacaoMes(regs);
+
+  // ── Bloco 1: contexto geral (grade de mini-cartões) ──
+  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:16px">
+    <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Saldo sistema</div><div style="font-size:15px;font-weight:700">${saldoSist!=null?saldoSist:'—'}</div></div>
+    <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Última contagem</div><div style="font-size:15px;font-weight:700">${ultCont?ultCont.qtd:'—'}</div><div style="font-size:9px;color:var(--text3)">${ultCont?ultCont.data+' · '+escapeHTML(ultCont.por):''}</div></div>
+    <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Última vez que bateu</div><div style="font-size:15px;font-weight:700;color:${ultimoBateu?'var(--green)':'var(--text3)'}">${ultimoBateu?ultimoBateu.dataHora.split(' ')[0]:'Nunca'}</div></div>
+    <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase">Sistema ajustado</div><div style="font-size:15px;font-weight:700;color:${ultimoAjuste?'var(--orange)':'var(--text3)'}">${ultimoAjuste?(ultimoAjuste.investigacao.resolvidoDataHora||'').split(' ')[0]:'Nunca'}</div></div>
+  </div>`;
+
+  // ── Bloco 2: variação do mês ──
+  if(variacao){
+    const tendencia = variacao.esteMes > variacao.mesPassado ? 'piorando' : variacao.esteMes < variacao.mesPassado ? 'melhorando' : 'estável';
+    const cor = tendencia==='piorando' ? 'var(--red)' : tendencia==='melhorando' ? 'var(--green)' : 'var(--text2)';
+    html += `<div style="background:var(--bg3);border-radius:8px;padding:12px 14px;margin-bottom:16px">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">Variação este mês</div>
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <span style="font-size:20px;font-weight:800;color:${cor}">${variacao.esteMes} unid.</span>
+        <span style="font-size:11px;color:var(--text3)">de diferença acumulada em ${variacao.qtdEsteMes} auditoria${variacao.qtdEsteMes!==1?'s':''} este mês</span>
+        <span style="font-size:11px;color:${cor};font-weight:700;margin-left:auto">${tendencia==='piorando'?'↑ piorando':tendencia==='melhorando'?'↓ melhorando':'→ estável'} vs mês passado (${variacao.mesPassado})</span>
+      </div>
+    </div>`;
+  }
+
+  html += _graficoEvolucaoSVG(regs);
+
+  // ── Bloco 3: linha do tempo (últimas 5, com "mostrar mais") ──
+  html += '<div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">';
+  html += '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.03em">Linha do tempo</div>';
+
+  pend.forEach(p => {
+    const auditoriaAberta = _auditoriasAbertasKeys.has(p.key);
+    html += `
+      <div style="border-left:3px solid var(--border2);padding:8px 12px;background:var(--bg3);border-radius:0 5px 5px 0;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <b>${p.dh}</b>
+          <span style="color:var(--text2)">· ${p.numConf} · ${p.local}</span>
+          <span style="color:var(--text2)">Físico contado: <b>${p.fis}</b></span>
+          ${p.conferente ? `<span style="color:var(--text3)">${escapeHTML(p.conferente)}</span>` : ''}
+        </div>
+        <div style="color:var(--text3);margin-top:4px">Contado, ainda sem auditoria aberta.</div>
+        ${podeValidar ? (auditoriaAberta
+          ? `<div style="margin-top:6px"><button class="btn btn-primary" style="height:26px;padding:0 12px;font-size:11px" onclick="abrirValidarSaldo('${p.numConf}','${cod}','${p.local}')">Validar saldo</button></div>`
+          : `<div style="margin-top:6px;display:flex;gap:6px">
+               <button class="btn" style="height:26px;padding:0 12px;font-size:11px;background:#fff;border:1px solid var(--border2)" onclick="abrirAuditoriaItem('${p.key}')">Abrir auditoria</button>
+               <button class="btn" style="height:26px;padding:0 12px;font-size:11px;color:var(--text3)" onclick="descartarContagemAuditoria('${p.key}')">Descartar</button>
+             </div>`
+        ) : ''}
+      </div>`;
+  });
+
+  if(regs.length===0 && pend.length===0){
+    html += '<div style="text-align:center;padding:10px 0;color:var(--text3);font-size:12px">Nenhuma auditoria ainda</div>';
+  }
+
+  const timelineCompleta = !!_auditItemTimelineExpandida[cod];
+  const regsVisiveis = timelineCompleta ? regs : regs.slice(0, AUDIT_TIMELINE_LIMITE);
+  const ocultos = regs.length - regsVisiveis.length;
+
+  regsVisiveis.forEach(r => {
+    const st = !r.investigacao ? 'validado' : (r.investigacao.status==='Resolvido' ? 'resolvido' : 'em_investigacao');
+    const dif = (Number(r.saldoFisico)||0) - (Number(r.saldoInformado)||0);
+    const ehAjuste = r.investigacao && r.investigacao.status==='Resolvido' && r.investigacao.motivo===MOTIVO_AJUSTE_ERP;
+    const ehRecontagem = r.investigacao && r.investigacao.status==='Resolvido' && r.investigacao.motivo===MOTIVO_RECONTAGEM;
+    const corBorda = ehAjuste ? 'var(--orange)' : ehRecontagem ? 'var(--accent)' : r.resultado==='Divergência' ? 'var(--red)' : 'var(--green)';
+    const saldoErpDisplay = (r.saldoInformadoEmpresa1!=null || r.saldoInformadoEmpresa9!=null)
+      ? `${r.saldoInformado} <span style="color:var(--text3)">(E1:${r.saldoInformadoEmpresa1||0} + E9:${r.saldoInformadoEmpresa9||0})</span>`
+      : r.saldoInformado;
+
+    html += `
+      <div style="border-left:3px solid ${corBorda};padding:8px 12px;background:var(--bg3);border-radius:0 5px 5px 0;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <b>${r.dataHora}</b>
+          <span style="color:var(--text3)">· ${r.numConf} · ${r.almoxarifado}</span>
+          ${_auditBadgeCalmo(st)}
+          ${ehAjuste ? '<span style="background:var(--orange-dim);color:var(--orange);border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">🔧 Sistema ajustado aqui</span>' : ''}
+          ${ehRecontagem ? '<span style="background:var(--accent-dim);color:var(--accent);border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">Material recontado</span>' : ''}
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:3px">
+          <span>Físico: <b>${r.saldoFisico}</b></span>
+          <span>ERP: <b>${saldoErpDisplay}</b></span>
+          <span style="color:${dif===0?'var(--green)':'var(--red)'}">Diferença: <b>${dif>0?'+':''}${dif}</b></span>
+          <span style="color:var(--text3)">Conferente: ${escapeHTML(_conferenteDoRegistro(r)||'—')}</span>
+          <span style="color:var(--text3)">Auditou: ${escapeHTML(r.supervisor||'—')}</span>
+        </div>
+        ${r.investigacao ? `
+          <div style="margin-top:5px;padding-top:5px;border-top:1px dashed var(--border)">
+            <span style="color:var(--text2)">Motivo: <b>${escapeHTML(r.investigacao.motivo||'—')}</b></span>
+            ${r.investigacao.observacao ? `<br><span style="color:var(--text3)">Obs. inicial: ${escapeHTML(r.investigacao.observacao)}</span>` : ''}
+            ${r.investigacao.status==='Resolvido'
+              ? `<br><span style="color:${ehAjuste?'var(--orange)':ehRecontagem?'var(--accent)':'var(--green)'}">${ehAjuste?'Sistema ajustado':ehRecontagem?'Recontado':'Resolvido'} por <b>${escapeHTML(r.investigacao.resolvidoPor||'—')}</b> em ${r.investigacao.resolvidoDataHora||'—'}</span>
+                 ${r.investigacao.saldoAjustado!=null ? `<br><span style="color:var(--text2)">Saldo mudou de <b>${r.saldoInformado}</b> para <b>${r.investigacao.saldoAjustado}</b></span>` : ''}
+                 ${r.investigacao.obsFinal?`<br><span style="color:var(--text2)">Conclusão: ${escapeHTML(r.investigacao.obsFinal)}</span>`:''}`
+              : `<br><span style="color:var(--red);font-weight:700">Investigação em aberto — ${_diasAberta(r.dataHora)}</span>
+                 ${podeValidar ? `
+                   <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+                     <button class="btn btn-primary" style="height:26px;padding:0 12px;font-size:11px" onclick="abrirResolverDireto('${r.auditKey}')">Informar saldo ajustado</button>
+                     <button class="btn" style="height:26px;padding:0 12px;font-size:11px;background:#fff;border:1px solid var(--border2)" onclick="abrirRecontarDireto('${r.auditKey}')">Material recontado</button>
+                     <button class="btn" style="height:26px;padding:0 12px;font-size:11px;color:var(--red);border-color:var(--red-mid)" onclick="excluirInvestigacaoAuditoria('${r.auditKey}')">Excluir</button>
+                   </div>
+                   ${_auditResolvendoKey === r.auditKey ? `
+                     <div style="margin-top:6px;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;padding:10px">
+                       <div class="fld" style="margin-bottom:6px"><label>Novo saldo do sistema (após o ajuste)</label><input type="number" id="resolverSaldo_${r.auditKey}" placeholder="Ex: ${r.saldoFisico}" style="height:32px"></div>
+                       <div style="font-size:10px;color:var(--text2);margin-bottom:4px">O que foi feito (opcional)</div>
+                       <textarea id="resolverObs_${r.auditKey}" rows="2" style="width:100%;font-size:12px;font-family:inherit;border:1px solid var(--border2);border-radius:4px;padding:8px;box-sizing:border-box" placeholder="Ex: ERP corrigido conforme contagem física."></textarea>
+                       <div style="display:flex;gap:6px;margin-top:8px">
+                         <button class="btn btn-primary" style="height:28px;padding:0 12px;font-size:11px" onclick="resolverInvestigacaoDireto('${r.auditKey}')">Confirmar ajuste</button>
+                         <button class="btn" style="height:28px;padding:0 12px;font-size:11px" onclick="abrirResolverDireto('${r.auditKey}')">Cancelar</button>
+                       </div>
+                     </div>` : ''}
+                   ${_auditRecontandoKey === r.auditKey ? `
+                     <div style="margin-top:6px;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;padding:10px">
+                       <div style="font-size:10px;color:var(--text2);margin-bottom:4px">O conferente errou na contagem — informe o novo número contado. Fecha essa divergência como recontagem e já compara com o sistema que já conhecemos.</div>
+                       <div class="fld"><label>Novo saldo contado (recontagem)</label><input type="number" id="recontarSaldo_${r.auditKey}" placeholder="Ex: ${r.saldoInformado}" style="height:32px"></div>
+                       <div style="display:flex;gap:6px;margin-top:8px">
+                         <button class="btn btn-primary" style="height:28px;padding:0 12px;font-size:11px" onclick="confirmarRecontagemDireto('${r.auditKey}')">Confirmar recontagem</button>
+                         <button class="btn" style="height:28px;padding:0 12px;font-size:11px" onclick="abrirRecontarDireto('${r.auditKey}')">Cancelar</button>
+                       </div>
+                     </div>` : ''}
+                 ` : ''}`
+            }
+          </div>` : ''}
+      </div>`;
+  });
+
+  if(ocultos > 0){
+    html += `<div style="text-align:center;padding:4px 0"><span style="color:var(--accent);font-weight:700;font-size:12px;cursor:pointer" onclick="toggleTimelineCompleta('${cod}')">Mostrar mais ${ocultos} auditoria${ocultos!==1?'s':''} antiga${ocultos!==1?'s':''} ▾</span></div>`;
+  } else if(timelineCompleta && regs.length > AUDIT_TIMELINE_LIMITE){
+    html += `<div style="text-align:center;padding:4px 0"><span style="color:var(--accent);font-weight:700;font-size:12px;cursor:pointer" onclick="toggleTimelineCompleta('${cod}')">Mostrar menos ▴</span></div>`;
+  }
+  html += '</div>';
+
+  body.innerHTML = html;
 }
 
 // Gráfico simples (SVG puro, sem biblioteca) da evolução físico × sistema ao
@@ -1268,7 +1357,7 @@ function _graficoEvolucaoSVG(regs){
   const y = v => H-PAD - ((v-min)/((max-min)||1))*(H-2*PAD);
   const linha = campo => pontos.map((r,i)=>`${x(i)},${y(Number(r[campo])||0)}`).join(' ');
   const pts = campo => pontos.map((r,i)=>`<circle cx="${x(i)}" cy="${y(Number(r[campo])||0)}" r="2.5" fill="${campo==='saldoFisico'?'#1B5C7A':'#B85C00'}"/>`).join('');
-  return `<div style="background:var(--bg3);border-radius:6px;padding:10px 12px">
+  return `<div style="background:var(--bg3);border-radius:6px;padding:10px 12px;margin-bottom:16px">
     <div style="font-size:10px;color:var(--text2);margin-bottom:4px">Evolução do saldo — <span style="color:#1B5C7A;font-weight:700">físico</span> × <span style="color:#B85C00;font-weight:700">sistema</span></div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px">
       <polyline points="${linha('saldoFisico')}" fill="none" stroke="#1B5C7A" stroke-width="2"/>
@@ -1277,4 +1366,3 @@ function _graficoEvolucaoSVG(regs){
     </svg>
   </div>`;
 }
-
