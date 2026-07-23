@@ -1242,12 +1242,17 @@ function renderConfHistorico() {
       // prioridade e podia esconder o item do próprio histórico de quem o contou.
       // Bloco 3 = Rejunte/Separação/Almox1/Almox3-regular · Bloco 30 = Almox2/Almox30-regular
       // (cada categoria aplicável é verificada independente, com OR entre elas)
+      // [FIX] Bloco 30 (Almox 30/Almox 2) é independente do bloco 3 (Rejunte/Separação/
+      // Almox1/Almox3) — antes, "podeVerA30H" ficava falso pra qualquer item marcado como
+      // Rejunte/Separação/Almox1, mesmo quando ele TAMBÉM tinha Almox 30 preenchido de
+      // verdade. Isso escondia a linha (e o botão de Validar Saldo) do Almox 30 nesses
+      // casos — o item ficava com só a linha zerada do bloco 3 aparecendo.
       const podeVerRejH   = isRejH && (cpHist.acessoTotal || cpHist.podeContarRejunte);
       const podeVerSepH   = isSepH && (cpHist.acessoTotal || cpHist.podeContarSeparacao);
       const podeVerA1H    = isA1H  && (cpHist.acessoTotal || cpHist.podeContarAlmox1);
-      const podeVerA3H    = isA3H  && !is30H && (cpHist.acessoTotal || cpHist.podeContarAlmox3);
+      const podeVerA3H    = isA3H  && !isRejH && !isSepH && !isA1H && (cpHist.acessoTotal || cpHist.podeContarAlmox3);
       const podeVerA2H    = isA2H  && (cpHist.acessoTotal || cpHist.podeContarAlmox2);
-      const podeVerA30H   = !isRejH && !isSepH && !isA1H && (cpHist.acessoTotal || cpHist.podeContarAlmox30);
+      const podeVerA30H   = !isA2H && !!(invItemH && invItemH.temAlmox30) && (cpHist.acessoTotal || cpHist.podeContarAlmox30);
       const mostrar3H  = podeVerRejH || podeVerSepH || podeVerA1H || podeVerA3H;
       const mostrar30H = podeVerA2H || podeVerA30H;
       if(!mostrar3H && !mostrar30H) return; // ocultar item inteiro se sem permissão
