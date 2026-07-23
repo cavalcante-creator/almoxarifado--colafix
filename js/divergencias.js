@@ -207,6 +207,11 @@ function toggleDivGroup(num) {
 // ── Modal: Validar Saldo ─────────────────────────────────────────────
 function abrirValidarSaldo(numConf, cod, local){
   if(!podeAuditarEstoque()){ toast('⛔ Apenas o Supervisor Sistema pode realizar auditorias.'); return; }
+  // Se a ficha do item estiver aberta, esconde ela enquanto o Validar Saldo estiver
+  // aberto — os dois usam o mesmo z-index de modal, e um por cima do outro fazia o
+  // clique em "Salvar" parecer que não fazia nada (o modal certo ficava escondido atrás).
+  const modalDet = document.getElementById('modalDetalheItem');
+  if(modalDet && modalDet.style.display !== 'none') modalDet.style.display = 'none';
   const conf = CONF_HISTORICO.find(c=>c.numero===numConf);
   if(!conf || !conf.itens[cod]) { toast('Conferência ou item não encontrado.'); return; }
   const it = conf.itens[cod];
@@ -304,6 +309,12 @@ function abrirValidarSaldo(numConf, cod, local){
 function fecharModalValidarSaldo(){
   document.getElementById('modalValidarSaldo').style.display = 'none';
   _auditAtual = null;
+  // Se o Validar Saldo foi aberto de dentro da ficha do item, volta a mostrar a ficha
+  // (ela tinha sido escondida pra não ficar um modal atrás do outro, competindo de z-index)
+  if(_auditItemExpandido){
+    const modalDet = document.getElementById('modalDetalheItem');
+    if(modalDet) modalDet.style.display = 'flex';
+  }
 }
 
 // Busca todas as auditorias anteriores (de QUALQUER conferência) desse mesmo
