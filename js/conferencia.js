@@ -666,31 +666,37 @@ function listarLinhasAuditaveis(conf){
     const isA3A   = !!(invItemA && invItemA.temAlmox3);
     const isA30A  = !!(invItemA && invItemA.temAlmox30);
 
-    // [FIX] Bloco 3 e Bloco 30 são checados de forma INDEPENDENTE agora — antes, um
-    // item com Rejunte/Separação/Almox1 "retornava" cedo e nunca chegava a checar se
-    // ele TAMBÉM tinha Almox 30 preenchido (caso real: item de Separação que também é
-    // contado em Almox 30 — a linha de Almox 30 sumia e o painel mostrava "0" lendo o
-    // campo errado). Cada bloco só gera linha se o item realmente tem aquele campo.
-    //
+    // [FIX 2] Um bloco só entra na auditoria se REALMENTE teve contagem naquela
+    // conferência (>0) ou foi explicitamente confirmado como zero — senão é só o campo
+    // que ficou parado sem ninguém mexer (o item pode pertencer à categoria no cadastro,
+    // mas nessa conferência específica só contaram o outro bloco). Evita mostrar
+    // "Separação: 0 sc" pedindo auditoria de algo que nem foi tocado.
+    const temContagemBloco3  = (Number(it.almox3)||0)  > 0 || !!it.confirmadoZero;
+    const temContagemBloco30 = (Number(it.almox30)||0) > 0 || !!it.confirmadoZero;
+
     // Bloco 3 (pal3/sac3/it.almox3): Rejunte, Separação, Almox1 OU Almox3-comum — só
     // uma dessas 4 categorias por item nesse bloco específico (são mutuamente exclusivas
     // ENTRE SI, mas não excluem o bloco 30).
-    if(isRejA){
-      if(cpAud.acessoTotal || cpAud.podeContarRejunte) linhas.push({ cod, nome: it.nome, local: 'Rejunte', saldoFisico: it.almox3||0 });
-    } else if(isSepA){
-      if(cpAud.acessoTotal || cpAud.podeContarSeparacao) linhas.push({ cod, nome: it.nome, local: 'Separação', saldoFisico: it.almox3||0 });
-    } else if(isA1A){
-      if(cpAud.acessoTotal || cpAud.podeContarAlmox1) linhas.push({ cod, nome: it.nome, local: 'Almox 1', saldoFisico: it.almox3||0 });
-    } else if(isA3A){
-      if(cpAud.acessoTotal || cpAud.podeContarAlmox3) linhas.push({ cod, nome: it.nome, local: 'Almox 3', saldoFisico: it.almox3||0 });
+    if(temContagemBloco3){
+      if(isRejA){
+        if(cpAud.acessoTotal || cpAud.podeContarRejunte) linhas.push({ cod, nome: it.nome, local: 'Rejunte', saldoFisico: it.almox3||0 });
+      } else if(isSepA){
+        if(cpAud.acessoTotal || cpAud.podeContarSeparacao) linhas.push({ cod, nome: it.nome, local: 'Separação', saldoFisico: it.almox3||0 });
+      } else if(isA1A){
+        if(cpAud.acessoTotal || cpAud.podeContarAlmox1) linhas.push({ cod, nome: it.nome, local: 'Almox 1', saldoFisico: it.almox3||0 });
+      } else if(isA3A){
+        if(cpAud.acessoTotal || cpAud.podeContarAlmox3) linhas.push({ cod, nome: it.nome, local: 'Almox 3', saldoFisico: it.almox3||0 });
+      }
     }
 
     // Bloco 30 (pal30/sac30/it.almox30): Almox2 OU Almox30-comum — independente do
     // bloco 3 acima, só gera linha se o item realmente tem o flag correspondente.
-    if(isA2A){
-      if(cpAud.acessoTotal || cpAud.podeContarAlmox2) linhas.push({ cod, nome: it.nome, local: 'Almox 2', saldoFisico: it.almox30||0 });
-    } else if(isA30A){
-      if(cpAud.acessoTotal || cpAud.podeContarAlmox30) linhas.push({ cod, nome: it.nome, local: 'Almox 30', saldoFisico: it.almox30||0 });
+    if(temContagemBloco30){
+      if(isA2A){
+        if(cpAud.acessoTotal || cpAud.podeContarAlmox2) linhas.push({ cod, nome: it.nome, local: 'Almox 2', saldoFisico: it.almox30||0 });
+      } else if(isA30A){
+        if(cpAud.acessoTotal || cpAud.podeContarAlmox30) linhas.push({ cod, nome: it.nome, local: 'Almox 30', saldoFisico: it.almox30||0 });
+      }
     }
   });
   return linhas;
@@ -1247,12 +1253,17 @@ function renderConfHistorico() {
       // Rejunte/Separação/Almox1, mesmo quando ele TAMBÉM tinha Almox 30 preenchido de
       // verdade. Isso escondia a linha (e o botão de Validar Saldo) do Almox 30 nesses
       // casos — o item ficava com só a linha zerada do bloco 3 aparecendo.
-      const podeVerRejH   = isRejH && (cpHist.acessoTotal || cpHist.podeContarRejunte);
-      const podeVerSepH   = isSepH && (cpHist.acessoTotal || cpHist.podeContarSeparacao);
-      const podeVerA1H    = isA1H  && (cpHist.acessoTotal || cpHist.podeContarAlmox1);
-      const podeVerA3H    = isA3H  && !isRejH && !isSepH && !isA1H && (cpHist.acessoTotal || cpHist.podeContarAlmox3);
-      const podeVerA2H    = isA2H  && (cpHist.acessoTotal || cpHist.podeContarAlmox2);
-      const podeVerA30H   = !isA2H && !!(invItemH && invItemH.temAlmox30) && (cpHist.acessoTotal || cpHist.podeContarAlmox30);
+      // [FIX 2] Mesma regra do listarLinhasAuditaveis: só mostra o bloco se teve
+      // contagem de verdade (>0) ou foi confirmado como zero — senão é campo que
+      // ninguém tocou nessa conferência específica.
+      const temContagemBloco3H  = (Number(it.almox3)||0)  > 0 || !!it.confirmadoZero;
+      const temContagemBloco30H = (Number(it.almox30)||0) > 0 || !!it.confirmadoZero;
+      const podeVerRejH   = temContagemBloco3H && isRejH && (cpHist.acessoTotal || cpHist.podeContarRejunte);
+      const podeVerSepH   = temContagemBloco3H && isSepH && (cpHist.acessoTotal || cpHist.podeContarSeparacao);
+      const podeVerA1H    = temContagemBloco3H && isA1H  && (cpHist.acessoTotal || cpHist.podeContarAlmox1);
+      const podeVerA3H    = temContagemBloco3H && isA3H  && !isRejH && !isSepH && !isA1H && (cpHist.acessoTotal || cpHist.podeContarAlmox3);
+      const podeVerA2H    = temContagemBloco30H && isA2H  && (cpHist.acessoTotal || cpHist.podeContarAlmox2);
+      const podeVerA30H   = temContagemBloco30H && !isA2H && !!(invItemH && invItemH.temAlmox30) && (cpHist.acessoTotal || cpHist.podeContarAlmox30);
       const mostrar3H  = podeVerRejH || podeVerSepH || podeVerA1H || podeVerA3H;
       const mostrar30H = podeVerA2H || podeVerA30H;
       if(!mostrar3H && !mostrar30H) return; // ocultar item inteiro se sem permissão
