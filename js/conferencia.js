@@ -663,31 +663,35 @@ function listarLinhasAuditaveis(conf){
     const isSepA  = !!(invItemA && invItemA.temSeparacao);
     const isA1A   = !!(invItemA && invItemA.temAlmox1);
     const isA2A   = !!(invItemA && invItemA.temAlmox2);
-    const is30A   = !!(invItemA && invItemA.temAlmox30 && !invItemA.temAlmox3);
-    // [FIX] Rejunte/Separação são locais ÚNICOS (não têm "Almox 30" par) — isso é uma
-    // característica do ITEM, não uma questão de permissão do auditor. Antes, o "||
-    // acessoTotal" ignorava essa regra e criava uma linha fantasma de Almox 30 para
-    // todo item de Rejunte/Separação quando o Supervisor auditava.
+    const isA3A   = !!(invItemA && invItemA.temAlmox3);
+    const isA30A  = !!(invItemA && invItemA.temAlmox30);
+
+    // [FIX] Bloco 3 e Bloco 30 são checados de forma INDEPENDENTE agora — antes, um
+    // item com Rejunte/Separação/Almox1 "retornava" cedo e nunca chegava a checar se
+    // ele TAMBÉM tinha Almox 30 preenchido (caso real: item de Separação que também é
+    // contado em Almox 30 — a linha de Almox 30 sumia e o painel mostrava "0" lendo o
+    // campo errado). Cada bloco só gera linha se o item realmente tem aquele campo.
+    //
+    // Bloco 3 (pal3/sac3/it.almox3): Rejunte, Separação, Almox1 OU Almox3-comum — só
+    // uma dessas 4 categorias por item nesse bloco específico (são mutuamente exclusivas
+    // ENTRE SI, mas não excluem o bloco 30).
     if(isRejA){
       if(cpAud.acessoTotal || cpAud.podeContarRejunte) linhas.push({ cod, nome: it.nome, local: 'Rejunte', saldoFisico: it.almox3||0 });
-      return;
-    }
-    if(isSepA){
+    } else if(isSepA){
       if(cpAud.acessoTotal || cpAud.podeContarSeparacao) linhas.push({ cod, nome: it.nome, local: 'Separação', saldoFisico: it.almox3||0 });
-      return;
+    } else if(isA1A){
+      if(cpAud.acessoTotal || cpAud.podeContarAlmox1) linhas.push({ cod, nome: it.nome, local: 'Almox 1', saldoFisico: it.almox3||0 });
+    } else if(isA3A){
+      if(cpAud.acessoTotal || cpAud.podeContarAlmox3) linhas.push({ cod, nome: it.nome, local: 'Almox 3', saldoFisico: it.almox3||0 });
     }
-    // Matéria-Prima (Almox 1 / Almox 2): mesmo padrão de Almox 3 + Almox 30 — um item pode
-    // ter os dois ao mesmo tempo, cada um com seu próprio saldo físico (slots reaproveitados:
-    // Almox 1 usa o campo de Almox 3, Almox 2 usa o campo de Almox 30). Saldo simples, sem
-    // divisão Empresa 1/9 (fica só na Empresa 1).
-    if(isA1A || isA2A){
-      if(isA1A && (cpAud.acessoTotal || cpAud.podeContarAlmox1)) linhas.push({ cod, nome: it.nome, local: 'Almox 1', saldoFisico: it.almox3||0 });
-      if(isA2A && (cpAud.acessoTotal || cpAud.podeContarAlmox2)) linhas.push({ cod, nome: it.nome, local: 'Almox 2', saldoFisico: it.almox30||0 });
-      return;
+
+    // Bloco 30 (pal30/sac30/it.almox30): Almox2 OU Almox30-comum — independente do
+    // bloco 3 acima, só gera linha se o item realmente tem o flag correspondente.
+    if(isA2A){
+      if(cpAud.acessoTotal || cpAud.podeContarAlmox2) linhas.push({ cod, nome: it.nome, local: 'Almox 2', saldoFisico: it.almox30||0 });
+    } else if(isA30A){
+      if(cpAud.acessoTotal || cpAud.podeContarAlmox30) linhas.push({ cod, nome: it.nome, local: 'Almox 30', saldoFisico: it.almox30||0 });
     }
-    // Item comum: pode ter Almox 3 e/ou Almox 30, cada um mostrado só se aplicável
-    if(!is30A && (cpAud.acessoTotal || cpAud.podeContarAlmox3)) linhas.push({ cod, nome: it.nome, local: 'Almox 3', saldoFisico: it.almox3||0 });
-    if(cpAud.acessoTotal || cpAud.podeContarAlmox30) linhas.push({ cod, nome: it.nome, local: 'Almox 30', saldoFisico: it.almox30||0 });
   });
   return linhas;
 }
