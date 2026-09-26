@@ -3,6 +3,9 @@
 // Conjunto de itens selecionados para conferir (por código)
 let CONF_ITENS_SEL = new Set();
 let CONF_MODO = 'selecao'; // 'selecao' | 'conferencia'
+// Guarda o valor de ANTES da última soma feita em cada campo (chave "cod|type"),
+// para permitir desfazer (botão ↩) caso a pessoa digite a quantidade errada no "+".
+let CONF_ULTIMA_SOMA = {};
 
 function globalSearch(){
   const q = document.getElementById('mainSearch').value.toLowerCase();
@@ -362,6 +365,7 @@ function confVoltarSelecao(){
   });
   if(temDados && !confirm('Há contagens preenchidas que serão perdidas. Deseja voltar mesmo assim?')) return;
   CONFERENCIAS={};
+  CONF_ULTIMA_SOMA={};
   CONF_MODO = 'selecao';
   const selCard = document.getElementById('confSelCard');
   const painelConf = document.getElementById('confPainelConf');
@@ -479,13 +483,17 @@ function renderConferencia(){
         <div style="display:grid;grid-template-columns:${(isRejunte || esconderPaletes) ? '1fr' : '1fr 1fr'};gap:8px">
           ${(!isRejunte && !esconderPaletes) ? `<div class="fld"><label>Paletes Contados</label>
             <input type="number" min="0" value="${conf.pal3 || ''}" placeholder="0"
+              id="confMain_pal3_${item.cod}"
               oninput="updateConf('${item.cod}', this.value, 'pal3')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
+            ${linhaSomarHTML(item.cod, 'pal3')}
           </div>` : ''}
           <div class="fld"><label>${unidAvul(item)}</label>
             <input type="number" min="0" value="${conf.sac3 || ''}" placeholder="0"
+              id="confMain_sac3_${item.cod}"
               oninput="updateConf('${item.cod}', this.value, 'sac3')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
+            ${linhaSomarHTML(item.cod, 'sac3')}
           </div>
         </div>
         <div id="resumoFisico3_${item.cod}" style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;font-size:11px;display:${(conf.total3 > 0)?'block':'none'}">
@@ -504,13 +512,17 @@ function renderConferencia(){
         <div style="display:grid;grid-template-columns:${esconderPaletes ? '1fr' : '1fr 1fr'};gap:8px">
           ${!esconderPaletes ? `<div class="fld"><label>Paletes Contados</label>
             <input type="number" min="0" value="${conf.pal30 || ''}" placeholder="0"
+              id="confMain_pal30_${item.cod}"
               oninput="updateConf('${item.cod}', this.value, 'pal30')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
+            ${linhaSomarHTML(item.cod, 'pal30')}
           </div>` : ''}
           <div class="fld"><label>${unidAvul(item)}</label>
             <input type="number" min="0" value="${conf.sac30 || ''}" placeholder="0"
+              id="confMain_sac30_${item.cod}"
               oninput="updateConf('${item.cod}', this.value, 'sac30')"
               style="text-align:center;font-weight:700;font-size:15px;height:38px">
+            ${linhaSomarHTML(item.cod, 'sac30')}
           </div>
         </div>
         <div id="resumoFisico30_${item.cod}" style="margin-top:6px;padding:6px 8px;background:#fff;border-radius:6px;font-size:11px;display:${(conf.total30 > 0)?'block':'none'}">
@@ -577,9 +589,87 @@ function renderConferencia(){
 
 function confRemoverItem(cod){
   CONF_ITENS_SEL.delete(cod);
+  delete CONF_ULTIMA_SOMA[cod + '|pal3'];
+  delete CONF_ULTIMA_SOMA[cod + '|sac3'];
+  delete CONF_ULTIMA_SOMA[cod + '|pal30'];
+  delete CONF_ULTIMA_SOMA[cod + '|sac30'];
   if(CONF_ITENS_SEL.size === 0){ confVoltarSelecao(); return; }
   renderConferencia();
   atualizarBadgeSelConf();
+}
+
+// Gera a linha compacta "+ adicionar" que fica embaixo de cada campo de contagem
+// (paletes ou unidades avulsas). Não mexe no funcionamento do campo principal:
+// é só um jeito de ir SOMANDO ao total sem precisar somar de cabeça.
+function linhaSomarHTML(cod, type) {
+  const temUndo = (cod + '|' + type) in CONF_ULTIMA_SOMA;
+  return `<div style="display:flex;gap:4px;margin-top:4px">
+    <input type="number" min="0" inputmode="numeric" placeholder="+ somar" id="confAdd_${type}_${cod}"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();confSomarQtd('${cod}','${type}');}"
+      style="flex:1;min-width:0;text-align:center;font-size:11px;height:26px;border:1px dashed var(--border2);border-radius:6px;padding:0 4px;background:#fff;color:var(--text)">
+    <button type="button" class="tap-target-sm" onclick="confSomarQtd('${cod}','${type}')"
+      title="Somar esta quantidade ao total já contado"
+      style="width:26px;height:26px;flex-shrink:0;border:none;border-radius:6px;background:var(--accent);color:#fff;font-weight:700;font-size:14px;line-height:1;cursor:pointer">+</button>
+    <button type="button" class="tap-target-sm" id="confUndo_${type}_${cod}" onclick="confDesfazerSoma('${cod}','${type}')"
+      title="Desfazer a última soma feita neste campo" ${temUndo ? '' : 'disabled'}
+      style="width:26px;height:26px;flex-shrink:0;border:1px solid var(--border2);border-radius:6px;background:#fff;color:var(--text2);font-size:12px;line-height:1;cursor:${temUndo ? 'pointer' : 'default'};opacity:${temUndo ? '1' : '.35'}">↩</button>
+  </div>`;
+}
+
+// Soma o valor digitado na caixinha "+ somar" ao total já contado naquele campo
+// (pal3/sac3/pal30/sac30), e limpa a caixinha para a próxima leva.
+// Ex.: achei 10, digito 10 e aperto +, o total vira 10. Acho mais 10 em outro
+// lugar, digito 10 de novo e aperto +, o total vira 20 — sem precisar somar de cabeça.
+function confSomarQtd(cod, type) {
+  const addInput = document.getElementById('confAdd_' + type + '_' + cod);
+  if (!addInput) return;
+  const add = parseInt(addInput.value) || 0;
+  if (add <= 0) { addInput.focus(); return; }
+
+  if (!CONFERENCIAS[cod]) CONFERENCIAS[cod] = { pal3: 0, sac3: 0, total3: 0, pal30: 0, sac30: 0, total30: 0, total: 0 };
+  const atual = parseInt(CONFERENCIAS[cod][type]) || 0;
+  const novo = atual + add;
+
+  addInput.value = '';
+
+  const mainInput = document.getElementById('confMain_' + type + '_' + cod);
+  if (mainInput) mainInput.value = novo;
+
+  // Reaproveita toda a lógica já existente (recalcular totais, autosave, atualizar telas)
+  updateConf(cod, novo, type);
+
+  // Guarda o valor de antes da soma, para dar a opção de desfazer
+  CONF_ULTIMA_SOMA[cod + '|' + type] = atual;
+  const undoBtn = document.getElementById('confUndo_' + type + '_' + cod);
+  if (undoBtn) {
+    undoBtn.disabled = false;
+    undoBtn.style.cursor = 'pointer';
+    undoBtn.style.opacity = '1';
+    undoBtn.title = 'Desfazer: voltar de ' + novo + ' para ' + atual;
+  }
+
+  addInput.focus();
+}
+
+// Cancela/desfaz a última soma feita neste campo, voltando ao valor de antes do "+".
+// Só funciona uma vez (desfaz apenas a última soma, não um histórico inteiro).
+function confDesfazerSoma(cod, type) {
+  const key = cod + '|' + type;
+  if (!(key in CONF_ULTIMA_SOMA)) return;
+  const anterior = CONF_ULTIMA_SOMA[key];
+  delete CONF_ULTIMA_SOMA[key];
+
+  const mainInput = document.getElementById('confMain_' + type + '_' + cod);
+  if (mainInput) mainInput.value = anterior;
+  updateConf(cod, anterior, type);
+
+  const undoBtn = document.getElementById('confUndo_' + type + '_' + cod);
+  if (undoBtn) {
+    undoBtn.disabled = true;
+    undoBtn.style.cursor = 'default';
+    undoBtn.style.opacity = '.35';
+    undoBtn.title = 'Desfazer a última soma feita neste campo';
+  }
 }
 
 function updateConf(cod, val, type) {
@@ -1052,6 +1142,7 @@ async function salvarConferencia() {
 
   // [FIX-2] Limpar estado SOMENTE após salvamento confirmado
   CONFERENCIAS = {};
+  CONF_ULTIMA_SOMA = {};
   CONF_ITENS_SEL.clear();
   CONF_MODO = 'selecao';
   const selCard = document.getElementById('confSelCard');
